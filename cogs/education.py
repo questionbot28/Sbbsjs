@@ -19,7 +19,7 @@ class Education(commands.Cog):
         """Show help information"""
         embed = discord.Embed(
             title="📚 Educational Bot Help",
-            description="Here's how you can use this educational bot:",
+            description="🎓 Greetings, future scholars! I'm your friendly AI study companion, specializing in NCERT curriculum for Classes 11 & 12! \n\n🧠 Whether you're diving into Physics formulas, solving Chemistry equations, or mastering Biology concepts, I'm here to challenge you with carefully crafted questions! \n\nHere's how you can use me:",
             color=discord.Color.blue()
         )
 
