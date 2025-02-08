@@ -10,14 +10,29 @@ class QuestionGenerator:
         self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.logger = logging.getLogger('discord_bot')
         self.subjects = {
-            'physics': ['Mechanics', 'Waves', 'Thermodynamics', 'Electrostatics', 'Quantum Physics'],
+            'physics': ['Mechanics', 'Waves', 'Thermodynamics', 'Electrostatics'],
             'chemistry': ['Chemical Bonding', 'Electrochemistry', 'Organic Chemistry', 'Physical Chemistry'],
             'mathematics': ['Calculus', 'Algebra', 'Trigonometry', 'Statistics'],
             'biology': ['Cell Biology', 'Genetics', 'Human Physiology', 'Ecology'],
             'business_studies': ['Business Environment', 'Business Organization', 'Management Principles', 'Financial Markets'],
             'accountancy': ['Basic Accounting', 'Trial Balance', 'Financial Statements', 'Partnership Accounts'],
             'economics': ['Microeconomics', 'Macroeconomics', 'Money and Banking', 'International Trade'],
-            'english': ['Literature', 'Grammar', 'Reading Comprehension', 'Writing Skills']  # Added English topics
+            'english': {
+                11: [
+                    'Hornbill - Prose',
+                    'Hornbill - Poetry',
+                    'Snapshots',
+                    'Grammar and Language Skills',
+                    'Writing Skills'
+                ],
+                12: [
+                    'Flamingo - Prose',
+                    'Flamingo - Poetry',
+                    'Vistas',
+                    'Grammar and Language Skills',
+                    'Writing Skills'
+                ]
+            }
         }
 
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
@@ -41,10 +56,13 @@ class QuestionGenerator:
                 raise Exception("OpenAI API key is not configured")
 
             try:
+                # Update model to gpt-4o as per requirements
+                # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+                # do not change this unless explicitly requested by the user
                 response = self.client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-4o",  
                     messages=[
-                        {"role": "system", "content": f"You are an educational question generator for class {class_level} students."},
+                        {"role": "system", "content": f"You are an educational question generator for class {class_level} students focusing on NCERT curriculum."},
                         {"role": "user", "content": prompt}
                     ],
                     response_format={"type": "json_object"}
@@ -62,18 +80,27 @@ class QuestionGenerator:
 
     def _create_prompt(self, subject, topic, class_level, difficulty):
         return f"""
-        Generate a question for class {class_level} {subject} {'on ' + topic if topic else ''} at {difficulty} difficulty level.
+        Generate a NCERT-based question for class {class_level} {subject} {'on ' + topic if topic else ''} at {difficulty} difficulty level.
+        The question should be directly from or based on NCERT textbooks.
         The response should be in JSON format with the following structure:
         {{
             "question": "The question text",
             "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
             "correct_answer": "The correct option letter (A, B, C, or D)",
-            "explanation": "Detailed explanation of the answer"
+            "explanation": "Detailed explanation of the answer with NCERT reference"
         }}
         """
 
     def get_subjects(self):
-        return list(self.subjects.keys())
+        return list(key for key in self.subjects.keys() if not isinstance(self.subjects[key], dict))
 
     def get_topics(self, subject):
+        if subject == 'english':
+            return self.subjects['english'].get(11, [])  # Only return class 11 topics by default
+        return self.subjects.get(subject, [])
+
+    def get_class_specific_topics(self, subject, class_level):
+        """Get topics specific to a class level for subjects that have different topics per class"""
+        if subject == 'english':
+            return self.subjects['english'].get(class_level, [])
         return self.subjects.get(subject, [])

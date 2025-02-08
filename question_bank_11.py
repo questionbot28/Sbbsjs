@@ -144,6 +144,25 @@ This equation is based on the dual aspect concept where:
 For example:
 - If you start a business with $10,000 cash: Assets ($10,000) = Capital ($10,000)
 - If you buy inventory worth $6,000 on credit: Assets ($10,000) = Liabilities ($6,000) + Capital ($4,000)'''
+            },
+            {
+                'question': '''According to NCERT, which of the following is NOT a characteristic of a 'Journal'?''',
+                'options': [
+                    'A) Chronological record of transactions',
+                    'B) Original book of entry',
+                    'C) Recording final trial balance',
+                    'D) Complete information about transactions'
+                ],
+                'correct_answer': 'C',
+                'explanation': '''From NCERT Accountancy Chapter 1:
+1. Characteristics of Journal:
+   - Chronological record
+   - Original/primary book of entry
+   - Complete information of transactions
+2. Trial Balance:
+   - Prepared after posting to ledger
+   - Not part of journalizing
+   - Separate statement altogether'''
             }
         ]
     },
@@ -231,6 +250,45 @@ Which literary device is predominantly used in these lines from Shakespeare's "A
    - Functions as an adjective in the sentence'''
             }
         ],
+        'Grammar and Language Skills': [
+            {
+                'question': '''Identify the type of clause in the following sentence:
+"The book that I borrowed from the library belongs to my friend."''',
+                'options': [
+                    'A) Noun Clause',
+                    'B) Adverbial Clause',
+                    'C) Relative Clause',
+                    'D) Main Clause'
+                ],
+                'correct_answer': 'C',
+                'explanation': '''From NCERT English Grammar:
+1. A Relative Clause (also called Adjective Clause):
+   - Modifies a noun or pronoun
+   - Begins with relative pronouns (who, whom, whose, which, that)
+   - "that I borrowed from the library" modifies "book"
+   - Functions as an adjective in the sentence
+   - Cannot stand alone as a complete sentence'''
+            },
+            {
+                'question': '''Choose the correct form of the verb in the following sentence:
+"Neither of the students _____ completed the assignment."''',
+                'options': [
+                    'A) have',
+                    'B) has',
+                    'C) having',
+                    'D) had been'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''Based on NCERT Subject-Verb Agreement rules:
+1. When 'neither of' is used:
+   - It refers to two things
+   - Takes a singular verb
+   - Therefore, 'has' is correct
+2. Remember: 'Neither' is singular
+   - Always followed by singular verb
+   - Even when followed by plural noun'''
+            }
+        ],
         'Writing Skills': [
             {
                 'question': '''Which of the following is NOT a characteristic of a well-written formal letter?''',
@@ -253,6 +311,168 @@ Which literary device is predominantly used in these lines from Shakespeare's "A
    - Can be misinterpreted
    - Don't conform to business writing standards
    - May not be understood by all readers'''
+            },
+            {
+                'question': '''Which of the following is NOT an essential component of a formal letter?''',
+                'options': [
+                    'A) Sender\'s address',
+                    'B) Personal anecdotes',
+                    'C) Subject line',
+                    'D) Date'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''From NCERT Writing Skills section:
+1. Essential components of a formal letter:
+   - Sender's address
+   - Date
+   - Receiver's address
+   - Subject line
+   - Salutation
+   - Body
+   - Complimentary close
+2. Personal anecdotes:
+   - Not appropriate for formal letters
+   - Should be avoided
+   - Makes the letter informal'''
+            }
+        ],
+        'Hornbill - Prose': [
+            {
+                'question': '''Read the following extract from "The Portrait of a Lady" and answer the question:
+
+"She hobbled around the house in spotless white with one hand resting on her waist to balance her stoop and the other telling the beads of her rosary. Her silver locks were scattered untidily over her pale, puckered face, and her lips constantly moved in inaudible prayer."
+
+What does this description reveal about the grandmother's character?''',
+                'options': [
+                    'A) Her vanity and self-consciousness',
+                    'B) Her religious nature and physical frailty',
+                    'C) Her disorganized and careless nature',
+                    'D) Her modern and progressive outlook'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''The passage reveals the grandmother's character through:
+1. Physical description:
+   - "hobbled" suggests age and physical limitation
+   - "stoop" indicates her aged posture
+   - "silver locks" describes her grey hair
+
+2. Spiritual nature:
+   - "telling the beads of her rosary"
+   - "lips constantly moved in inaudible prayer"
+   - "spotless white" suggesting purity and devotion
+
+3. Overall image:
+   - Shows her as a traditional, religious, elderly woman
+   - Despite physical frailty, maintains spiritual dedication
+   - Presents a dignified yet humble character'''
+            },
+            {
+                'question': '''From the chapter "We're Not Afraid to Die... if We Can All Be Together", what was the narrator's first action when the wave hit the boat?''',
+                'options': [
+                    'A) He called for help on the radio',
+                    'B) He checked on his children',
+                    'C) He went to start the engine',
+                    'D) He assessed the damage to the boat'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''The correct sequence of events was:
+1. After the wave hit:
+   - Narrator's first concern was his children's safety
+   - He immediately went to check on Jon and Sue
+   - This shows his priorities as a father
+
+2. Why this was significant:
+   - Demonstrates the theme of family unity
+   - Shows how crisis reveals priorities
+   - Reinforces the chapter's title theme'''
+            },
+            {
+                'question': '''In "Discovering Tut", what was Howard Carter's initial reaction upon finding the tomb?''',
+                'options': [
+                    'A) He immediately began excavating the tomb.',
+                    'B) He felt a sense of overwhelming joy and excitement.',
+                    'C) He cautiously peered into the tomb and noticed some small details.',
+                    'D) He called for his team and celebrated the discovery.'
+                ],
+                'correct_answer': 'C',
+                'explanation': 'The text describes Carter\'s initial reaction as cautious observation, highlighting his meticulous approach to the discovery.'
+            }
+        ],
+        'Hornbill - Poetry': [
+            {
+                'question': '''In the poem "A Photograph" by Shirley Toulson, what does the phrase "laboured ease" suggest about the girls' poses?''',
+                'options': [
+                    'A) They were completely natural',
+                    'B) They were trying to look casual but were actually conscious',
+                    'C) They were uncomfortable being photographed',
+                    'D) They were experienced models'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''The phrase "laboured ease" is an oxymoron that suggests:
+1. The girls were:
+   - Trying to appear natural and at ease
+   - Actually quite conscious of being photographed
+   - Making an effort to look casual
+
+2. This detail is significant because:
+   - It captures a universal human moment
+   - Shows the artifice involved in photography
+   - Adds to the nostalgic tone of the poem'''
+            },
+            {
+                'question': '''What is the central theme of the poem "Voice of the Rain" by Walt Whitman?''',
+                'options': [
+                    'A) The destructive power of nature',
+                    'B) The cyclical nature of life and death',
+                    'C) The beauty of a summer storm',
+                    'D) The insignificance of human life'
+                ],
+                'correct_answer': 'B',
+                'explanation': 'The poem uses the imagery of rain to represent the continuous cycle of life, death, and rebirth.'
+            }
+        ],
+        'Snapshots': [
+            {
+                'question': '''In "The Summer of the Beautiful White Horse" by William Saroyan, why does Aram find it hard to believe that his cousin Mourad has stolen a horse?''',
+                'options': [
+                    'A) Because Mourad was too young to steal',
+                    'B) Because stealing was against their tribe\'s reputation for honesty',
+                    'C) Because Mourad didn\'t know how to ride horses',
+                    'D) Because the horse belonged to a family friend'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''The answer reflects the story\'s central conflict:
+1. Tribal identity:
+   - The Garoghlanian tribe was famous for honesty
+   - They were poor but never stole
+   - Their reputation was their pride
+
+2. Personal conflict:
+   - Aram struggles between tribal values and temptation
+   - The beautiful horse represents desire vs. integrity
+   - Shows the complexity of moral choices'''
+            },
+            {
+                'question': '''What is the central theme of the short story "The Address"?''',
+                'options': [
+                    'A) The lasting impact of war and displacement',
+                    'B) The importance of family bonds',
+                    'C) The struggle for social justice',
+                    'D) The search for personal identity'
+                ],
+                'correct_answer': 'A',
+                'explanation': 'The story explores the lingering effects of war and the complex emotions it leaves behind, focusing on how experiences and memories shape the present.'
+            },
+            {
+                'question': '''In "Ranga's Marriage," what role does the character of Shastri play in the story?''',
+                'options': [
+                    'A) He is a wealthy landowner who helps Ranga find a bride.',
+                    'B) He is a close friend of Ranga who advises him on marriage.',
+                    'C) He is a wise and respected elder who arranges Ranga\'s marriage.',
+                    'D) He is a rival of Ranga who tries to prevent his marriage.'
+                ],
+                'correct_answer': 'C',
+                'explanation': 'Shastri acts as the mediator and facilitator, leveraging his influence and wisdom to orchestrate the marriage successfully.'
             }
         ]
     }

@@ -26,27 +26,145 @@ QUESTION_BANK_12 = {
    1/C = 1/(2KC₀) + 1/(2C₀)
    C = 2KC₀/(K+1)'''
             }
-        ],
-        'Quantum Physics': [
+        ]
+    },
+    'english': {
+        'Literature': [
             {
-                'question': '''Consider a photon and an electron, both with wavelength λ. Which of the following statements is correct about their momenta?''',
+                'question': '''Analyze the following lines from John Keats's "Ode to Autumn":
+
+"Season of mists and mellow fruitfulness,
+Close bosom-friend of the maturing sun;
+Conspiring with him how to load and bless
+With fruit the vines that round the thatch-eves run;"
+
+What is the dominant poetic device used to describe autumn in these lines?''',
                 'options': [
-                    'A) Photon has more momentum',
-                    'B) Electron has more momentum',
-                    'C) Both have equal momentum',
-                    'D) Cannot be compared without knowing their energies'
+                    'A) Personification',
+                    'B) Simile',
+                    'C) Onomatopoeia',
+                    'D) Alliteration'
+                ],
+                'correct_answer': 'A',
+                'explanation': '''The dominant poetic device is Personification:
+
+1. Autumn is personified as:
+   - A "close bosom-friend" of the sun
+   - Someone capable of "conspiring" with the sun
+   - An active agent that can "load and bless"
+
+2. This personification:
+   - Gives human qualities to the season
+   - Creates a vivid and relatable image
+   - Helps readers connect emotionally with nature
+   - Enhances the poem's romantic qualities'''
+            }
+        ],
+        'Grammar and Language Skills': [
+            {
+                'question': '''Which organizational pattern would be most effective for writing an essay comparing traditional classroom learning with online education?''',
+                'options': [
+                    'A) Chronological order',
+                    'B) Point-by-point comparison',
+                    'C) Cause and effect',
+                    'D) Process analysis'
                 ],
                 'correct_answer': 'B',
-                'explanation': '''Let's analyze this:
-1. For a photon:
-   - p = h/λ where h is Planck's constant
-2. For an electron:
-   - Using de Broglie's relation: λ = h/p
-   - Therefore, p = h/λ
-   - But electron also has rest mass energy
-   - So total energy E = √((pc)² + (mc²)²)
-   - For the same wavelength, electron has additional mass term
-   - Thus, electron momentum > photon momentum'''
+                'explanation': '''A point-by-point comparison is most effective because:
+
+1. It allows for:
+   - Direct comparison of specific aspects
+   - Balanced analysis of both systems
+   - Clear presentation of similarities and differences
+   - Systematic evaluation of each point
+
+2. Structure would include:
+   - Introduction to both systems
+   - Analysis of key aspects (teaching methods, interaction, flexibility, etc.)
+   - Direct comparisons of each aspect
+   - Conclusion based on the analysis'''
+            }
+        ],
+        'Writing Skills': [
+            {
+                'question': '''What is the most appropriate tone to use in a formal letter of complaint to a company?''',
+                'options': [
+                    'A) Angry and demanding',
+                    'B) Polite but firm',
+                    'C) Casual and friendly',
+                    'D) Sarcastic and critical'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''From NCERT Writing Skills guidelines:
+
+1. Formal letter tone should be:
+   - Professional and respectful
+   - Clear and objective
+   - Assertive without being aggressive
+   - Solution-oriented
+
+2. Key elements to include:
+   - Specific details of the complaint
+   - Clear statement of the problem
+   - Expected resolution
+   - Professional closing'''
+            }
+        ]
+    },
+    'accountancy': {
+        'Financial Statements': [
+            {
+                'question': '''Based on NCERT guidelines, which of the following items should appear in the Balance Sheet of a company under 'Current Assets'?''',
+                'options': [
+                    'A) Goodwill',
+                    'B) Trade Receivables',
+                    'C) Long-term investments',
+                    'D) Share Capital'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''According to NCERT Accountancy Chapter on Balance Sheet:
+
+1. Current Assets include:
+   - Trade Receivables (Debtors)
+   - Inventory
+   - Cash and Bank Balances
+   - Short-term investments
+
+2. Classification criteria:
+   - Expected to be realized within 12 months
+   - Held primarily for trading
+   - Cash or cash equivalent'''
+            }
+        ]
+    },
+    'business_studies': {
+        'Financial Markets': [
+            {
+                'question': '''What is the primary function of the Securities and Exchange Board of India (SEBI)?''',
+                'options': [
+                    'A) Controlling money supply',
+                    'B) Regulating stock markets',
+                    'C) Setting interest rates',
+                    'D) Managing foreign exchange'
+                ],
+                'correct_answer': 'B',
+                'explanation': '''SEBI's primary function is regulating stock markets:
+
+1. Main objectives:
+   - Protect investor interests
+   - Promote market development
+   - Regulate securities market
+
+2. Key functions:
+   - Registration and regulation of market intermediaries
+   - Prevention of unfair trade practices
+   - Promotion of investor education
+   - Regulation of substantial acquisition of shares
+
+3. Powers:
+   - Issue guidelines and regulations
+   - Conduct investigations
+   - Impose penalties for violations'''
             }
         ]
     },
@@ -87,65 +205,6 @@ Calculate:
             }
         ]
     },
-    'business_studies': {
-        'Financial Markets': [
-            {
-                'question': '''What is the primary function of the Securities and Exchange Board of India (SEBI)?''',
-                'options': [
-                    'A) Controlling money supply',
-                    'B) Regulating stock markets',
-                    'C) Setting interest rates',
-                    'D) Managing foreign exchange'
-                ],
-                'correct_answer': 'B',
-                'explanation': '''SEBI's primary function is regulating stock markets:
-
-1. Main objectives:
-   - Protect investor interests
-   - Promote market development
-   - Regulate securities market
-
-2. Key functions:
-   - Registration and regulation of market intermediaries
-   - Prevention of unfair trade practices
-   - Promotion of investor education
-   - Regulation of substantial acquisition of shares
-
-3. Powers:
-   - Issue guidelines and regulations
-   - Conduct investigations
-   - Impose penalties for violations'''
-            }
-        ]
-    },
-    'accountancy': {
-        'Financial Statements': [
-            {
-                'question': '''A company purchased machinery for ₹500,000. Its estimated life is 5 years with a salvage value of ₹50,000. Using straight-line depreciation method, what is the annual depreciation amount?''',
-                'options': [
-                    'A) ₹90,000',
-                    'B) ₹100,000',
-                    'C) ₹85,000',
-                    'D) ₹95,000'
-                ],
-                'correct_answer': 'A',
-                'explanation': '''Let's calculate using straight-line depreciation method:
-
-1. Formula:
-   Annual Depreciation = (Cost - Salvage Value) / Estimated Life
-
-2. Given values:
-   - Cost = ₹500,000
-   - Salvage Value = ₹50,000
-   - Estimated Life = 5 years
-
-3. Calculation:
-   = (₹500,000 - ₹50,000) / 5
-   = ₹450,000 / 5
-   = ₹90,000 per year'''
-            }
-        ]
-    },
     'economics': {
         'International Trade': [
             {
@@ -174,93 +233,6 @@ Therefore, Foreign Direct Investment (FDI) is recorded in the Capital Account as
 - Long-term investment flows
 - Change in ownership of capital assets
 - Movement of financial capital across borders'''
-            }
-        ]
-    },
-    'english': {
-        'Literature': [
-            {
-                'question': '''Analyze the following lines from John Keats's "Ode to Autumn":
-
-"Season of mists and mellow fruitfulness,
-Close bosom-friend of the maturing sun;
-Conspiring with him how to load and bless
-With fruit the vines that round the thatch-eves run;"
-
-What is the dominant poetic device used to describe autumn in these lines?''',
-                'options': [
-                    'A) Personification',
-                    'B) Simile',
-                    'C) Onomatopoeia',
-                    'D) Alliteration'
-                ],
-                'correct_answer': 'A',
-                'explanation': '''The dominant poetic device is Personification:
-
-1. Autumn is personified as:
-   - A "close bosom-friend" of the sun
-   - Someone capable of "conspiring" with the sun
-   - An active agent that can "load and bless"
-
-2. This personification:
-   - Gives human qualities to the season
-   - Creates a vivid and relatable image
-   - Helps readers connect emotionally with nature
-   - Enhances the poem's romantic qualities'''
-            }
-        ],
-        'Reading Comprehension': [
-            {
-                'question': '''Read the passage and answer the question:
-
-"The digital revolution has transformed how we communicate, work, and learn. While it has made information more accessible than ever before, some argue that it has also shortened our attention spans and reduced our ability to engage in deep, meaningful reading. The constant bombardment of notifications and the habit of quick-scanning rather than deep reading may be reshaping our cognitive processes."
-
-What is the main concern expressed in this passage?''',
-                'options': [
-                    'A) The high cost of digital devices',
-                    'B) The negative impact on reading and cognitive abilities',
-                    'C) The difficulty of accessing information',
-                    'D) The complexity of modern technology'
-                ],
-                'correct_answer': 'B',
-                'explanation': '''Let's analyze the passage:
-
-1. Main points discussed:
-   - Digital revolution's impact on communication
-   - Changes in information accessibility
-   - Effects on attention span
-   - Impact on reading habits
-
-2. The central concern is:
-   - How digital technology affects our reading abilities
-   - The shift from deep reading to quick scanning
-   - Potential changes in cognitive processes
-   - The quality of our engagement with text'''
-            }
-        ],
-        'Writing Skills': [
-            {
-                'question': '''Which organizational pattern would be most effective for writing an essay comparing traditional classroom learning with online education?''',
-                'options': [
-                    'A) Chronological order',
-                    'B) Point-by-point comparison',
-                    'C) Cause and effect',
-                    'D) Process analysis'
-                ],
-                'correct_answer': 'B',
-                'explanation': '''A point-by-point comparison is most effective because:
-
-1. It allows for:
-   - Direct comparison of specific aspects
-   - Balanced analysis of both systems
-   - Clear presentation of similarities and differences
-   - Systematic evaluation of each point
-
-2. Structure would include:
-   - Introduction to both systems
-   - Analysis of key aspects (teaching methods, interaction, flexibility, etc.)
-   - Direct comparisons of each aspect
-   - Conclusion based on the analysis'''
             }
         ]
     }

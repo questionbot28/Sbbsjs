@@ -27,17 +27,23 @@ class Education(commands.Cog):
             await ctx.send("An error occurred while fetching subjects. Please try again.")
 
     @commands.command(name='topics')
-    async def list_topics(self, ctx, subject: str):
+    async def list_topics(self, ctx, subject: str, class_level: int = None):
         """Lists all topics for a given subject"""
         try:
             subject = subject.lower()
-            topics = self.question_generator.get_topics(subject)
+            if class_level and subject == 'english':
+                topics = self.question_generator.get_class_specific_topics(subject, class_level)
+                title = f"Topics in {subject.title()} for Class {class_level}"
+            else:
+                topics = self.question_generator.get_topics(subject)
+                title = f"Topics in {subject.title()}"
+
             if not topics:
-                await ctx.send(f"Invalid subject. Use !subjects to see available subjects.")
+                await ctx.send(f"Invalid subject or class level. Use !subjects to see available subjects.")
                 return
 
             embed = discord.Embed(
-                title=f"Topics in {subject.title()}",
+                title=title,
                 description="\n".join(f"• {topic}" for topic in topics),
                 color=discord.Color.green()
             )
@@ -102,9 +108,9 @@ class Education(commands.Cog):
                 await ctx.author.send(embed=embed)
                 self.logger.info(f"Successfully sent question to {ctx.author.name}'s DM")
 
-                # Send confirmation message in the channel
+                # Send confirmation message in the channel with the exact requested format
                 confirm_embed = discord.Embed(
-                    description="📬 Check your private messages for the question. If you do not receive the message, please unlock your private.",
+                    description="Check your private messages for the question. If you do not receive the message, please unlock your private.",
                     color=discord.Color.blue()
                 )
                 await ctx.send(embed=confirm_embed)
