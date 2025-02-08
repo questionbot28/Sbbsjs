@@ -45,7 +45,7 @@ class Education(commands.Cog):
             "```ansi\n"
             "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
             "[0;36m┃     Made with 💖 by:          ┃[0m\n"
-            "[0;33m┃  Educational Bot Team         ┃[0m\n"
+            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
             "[0;36m┃     Language: Python 🐍      ┃[0m\n"
             "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
             "```"
