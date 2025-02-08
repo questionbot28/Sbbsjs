@@ -125,11 +125,11 @@ class Education(commands.Cog):
             
             # Send confirmation message in channel
             confirm_embed = discord.Embed(
-                title="✉️ Question Delivered!",
-                description="I've sent the question to your DMs! Check your private messages.",
+                title="✉️ Question Generated Successfully",
+                description="Check your private messages for the redemption steps. If you do not receive the message, please unlock your private messages.",
                 color=discord.Color.green()
             )
-            confirm_embed.set_thumbnail(url="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWNhMjg2YzBkYTY3ZmFkNGM4NjJkYzMxZmM1MmIyYmYyZDIwMWFlZCZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/3o7WTJ4JvESkXayTyE/giphy.gif")
+            confirm_embed.set_image(url="https://cdn.discordapp.com/attachments/1337669136729243658/1337711889244880947/standard.gif?ex=67a870c7&is=67a71f47&hm=20f4b871a79e5d84a9d24331820477b55fc4bd80ac0cb7cd8de122bb06c3c970&")
             await ctx.send(embed=confirm_embed)
             
         except discord.Forbidden:
