@@ -35,6 +35,21 @@ class QuestionGenerator:
             }
         }
 
+    def get_subjects(self):
+        """Get all available subjects"""
+        return list(self.subjects.keys())
+
+    def get_topics(self, subject):
+        if subject == 'english':
+            return self.subjects['english'].get(11, [])  # Only return class 11 topics by default
+        return self.subjects.get(subject, [])
+
+    def get_class_specific_topics(self, subject, class_level):
+        """Get topics specific to a class level for subjects that have different topics per class"""
+        if subject == 'english':
+            return self.subjects['english'].get(class_level, [])
+        return self.subjects.get(subject, [])
+
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
         try:
             # First try to get a question from our question bank based on class level
@@ -56,11 +71,8 @@ class QuestionGenerator:
                 raise Exception("OpenAI API key is not configured")
 
             try:
-                # Update model to gpt-4o as per requirements
-                # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-                # do not change this unless explicitly requested by the user
                 response = self.client.chat.completions.create(
-                    model="gpt-4o",  
+                    model="gpt-3.5-turbo",  # Using GPT-3.5-turbo model
                     messages=[
                         {"role": "system", "content": f"You are an educational question generator for class {class_level} students focusing on NCERT curriculum."},
                         {"role": "user", "content": prompt}
@@ -70,6 +82,7 @@ class QuestionGenerator:
 
                 result = json.loads(response.choices[0].message.content)
                 return result
+
             except Exception as api_error:
                 self.logger.error(f"OpenAI API error: {api_error}")
                 raise Exception(f"Failed to generate question via OpenAI: {api_error}")
@@ -90,17 +103,3 @@ class QuestionGenerator:
             "explanation": "Detailed explanation of the answer with NCERT reference"
         }}
         """
-
-    def get_subjects(self):
-        return list(key for key in self.subjects.keys() if not isinstance(self.subjects[key], dict))
-
-    def get_topics(self, subject):
-        if subject == 'english':
-            return self.subjects['english'].get(11, [])  # Only return class 11 topics by default
-        return self.subjects.get(subject, [])
-
-    def get_class_specific_topics(self, subject, class_level):
-        """Get topics specific to a class level for subjects that have different topics per class"""
-        if subject == 'english':
-            return self.subjects['english'].get(class_level, [])
-        return self.subjects.get(subject, [])

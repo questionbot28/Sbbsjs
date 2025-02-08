@@ -16,6 +16,7 @@ class Education(commands.Cog):
         """Lists all available subjects"""
         try:
             subjects = self.question_generator.get_subjects()
+            self.logger.info(f"Available subjects: {subjects}")  # Add debug logging
             embed = discord.Embed(
                 title="Available Subjects",
                 description="\n".join(f"• {subject.title()}" for subject in subjects),
@@ -54,20 +55,27 @@ class Education(commands.Cog):
 
     @commands.command(name='question')
     @cooldown(1, 30, BucketType.user)
-    async def get_question(self, ctx, class_level: int, subject: str, *, topic: str = None):
+    async def get_question(self, ctx, class_level: str, subject: str, *, topic: str = None):
         """Generates a question for the specified class level, subject and topic"""
         try:
-            # Validate class level
-            if class_level not in [11, 12]:
-                await ctx.send("Please specify either class 11 or 12.")
+            # Convert and validate class level
+            try:
+                class_level = int(class_level)
+                if class_level not in [11, 12]:
+                    await ctx.send("Please specify either class 11 or 12.")
+                    return
+            except ValueError:
+                await ctx.send("Class level must be either 11 or 12.")
                 return
 
+            # Convert subject to lowercase and validate
             subject = subject.lower()
             if subject not in self.question_generator.get_subjects():
-                await ctx.send("Invalid subject. Use !subjects to see available subjects.")
+                subjects_list = ", ".join(self.question_generator.get_subjects())
+                await ctx.send(f"Invalid subject. Available subjects are: {subjects_list}")
                 return
 
-            # Send initial "generating" message
+            # Initial status message
             status_embed = discord.Embed(
                 title="Question Generator",
                 description="🔄 Generating question...",
@@ -76,6 +84,7 @@ class Education(commands.Cog):
             status_embed.set_footer(text=f"Requested by {ctx.author.name}")
             status_message = await ctx.send(embed=status_embed)
 
+            # Generate question
             async with ctx.typing():
                 question_data = await self.question_generator.generate_question(
                     subject, topic, class_level=class_level
@@ -89,7 +98,7 @@ class Education(commands.Cog):
             )
             embed.set_author(name="Question Generator")
 
-            # Add a blank field first to create spacing
+            # Add a blank field for spacing
             embed.add_field(name="\u200b", value="\u200b", inline=False)
 
             # Format options with emojis
@@ -103,40 +112,39 @@ class Education(commands.Cog):
             await status_message.delete()
 
             try:
-                # Try to send the question to user's DM
-                self.logger.info(f"Attempting to send question to {ctx.author.name}'s DM")
+                # Send question to DM
                 await ctx.author.send(embed=embed)
                 self.logger.info(f"Successfully sent question to {ctx.author.name}'s DM")
 
-                # Send confirmation message in the channel with the exact requested format
+                # Send confirmation in channel
                 confirm_embed = discord.Embed(
-                    description="Check your private messages for the question. If you do not receive the message, please unlock your private.",
+                    description="Check your private messages for the question. If you do not receive the message, please unlock your private messages.",
                     color=discord.Color.blue()
                 )
                 await ctx.send(embed=confirm_embed)
 
-                # Wait 30 seconds before revealing answer in DM
+                # Wait and send answer
                 await asyncio.sleep(30)
-                self.logger.info(f"Sending answer to {ctx.author.name}'s DM after 30s delay")
 
-                # Answer embed with explanation
+                # Answer embed
                 answer_embed = discord.Embed(
                     title="✅ Answer Revealed",
-                    color=discord.Color.brand_green()
+                    color=discord.Color.green()
                 )
                 answer_embed.set_author(name="Question Generator")
 
-                # Add the correct answer with emoji
+                # Add correct answer with emoji
+                correct_answer = question_data['correct_answer']
                 answer_embed.add_field(
                     name="Correct Answer", 
-                    value=f"{option_emojis[question_data['correct_answer']]} Option {question_data['correct_answer']}", 
+                    value=f"{option_emojis[correct_answer]} Option {correct_answer}", 
                     inline=False
                 )
 
-                # Add a separator field
+                # Add separator
                 answer_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-                # Add the explanation
+                # Add explanation
                 answer_embed.add_field(
                     name="Explanation", 
                     value=question_data['explanation'],
@@ -150,7 +158,7 @@ class Education(commands.Cog):
                 self.logger.info(f"Successfully sent answer to {ctx.author.name}'s DM")
 
             except discord.Forbidden:
-                # If DM is locked, send the question in the channel
+                # Handle locked DMs
                 self.logger.warning(f"Could not send DM to user {ctx.author.name} - DMs are locked")
                 await ctx.send("❌ Unable to send you a private message. Please check if your DMs are open and try again.")
                 return
