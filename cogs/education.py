@@ -109,16 +109,34 @@ class Education(commands.Cog):
             await ctx.send("❌ An error occurred while getting your question.")
 
     async def _send_question(self, ctx, question: dict):
-        """Format and send a question to the channel"""
-        embed = discord.Embed(
-            title="📝 Practice Question",
-            description=question['question'],
-            color=discord.Color.blue()
-        )
-
-        options_text = "\n".join(question['options'])
-        embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-        await ctx.send(embed=embed)
+        """Format and send a question via DM"""
+        try:
+            # Create question embed
+            embed = discord.Embed(
+                title="📝 Practice Question",
+                description=question['question'],
+                color=discord.Color.blue()
+            )
+            options_text = "\n".join(question['options'])
+            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
+            
+            # Send question to user's DM
+            await ctx.author.send(embed=embed)
+            
+            # Send confirmation message in channel
+            confirm_embed = discord.Embed(
+                title="✉️ Question Delivered!",
+                description="I've sent the question to your DMs! Check your private messages.",
+                color=discord.Color.green()
+            )
+            confirm_embed.set_thumbnail(url="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWNhMjg2YzBkYTY3ZmFkNGM4NjJkYzMxZmM1MmIyYmYyZDIwMWFlZCZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/3o7WTJ4JvESkXayTyE/giphy.gif")
+            await ctx.send(embed=confirm_embed)
+            
+        except discord.Forbidden:
+            await ctx.send("❌ I couldn't send you a DM! Please enable DMs from server members and try again.")
+        except Exception as e:
+            self.logger.error(f"Error sending question: {e}")
+            await ctx.send("❌ An error occurred while sending the question.")
 
     def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
         """Check if a question was already asked to a user"""
