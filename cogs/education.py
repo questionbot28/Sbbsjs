@@ -93,40 +93,61 @@ class Education(commands.Cog):
 
             embed.set_footer(text=f"Answer will be revealed in 30 seconds • Requested by {ctx.author.name}")
 
-            # Delete the status message and send the question
+            # Delete the status message
             await status_message.delete()
-            question_message = await ctx.send(embed=embed)
 
-            # Wait 30 seconds before revealing answer
-            await asyncio.sleep(30)
+            try:
+                # Try to send the question to user's DM
+                self.logger.info(f"Attempting to send question to {ctx.author.name}'s DM")
+                await ctx.author.send(embed=embed)
+                self.logger.info(f"Successfully sent question to {ctx.author.name}'s DM")
 
-            # Answer embed with explanation
-            answer_embed = discord.Embed(
-                title="✅ Answer Revealed",
-                color=discord.Color.brand_green()  # Use Discord's brand green color
-            )
-            answer_embed.set_author(name="Question Generator")
+                # Send confirmation message in the channel
+                confirm_embed = discord.Embed(
+                    description="📬 Check your private messages for the question. If you do not receive the message, please unlock your private.",
+                    color=discord.Color.blue()
+                )
+                await ctx.send(embed=confirm_embed)
 
-            # Add the correct answer with emoji
-            answer_embed.add_field(
-                name="Correct Answer", 
-                value=f"{option_emojis[question_data['correct_answer']]} Option {question_data['correct_answer']}", 
-                inline=False
-            )
+                # Wait 30 seconds before revealing answer in DM
+                await asyncio.sleep(30)
+                self.logger.info(f"Sending answer to {ctx.author.name}'s DM after 30s delay")
 
-            # Add a separator field
-            answer_embed.add_field(name="\u200b", value="\u200b", inline=False)
+                # Answer embed with explanation
+                answer_embed = discord.Embed(
+                    title="✅ Answer Revealed",
+                    color=discord.Color.brand_green()
+                )
+                answer_embed.set_author(name="Question Generator")
 
-            # Add the explanation
-            answer_embed.add_field(
-                name="Explanation", 
-                value=question_data['explanation'],
-                inline=False
-            )
+                # Add the correct answer with emoji
+                answer_embed.add_field(
+                    name="Correct Answer", 
+                    value=f"{option_emojis[question_data['correct_answer']]} Option {question_data['correct_answer']}", 
+                    inline=False
+                )
 
-            answer_embed.set_footer(text=f"Question completed • Requested by {ctx.author.name}")
+                # Add a separator field
+                answer_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-            await ctx.send(embed=answer_embed)
+                # Add the explanation
+                answer_embed.add_field(
+                    name="Explanation", 
+                    value=question_data['explanation'],
+                    inline=False
+                )
+
+                answer_embed.set_footer(text=f"Question completed • Requested by {ctx.author.name}")
+
+                # Send answer in DM
+                await ctx.author.send(embed=answer_embed)
+                self.logger.info(f"Successfully sent answer to {ctx.author.name}'s DM")
+
+            except discord.Forbidden:
+                # If DM is locked, send the question in the channel
+                self.logger.warning(f"Could not send DM to user {ctx.author.name} - DMs are locked")
+                await ctx.send("❌ Unable to send you a private message. Please check if your DMs are open and try again.")
+                return
 
         except Exception as e:
             self.logger.error(f"Error generating question: {e}")

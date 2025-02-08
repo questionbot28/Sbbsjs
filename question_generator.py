@@ -13,7 +13,11 @@ class QuestionGenerator:
             'physics': ['Mechanics', 'Waves', 'Thermodynamics', 'Electrostatics', 'Quantum Physics'],
             'chemistry': ['Chemical Bonding', 'Electrochemistry', 'Organic Chemistry', 'Physical Chemistry'],
             'mathematics': ['Calculus', 'Algebra', 'Trigonometry', 'Statistics'],
-            'biology': ['Cell Biology', 'Genetics', 'Human Physiology', 'Ecology']
+            'biology': ['Cell Biology', 'Genetics', 'Human Physiology', 'Ecology'],
+            'business_studies': ['Business Environment', 'Business Organization', 'Management Principles', 'Financial Markets'],
+            'accountancy': ['Basic Accounting', 'Trial Balance', 'Financial Statements', 'Partnership Accounts'],
+            'economics': ['Microeconomics', 'Macroeconomics', 'Money and Banking', 'International Trade'],
+            'english': ['Literature', 'Grammar', 'Reading Comprehension', 'Writing Skills']  # Added English topics
         }
 
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
