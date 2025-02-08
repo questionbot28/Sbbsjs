@@ -63,6 +63,10 @@ class Education(commands.Cog):
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
+        if ctx.channel.id != 1337669136729243658:
+            await ctx.send("❌ This command can only be used in the designated channel!")
+            return
+            
         try:
             subject = subject.lower()
             question = await self.question_generator.generate_question(subject, topic, 11)
@@ -87,6 +91,10 @@ class Education(commands.Cog):
     @commands.command(name='12')
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 12"""
+        if ctx.channel.id != 1337669207193682001:
+            await ctx.send("❌ This command can only be used in the designated channel!")
+            return
+            
         try:
             subject = subject.lower()
             question = await self.question_generator.generate_question(subject, topic, 12)
