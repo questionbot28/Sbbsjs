@@ -1,4 +1,31 @@
-!11 <subject> [topic]```\nExample: !11 physics waves",
+
+import discord
+from discord.ext import commands
+from typing import Optional
+import logging
+from question_generator import QuestionGenerator
+
+# Store user questions
+user_questions = {}
+
+class Education(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.question_generator = QuestionGenerator()
+        self.logger = logging.getLogger('discord_bot')
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show help information"""
+        embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="Here's how you can use this educational bot:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="📘 Get Question for Class 11",
+            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -18,7 +45,7 @@
             "```ansi\n"
             "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
             "[0;36m┃     Made with 💖 by:          ┃[0m\n"
-            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
+            "[0;33m┃  Educational Bot Team         ┃[0m\n"
             "[0;36m┃     Language: Python 🐍      ┃[0m\n"
             "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
             "```"
@@ -33,7 +60,7 @@
         embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
-    @commands.command(name="11")
+    @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         try:
@@ -57,7 +84,7 @@
             self.logger.error(f"Error in class_11 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
 
-    @commands.command(name="12")
+    @commands.command(name='12')
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 12"""
         try:
@@ -81,19 +108,16 @@
             self.logger.error(f"Error in class_12 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
 
-    @commands.command(name="subjects")
-    async def list_subjects(self, ctx):
-        """List all available subjects"""
-        subjects = self.question_generator.get_subjects()
-
+    async def _send_question(self, ctx, question: dict):
+        """Format and send a question to the channel"""
         embed = discord.Embed(
-            title="📚 Available Subjects",
-            description="Here are all the subjects you can study:",
-            color=discord.Color.green()
+            title="📝 Practice Question",
+            description=question['question'],
+            color=discord.Color.blue()
         )
 
-        subject_list = "\n".join([f"• {subject.title()}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
+        options_text = "\n".join(question['options'])
+        embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
         await ctx.send(embed=embed)
 
     def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
@@ -110,13 +134,5 @@
             user_questions[user_id][subject] = set()
         user_questions[user_id][subject].add(question_key)
 
-    async def _send_question(self, ctx, question: dict):
-        """Format and send a question to the channel"""
-        embed = discord.Embed(
-            title="📝 Practice Question",
-            description=question['question'],
-            color=discord.Color.blue()
-        )
-
-        options_text = "\n".join(question['options'])
-        embed.add_field(name="Options:", value=f"```{options_text}
+async def setup(bot):
+    await bot.add_cog(Education(bot))
