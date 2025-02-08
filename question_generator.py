@@ -1,6 +1,7 @@
 import os
 from openai import OpenAI
 import json
+from question_bank import get_stored_question
 
 # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
 # do not change this unless explicitly requested by the user
@@ -17,6 +18,12 @@ class QuestionGenerator:
 
     async def generate_question(self, subject, topic=None, difficulty='medium'):
         try:
+            # First try to get a question from our question bank
+            stored_question = get_stored_question(subject, topic)
+            if stored_question:
+                return stored_question
+
+            # If no stored question is found, generate one using OpenAI
             prompt = self._create_prompt(subject, topic, difficulty)
             response = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -26,7 +33,7 @@ class QuestionGenerator:
                 ],
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return result
         except Exception as e:

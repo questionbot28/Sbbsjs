@@ -14,29 +14,37 @@ class Education(commands.Cog):
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
         """Lists all available subjects"""
-        subjects = self.question_generator.get_subjects()
-        embed = discord.Embed(
-            title="Available Subjects",
-            description="\n".join(f"• {subject.title()}" for subject in subjects),
-            color=discord.Color.blue()
-        )
-        await ctx.send(embed=embed)
+        try:
+            subjects = self.question_generator.get_subjects()
+            embed = discord.Embed(
+                title="Available Subjects",
+                description="\n".join(f"• {subject.title()}" for subject in subjects),
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error listing subjects: {e}")
+            await ctx.send("An error occurred while fetching subjects. Please try again.")
 
     @commands.command(name='topics')
     async def list_topics(self, ctx, subject: str):
         """Lists all topics for a given subject"""
-        subject = subject.lower()
-        topics = self.question_generator.get_topics(subject)
-        if not topics:
-            await ctx.send(f"Invalid subject. Use !subjects to see available subjects.")
-            return
+        try:
+            subject = subject.lower()
+            topics = self.question_generator.get_topics(subject)
+            if not topics:
+                await ctx.send(f"Invalid subject. Use !subjects to see available subjects.")
+                return
 
-        embed = discord.Embed(
-            title=f"Topics in {subject.title()}",
-            description="\n".join(f"• {topic}" for topic in topics),
-            color=discord.Color.green()
-        )
-        await ctx.send(embed=embed)
+            embed = discord.Embed(
+                title=f"Topics in {subject.title()}",
+                description="\n".join(f"• {topic}" for topic in topics),
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error listing topics: {e}")
+            await ctx.send("An error occurred while fetching topics. Please try again.")
 
     @commands.command(name='question')
     @cooldown(1, 30, BucketType.user)
@@ -56,18 +64,14 @@ class Education(commands.Cog):
                 description=question_data['question'],
                 color=discord.Color.blue()
             )
-            
-            # Add options
+
             options_text = "\n".join(question_data['options'])
             embed.add_field(name="Options", value=options_text, inline=False)
-            
-            # Send question
+
             question_message = await ctx.send(embed=embed)
-            
-            # Wait 30 seconds before showing answer
+
             await asyncio.sleep(30)
-            
-            # Create answer embed
+
             answer_embed = discord.Embed(
                 title="Answer",
                 description=f"Correct Answer: {question_data['correct_answer']}\n\n"
