@@ -11,12 +11,103 @@ class Education(commands.Cog):
         self.question_generator = QuestionGenerator()
         self.logger = logging.getLogger('discord_bot')
 
+    @commands.command(name='11')
+    async def class_11_chapters(self, ctx, subject: str, action: str = "chapters"):
+        """Shows chapters for Class 11 subjects
+        Usage: !11 <subject> chapters
+        Example: !11 Physics chapters"""
+        try:
+            if action.lower() != "chapters":
+                await ctx.send("Please use the format: `!11 <subject> chapters`")
+                return
+
+            subject = subject.lower()
+            if subject not in self.question_generator.get_subjects():
+                subjects_list = ", ".join(self.question_generator.get_subjects())
+                await ctx.send(f"Invalid subject. Available subjects are: {subjects_list}")
+                return
+
+            topics = self.question_generator.get_class_specific_topics(subject, 11)
+
+            if not topics:
+                await ctx.send(f"No chapters found for {subject} Class 11")
+                return
+
+            # Create embed for better formatting
+            embed = discord.Embed(
+                title=f"📚 Class 11 {subject.title()} Chapters",
+                color=discord.Color.blue()
+            )
+
+            # Split topics into chunks to avoid hitting Discord's field limit
+            chunk_size = 20  # Adjust based on average topic length
+            for i in range(0, len(topics), chunk_size):
+                chunk = topics[i:i + chunk_size]
+                # Create a numbered list of topics
+                field_value = "\n".join(f"{j+1}. {topic}" for j, topic in enumerate(chunk, start=i+1))
+                embed.add_field(
+                    name=f"Chapters {i+1}-{i+len(chunk)}" if i > 0 else "Chapters",
+                    value=field_value,
+                    inline=False
+                )
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error listing chapters: {e}")
+            await ctx.send("An error occurred while fetching chapters. Please try again.")
+
+    @commands.command(name='12')
+    async def class_12_chapters(self, ctx, subject: str, action: str = "chapters"):
+        """Shows chapters for Class 12 subjects
+        Usage: !12 <subject> chapters
+        Example: !12 Chemistry chapters"""
+        try:
+            if action.lower() != "chapters":
+                await ctx.send("Please use the format: `!12 <subject> chapters`")
+                return
+
+            subject = subject.lower()
+            if subject not in self.question_generator.get_subjects():
+                subjects_list = ", ".join(self.question_generator.get_subjects())
+                await ctx.send(f"Invalid subject. Available subjects are: {subjects_list}")
+                return
+
+            topics = self.question_generator.get_class_specific_topics(subject, 12)
+
+            if not topics:
+                await ctx.send(f"No chapters found for {subject} Class 12")
+                return
+
+            # Create embed for better formatting
+            embed = discord.Embed(
+                title=f"📚 Class 12 {subject.title()} Chapters",
+                color=discord.Color.blue()
+            )
+
+            # Split topics into chunks to avoid hitting Discord's field limit
+            chunk_size = 20  # Adjust based on average topic length
+            for i in range(0, len(topics), chunk_size):
+                chunk = topics[i:i + chunk_size]
+                # Create a numbered list of topics
+                field_value = "\n".join(f"{j+1}. {topic}" for j, topic in enumerate(chunk, start=i+1))
+                embed.add_field(
+                    name=f"Chapters {i+1}-{i+len(chunk)}" if i > 0 else "Chapters",
+                    value=field_value,
+                    inline=False
+                )
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error listing chapters: {e}")
+            await ctx.send("An error occurred while fetching chapters. Please try again.")
+
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
         """Lists all available subjects"""
         try:
             subjects = self.question_generator.get_subjects()
-            self.logger.info(f"Available subjects: {subjects}")  # Add debug logging
             embed = discord.Embed(
                 title="Available Subjects",
                 description="\n".join(f"• {subject.title()}" for subject in subjects),
@@ -27,45 +118,17 @@ class Education(commands.Cog):
             self.logger.error(f"Error listing subjects: {e}")
             await ctx.send("An error occurred while fetching subjects. Please try again.")
 
-    @commands.command(name='topics')
-    async def list_topics(self, ctx, subject: str, class_level: int = None):
-        """Lists all topics for a given subject"""
-        try:
-            subject = subject.lower()
-            if class_level and subject == 'english':
-                topics = self.question_generator.get_class_specific_topics(subject, class_level)
-                title = f"Topics in {subject.title()} for Class {class_level}"
-            else:
-                topics = self.question_generator.get_topics(subject)
-                title = f"Topics in {subject.title()}"
-
-            if not topics:
-                await ctx.send(f"Invalid subject or class level. Use !subjects to see available subjects.")
-                return
-
-            embed = discord.Embed(
-                title=title,
-                description="\n".join(f"• {topic}" for topic in topics),
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=embed)
-        except Exception as e:
-            self.logger.error(f"Error listing topics: {e}")
-            await ctx.send("An error occurred while fetching topics. Please try again.")
-
     @commands.command(name='question')
     @cooldown(1, 30, BucketType.user)
-    async def get_question(self, ctx, class_level: str, subject: str, *, topic: str = None):
-        """Generates a question for the specified class level, subject and topic"""
+    async def get_question(self, ctx, class_level: int, subject: str, *, topic: str = None):
+        """Generates a question for the specified class level, subject and topic
+        Usage: !question <class_level> <subject> [topic]
+        Example: !question 11 Accountancy "Basic Accounting Terms"
+        """
         try:
-            # Convert and validate class level
-            try:
-                class_level = int(class_level)
-                if class_level not in [11, 12]:
-                    await ctx.send("Please specify either class 11 or 12.")
-                    return
-            except ValueError:
-                await ctx.send("Class level must be either 11 or 12.")
+            # Validate class level
+            if class_level not in [11, 12]:
+                await ctx.send("Please specify either class 11 or 12.")
                 return
 
             # Convert subject to lowercase and validate
@@ -74,6 +137,21 @@ class Education(commands.Cog):
                 subjects_list = ", ".join(self.question_generator.get_subjects())
                 await ctx.send(f"Invalid subject. Available subjects are: {subjects_list}")
                 return
+
+            # If topic is provided, get available topics for validation
+            if topic:
+                available_topics = self.question_generator.get_topics(subject)
+                # Try to match the provided topic with available topics (case-insensitive)
+                topic = topic.strip()
+                matched_topic = next(
+                    (t for t in available_topics if t.lower() == topic.lower()),
+                    None
+                )
+                if not matched_topic:
+                    topics_list = "\n".join(f"• {t}" for t in available_topics)
+                    await ctx.send(f"Invalid topic for {subject}. Available topics are:\n{topics_list}")
+                    return
+                topic = matched_topic  # Use the correctly cased topic name
 
             # Initial status message
             status_embed = discord.Embed(
@@ -166,6 +244,33 @@ class Education(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error generating question: {e}")
             await ctx.send("An error occurred while generating the question. Please try again later.")
+
+    @commands.command(name='topics')
+    async def list_topics(self, ctx, subject: str, class_level: int = None):
+        """Lists all topics for a given subject"""
+        try:
+            subject = subject.lower()
+            if class_level and subject == 'english':
+                topics = self.question_generator.get_class_specific_topics(subject, class_level)
+                title = f"Topics in {subject.title()} for Class {class_level}"
+            else:
+                topics = self.question_generator.get_topics(subject)
+                title = f"Topics in {subject.title()}"
+
+            if not topics:
+                await ctx.send(f"Invalid subject or class level. Use !subjects to see available subjects.")
+                return
+
+            embed = discord.Embed(
+                title=title,
+                description="\n".join(f"• {topic}" for topic in topics),
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error listing topics: {e}")
+            await ctx.send("An error occurred while fetching topics. Please try again.")
+
 
 async def setup(bot):
     await bot.add_cog(Education(bot))

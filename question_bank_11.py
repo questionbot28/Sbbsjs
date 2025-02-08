@@ -79,7 +79,6 @@ This formula shows that:
         'Business Environment': [
             {
                 'question': '''Which of the following is NOT a component of the business environment?
-
 Consider the various aspects that affect business operations and identify the one that does NOT belong to either the micro or macro environment of business.''',
                 'options': [
                     'A) Economic conditions',
