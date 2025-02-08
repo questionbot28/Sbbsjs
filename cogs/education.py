@@ -4,12 +4,108 @@ from question_generator import QuestionGenerator
 import asyncio
 from discord.ext.commands import cooldown, BucketType
 import logging
+from collections import defaultdict
 
 class Education(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.question_generator = QuestionGenerator()
         self.logger = logging.getLogger('discord_bot')
+        # Dictionary to track shown questions per user
+        # Structure: {user_id: {(subject, topic, class_level): [question_hashes]}}
+        self.shown_questions = defaultdict(lambda: defaultdict(set))
+
+    def _get_question_hash(self, question_data):
+        """Generate a unique hash for a question based on its content"""
+        return hash(f"{question_data['question']}{question_data['correct_answer']}")
+
+    def _has_seen_question(self, user_id, subject, topic, class_level, question_data):
+        """Check if user has seen this question before"""
+        question_hash = self._get_question_hash(question_data)
+        key = (subject, topic, class_level)
+        return question_hash in self.shown_questions[user_id][key]
+
+    def _mark_question_as_shown(self, user_id, subject, topic, class_level, question_data):
+        """Mark a question as shown to a user"""
+        question_hash = self._get_question_hash(question_data)
+        key = (subject, topic, class_level)
+        self.shown_questions[user_id][key].add(question_hash)
+
+    def get_command_help(self):
+        """Returns a dictionary of command categories and their descriptions"""
+        return {
+            "📚 Class Commands": [
+                {
+                    "command": "!11 [subject] chapters",
+                    "description": "Shows all chapters for Class 11 subjects",
+                    "example": "!11 Physics chapters"
+                },
+                {
+                    "command": "!12 [subject] chapters",
+                    "description": "Shows all chapters for Class 12 subjects",
+                    "example": "!12 Chemistry chapters"
+                }
+            ],
+            "❓ Question Commands": [
+                {
+                    "command": "!question [class] [subject] [topic]",
+                    "description": "Generates a question from specified subject and topic",
+                    "example": "!question 11 Physics 'Motion in a Plane'"
+                }
+            ],
+            "📖 Subject List": [
+                {
+                    "command": "!subjects",
+                    "description": "Lists all available subjects",
+                    "example": "!subjects"
+                }
+            ]
+        }
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Shows this help message"""
+        try:
+            # Create the main embed
+            help_embed = discord.Embed(
+                title="🎓 Educational Bot Help",
+                description="Welcome to the Educational Bot! Here are all the commands you can use:",
+                color=discord.Color.blue()
+            )
+
+            # Add bot information
+            help_embed.add_field(
+                name="ℹ️ About",
+                value="I'm an educational bot designed to help Class 11 and 12 students with NCERT curriculum questions and topics.",
+                inline=False
+            )
+
+            # Add commands by category
+            command_help = self.get_command_help()
+            for category, commands in command_help.items():
+                # Create a formatted string for all commands in this category
+                commands_text = ""
+                for cmd in commands:
+                    commands_text += f"**{cmd['command']}**\n"
+                    commands_text += f"━ {cmd['description']}\n"
+                    commands_text += f"━ Example: `{cmd['example']}`\n\n"
+
+                help_embed.add_field(
+                    name=category,
+                    value=commands_text,
+                    inline=False
+                )
+
+            # Add footer with additional info
+            help_embed.set_footer(
+                text="💡 Tip: Use these commands in any channel where the bot is present!"
+            )
+
+            await ctx.send(embed=help_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error displaying help: {e}")
+            await ctx.send("An error occurred while showing the help message. Please try again.")
 
     @commands.command(name='11')
     async def class_11_chapters(self, ctx, subject: str, action: str = "chapters"):
@@ -109,7 +205,7 @@ class Education(commands.Cog):
         try:
             subjects = self.question_generator.get_subjects()
             embed = discord.Embed(
-                title="Available Subjects",
+                title="📚 Available Subjects",
                 description="\n".join(f"• {subject.title()}" for subject in subjects),
                 color=discord.Color.blue()
             )
@@ -123,7 +219,7 @@ class Education(commands.Cog):
     async def get_question(self, ctx, class_level: int, subject: str, *, topic: str = None):
         """Generates a question for the specified class level, subject and topic
         Usage: !question <class_level> <subject> [topic]
-        Example: !question 11 Accountancy "Basic Accounting Terms"
+        Example: !question 11 Physics "Motion in a Plane"
         """
         try:
             # Validate class level
@@ -138,21 +234,6 @@ class Education(commands.Cog):
                 await ctx.send(f"Invalid subject. Available subjects are: {subjects_list}")
                 return
 
-            # If topic is provided, get available topics for validation
-            if topic:
-                available_topics = self.question_generator.get_topics(subject)
-                # Try to match the provided topic with available topics (case-insensitive)
-                topic = topic.strip()
-                matched_topic = next(
-                    (t for t in available_topics if t.lower() == topic.lower()),
-                    None
-                )
-                if not matched_topic:
-                    topics_list = "\n".join(f"• {t}" for t in available_topics)
-                    await ctx.send(f"Invalid topic for {subject}. Available topics are:\n{topics_list}")
-                    return
-                topic = matched_topic  # Use the correctly cased topic name
-
             # Initial status message
             status_embed = discord.Embed(
                 title="Question Generator",
@@ -163,12 +244,25 @@ class Education(commands.Cog):
             status_message = await ctx.send(embed=status_embed)
 
             # Generate question
-            async with ctx.typing():
-                question_data = await self.question_generator.generate_question(
-                    subject, topic, class_level=class_level
-                )
+            max_attempts = 5  # Maximum attempts to find a new question
+            question_data = None
 
-            # Question embed
+            async with ctx.typing():
+                for _ in range(max_attempts):
+                    temp_question = await self.question_generator.generate_question(
+                        subject, topic, class_level=class_level
+                    )
+
+                    if not self._has_seen_question(ctx.author.id, subject, topic, class_level, temp_question):
+                        question_data = temp_question
+                        self._mark_question_as_shown(ctx.author.id, subject, topic, class_level, question_data)
+                        break
+
+                if not question_data:
+                    await ctx.send("You've seen all available questions for this topic! Try a different topic or subject.")
+                    return
+
+            # Create and send question embed
             embed = discord.Embed(
                 title=f"📚 Class {class_level} - {subject.title()}" + (f" ({topic})" if topic else ""),
                 description=question_data['question'],
@@ -211,7 +305,6 @@ class Education(commands.Cog):
                 )
                 answer_embed.set_author(name="Question Generator")
 
-                # Add correct answer with emoji
                 correct_answer = question_data['correct_answer']
                 answer_embed.add_field(
                     name="Correct Answer", 
@@ -219,10 +312,8 @@ class Education(commands.Cog):
                     inline=False
                 )
 
-                # Add separator
                 answer_embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-                # Add explanation
                 answer_embed.add_field(
                     name="Explanation", 
                     value=question_data['explanation'],
@@ -236,7 +327,6 @@ class Education(commands.Cog):
                 self.logger.info(f"Successfully sent answer to {ctx.author.name}'s DM")
 
             except discord.Forbidden:
-                # Handle locked DMs
                 self.logger.warning(f"Could not send DM to user {ctx.author.name} - DMs are locked")
                 await ctx.send("❌ Unable to send you a private message. Please check if your DMs are open and try again.")
                 return
@@ -244,33 +334,6 @@ class Education(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error generating question: {e}")
             await ctx.send("An error occurred while generating the question. Please try again later.")
-
-    @commands.command(name='topics')
-    async def list_topics(self, ctx, subject: str, class_level: int = None):
-        """Lists all topics for a given subject"""
-        try:
-            subject = subject.lower()
-            if class_level and subject == 'english':
-                topics = self.question_generator.get_class_specific_topics(subject, class_level)
-                title = f"Topics in {subject.title()} for Class {class_level}"
-            else:
-                topics = self.question_generator.get_topics(subject)
-                title = f"Topics in {subject.title()}"
-
-            if not topics:
-                await ctx.send(f"Invalid subject or class level. Use !subjects to see available subjects.")
-                return
-
-            embed = discord.Embed(
-                title=title,
-                description="\n".join(f"• {topic}" for topic in topics),
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=embed)
-        except Exception as e:
-            self.logger.error(f"Error listing topics: {e}")
-            await ctx.send("An error occurred while fetching topics. Please try again.")
-
 
 async def setup(bot):
     await bot.add_cog(Education(bot))

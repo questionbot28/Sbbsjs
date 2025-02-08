@@ -18,7 +18,8 @@ intents = discord.Intents.default()
 intents.message_content = True  # Required for reading message content
 intents.guilds = True          # Required for guild/server information
 
-bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+# Create bot instance with help_command=None to disable default help command
+bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents, help_command=None)
 
 # Load cogs
 async def load_extensions():
