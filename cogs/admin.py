@@ -37,5 +37,18 @@ class Admin(commands.Cog):
         deleted = await ctx.channel.purge(limit=amount + 1)
         await ctx.send(f"Deleted {len(deleted)-1} messages.", delete_after=5)
 
+    @commands.command(name='refresh')
+    @commands.has_permissions(administrator=True)
+    async def refresh(self, ctx):
+        """Refresh bot by reloading all extensions"""
+        try:
+            for extension in list(self.bot.extensions):
+                await self.bot.reload_extension(extension)
+            await ctx.send("✅ Bot refreshed successfully!")
+            self.logger.info("Bot refreshed - all extensions reloaded")
+        except Exception as e:
+            await ctx.send(f"❌ Error refreshing bot: {str(e)}")
+            self.logger.error(f"Error refreshing bot: {e}")
+
 async def setup(bot):
     await bot.add_cog(Admin(bot))
