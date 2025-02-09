@@ -75,19 +75,20 @@ This formula shows that:
             }
         ]
     },
-    'mathematics': [
-        {
-            'question': '''In a geometric progression (GP), if a₁ = 3 and r = 2, find:
+    'mathematics': {
+        'Algebra': [
+            {
+                'question': '''In a geometric progression (GP), if a₁ = 3 and r = 2, find:
 1. The 5th term (a₅)
 2. The sum of first 5 terms (S₅)''',
-            'options': [
-                'A) a₅ = 48, S₅ = 93',
-                'B) a₅ = 36, S₅ = 93',
-                'C) a₅ = 48, S₅ = 90',
-                'D) a₅ = 36, S₅ = 90'
-            ],
-            'correct_answer': 'A',
-            'explanation': '''Let's solve this step by step:
+                'options': [
+                    'A) a₅ = 48, S₅ = 93',
+                    'B) a₅ = 36, S₅ = 93',
+                    'C) a₅ = 48, S₅ = 90',
+                    'D) a₅ = 36, S₅ = 90'
+                ],
+                'correct_answer': 'A',
+                'explanation': '''Let's solve this step by step:
 
 1. For a GP with first term a₁ and common ratio r:
    - a₁ = 3, r = 2
@@ -98,8 +99,9 @@ This formula shows that:
    - S₅ = 3(2⁵-1)/(2-1)
    - S₅ = 3(32-1)/1
    - S₅ = 3(31) = 93'''
-        }
-    ],
+            }
+        ]
+    },
     'biology': [
         {
             'question': '''Which of the following is NOT a characteristic of living organisms according to NCERT?''',
@@ -547,7 +549,5 @@ def get_stored_question_11(subject: str, topic: str | None = None) -> dict | Non
             for questions in QUESTION_BANK_11[subject].values():
                 all_questions.extend(questions)
             return random.choice(all_questions) if all_questions else None
-    else:  # If subject directly contains a list of questions
-        return random.choice(QUESTION_BANK_11[subject]) if QUESTION_BANK_11[subject] else None
 
     return None
