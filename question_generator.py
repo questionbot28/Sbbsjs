@@ -344,9 +344,14 @@ class QuestionGenerator:
             subject = subject.lower()
             cache_key = self._get_cache_key(subject, topic, class_level)
 
-            if not os.getenv('OPENAI_API_KEY'):
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
                 self.logger.error("OpenAI API key is not set")
-                raise Exception("OpenAI API key is not configured")
+                raise Exception("OpenAI API key is not configured. Please set up your API key.")
+
+            if not api_key.startswith('sk-'):
+                self.logger.error("Invalid OpenAI API key format")
+                raise Exception("Invalid OpenAI API key format. The key should start with 'sk-'")
 
             # Generate a new question using OpenAI
             prompt = self._create_prompt(subject, topic, class_level, difficulty)
@@ -382,12 +387,19 @@ class QuestionGenerator:
                 return result
 
             except Exception as api_error:
-                self.logger.error(f"OpenAI API error: {api_error}")
-                raise Exception(f"Failed to generate question via OpenAI: {api_error}")
+                if "invalid_api_key" in str(api_error):
+                    self.logger.error(f"Invalid OpenAI API key: {api_error}")
+                    raise Exception("Your OpenAI API key appears to be invalid. Please check and update your API key.")
+                elif "insufficient_quota" in str(api_error):
+                    self.logger.error(f"OpenAI API quota exceeded: {api_error}")
+                    raise Exception("Your OpenAI API quota has been exceeded. Please check your usage limits.")
+                else:
+                    self.logger.error(f"OpenAI API error: {api_error}")
+                    raise Exception(f"Error generating question: {api_error}")
 
         except Exception as e:
             self.logger.error(f"Failed to generate question: {e}")
-            raise Exception(f"Failed to generate question: {e}")
+            raise Exception(str(e))
 
     def _create_prompt(self, subject, topic, class_level, difficulty):
         topic_text = f" on {topic}" if topic else ""

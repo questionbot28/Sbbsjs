@@ -61,14 +61,20 @@
                 'economics': 'economics',
                 'accountancy': 'accountancy',
                 'business': 'business_studies',
-                'business_studies': 'business_studies'
+                'business_studies': 'business_studies',
+                'english': 'english'
             }
 
             subject = subject.lower()
             subject = subject_mapping.get(subject, subject)
 
+            if subject not in subject_mapping.values():
+                available_subjects = list(subject_mapping.keys())
+                await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                return
+
             self._initialize_user_tracking(ctx.author.id, subject)
-            question = self.question_generator.get_stored_question_11(subject, topic)
+            question = await self.question_generator.generate_question(subject, topic, class_level=11)
 
             if question:
                 embed = discord.Embed(
@@ -93,12 +99,15 @@
                         answer_embed.add_field(name="Explanation:", value=question['explanation'], inline=False)
                     await ctx.send(embed=answer_embed)
             else:
-                available_subjects = list(subject_mapping.keys())
-                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
+                await ctx.send("❌ Sorry, I couldn't generate a question at this time. Please try again later.")
 
         except Exception as e:
-            logger.error(f"Error in class_11 command: {str(e)}", exc_info=True)
-            await ctx.send("❌ An error occurred while getting your question.")
+            self.logger.error(f"Error in class_11 command: {str(e)}", exc_info=True)
+            error_message = str(e)
+            if "API key" in error_message:
+                await ctx.send("❌ There's an issue with the API configuration. Please contact the bot administrator.")
+            else:
+                await ctx.send(f"❌ {error_message}")
 
     @commands.command(name='12')
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
@@ -117,14 +126,20 @@
                 'economics': 'economics',
                 'accountancy': 'accountancy',
                 'business': 'business_studies',
-                'business_studies': 'business_studies'
+                'business_studies': 'business_studies',
+                'english': 'english'
             }
 
             subject = subject.lower()
             subject = subject_mapping.get(subject, subject)
 
+            if subject not in subject_mapping.values():
+                available_subjects = list(subject_mapping.keys())
+                await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                return
+
             self._initialize_user_tracking(ctx.author.id, subject)
-            question = self.question_generator.get_stored_question_12(subject, topic)
+            question = await self.question_generator.generate_question(subject, topic, class_level=12)
 
             if question:
                 embed = discord.Embed(
@@ -149,12 +164,15 @@
                         answer_embed.add_field(name="Explanation:", value=question['explanation'], inline=False)
                     await ctx.send(embed=answer_embed)
             else:
-                available_subjects = list(subject_mapping.keys())
-                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
+                await ctx.send("❌ Sorry, I couldn't generate a question at this time. Please try again later.")
 
         except Exception as e:
-            logger.error(f"Error in class_12 command: {str(e)}", exc_info=True)
-            await ctx.send("❌ An error occurred while getting your question.")
+            self.logger.error(f"Error in class_12 command: {str(e)}", exc_info=True)
+            error_message = str(e)
+            if "API key" in error_message:
+                await ctx.send("❌ There's an issue with the API configuration. Please contact the bot administrator.")
+            else:
+                await ctx.send(f"❌ {error_message}")
 
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
