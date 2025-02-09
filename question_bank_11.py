@@ -527,9 +527,11 @@ What does this description reveal about the grandmother's character?''',
     }
 }
 
+import random
+
 def get_stored_question_11(subject: str, topic: str | None = None) -> dict | None:
     """
-    Retrieve a pre-stored question from the class 11 question bank
+    Retrieve a random pre-stored question from the class 11 question bank
     """
     subject = subject.lower() if subject else ""
     if not subject or subject not in QUESTION_BANK_11:
@@ -538,13 +540,14 @@ def get_stored_question_11(subject: str, topic: str | None = None) -> dict | Non
     if isinstance(QUESTION_BANK_11[subject], dict):
         if topic:
             topic_questions = QUESTION_BANK_11[subject].get(topic, [])
-            return topic_questions[0] if topic_questions else None
+            return random.choice(topic_questions) if topic_questions else None
         else:
-            # Get first question from any topic
+            # Get all questions from all topics
+            all_questions = []
             for questions in QUESTION_BANK_11[subject].values():
-                if questions:
-                    return questions[0]
+                all_questions.extend(questions)
+            return random.choice(all_questions) if all_questions else None
     else:  # If subject directly contains a list of questions
-        return QUESTION_BANK_11[subject][0] if QUESTION_BANK_11[subject] else None
+        return random.choice(QUESTION_BANK_11[subject]) if QUESTION_BANK_11[subject] else None
 
     return None
