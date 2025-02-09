@@ -1,4 +1,30 @@
-!11 <subject> [topic]```\nExample: !11 physics waves",
+import discord
+from discord.ext import commands
+from typing import Optional, Tuple, Dict, Set
+import logging
+from question_generator import QuestionGenerator
+
+class Education(commands.Cog):
+    """A cog for educational commands"""
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.question_generator = QuestionGenerator()
+        self.logger = logging.getLogger('discord_bot')
+        self.user_questions: Dict[int, Dict[str, Dict[str, Set[str]]]] = {}
+
+    @commands.command(name='help')
+    async def show_help(self, ctx):
+        """Show help information about the bot"""
+        embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="Here are the commands you can use:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="📘 Get Question for Class 11",
+            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -164,4 +190,13 @@
             )
 
             subject_list = "\n".join([f"• {subject.title()}" for subject in subjects])
-            embed.add_field(name="Subjects:", value=f"```{subject_list}
+            embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error listing subjects: {e}")
+            await ctx.send("❌ An error occurred while getting the subject list.")
+
+def setup(bot):
+    """Setup the Education cog"""
+    bot.add_cog(Education(bot))
