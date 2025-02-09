@@ -229,11 +229,10 @@ class SubjectsViewer(commands.Cog):
             }
         }
 
-    @commands.command(name='11chapters')
+    @commands.command(name='listchapters11')
     async def class_11_chapters(self, ctx, subject: str):
         """View chapters for class 11 subjects"""
-        if args and args[0].lower() == 'chapters':
-            subject = subject.lower()
+        subject = subject.lower()
             if subject not in self.subjects_data:
                 available_subjects = list(self.subjects_data.keys())
                 await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
@@ -257,11 +256,10 @@ class SubjectsViewer(commands.Cog):
             embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
             await ctx.send(embed=embed)
 
-    @commands.command(name='12chapters')
+    @commands.command(name='listchapters12')
     async def class_12_chapters(self, ctx, subject: str):
         """View chapters for class 12 subjects"""
-        if args and args[0].lower() == 'chapters':
-            subject = subject.lower()
+        subject = subject.lower()
             if subject not in self.subjects_data:
                 available_subjects = list(self.subjects_data.keys())
                 await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
