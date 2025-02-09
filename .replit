@@ -4,7 +4,7 @@ modules = ["python-3.11", "nodejs-20", "python3"]
 channel = "stable-24_05"
 
 [workflows]
-runButton = "Discord Bot"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -21,6 +21,9 @@ author = "agent"
 
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
