@@ -239,19 +239,19 @@ class SubjectsViewer(commands.Cog):
             return
 
         chapters = self.subjects_data[subject][11]
-            embed = discord.Embed(
-                title=f"📚 {subject.title()} - Class 11",
-                color=discord.Color.blue()
-            )
+        embed = discord.Embed(
+            title=f"📚 {subject.title()} - Class 11",
+            color=discord.Color.blue()
+        )
 
-            chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
-            for i, group in enumerate(chapter_groups, 1):
-                chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
-                embed.add_field(
-                    name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
-                    value=f"```{chapter_text}```",
-                    inline=False
-                )
+        chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
+        for i, group in enumerate(chapter_groups, 1):
+            chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
+            embed.add_field(
+                name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
+                value=f"```{chapter_text}```",
+                inline=False
+            )
             
             embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
             await ctx.send(embed=embed)
