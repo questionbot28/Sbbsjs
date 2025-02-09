@@ -86,32 +86,39 @@ class Education(commands.Cog):
     async def _get_unique_question(self, ctx, subject: str, topic: Optional[str], class_level: int):
         """Get a question for the given subject and topic"""
         try:
+            from question_generator import QuestionGenerator
+            
+            # Create question generator instance
+            generator = QuestionGenerator()
+            
+            # Generate new question using OpenAI
+            question = await generator.generate_question(
+                subject=subject,
+                topic=topic,
+                class_level=class_level
+            )
+            
+            return question
+
+        except Exception as e:
+            self.logger.error(f"Error in _get_unique_question: {e}")
+            # Fallback to question bank if OpenAI fails
             import random
             from question_bank_11 import QUESTION_BANK_11
-            subject = subject.lower()
-
-            question_bank = QUESTION_BANK_11
-            if class_level == 12:
-                from question_bank_12 import QUESTION_BANK_12
-                question_bank = QUESTION_BANK_12
-
+            from question_bank_12 import QUESTION_BANK_12
+            
+            question_bank = QUESTION_BANK_11 if class_level == 11 else QUESTION_BANK_12
             if subject in question_bank:
                 if isinstance(question_bank[subject], dict):
-                    if topic:
-                        questions = question_bank[subject].get(topic.lower(), [])
-                    else:
-                        questions = []
+                    questions = question_bank[subject].get(topic.lower(), []) if topic else []
+                    if not questions:
                         for topic_questions in question_bank[subject].values():
                             questions.extend(topic_questions)
                 else:
                     questions = question_bank[subject]
-
+                    
                 if questions:
                     return random.choice(questions)
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error in _get_unique_question: {e}")
             return None
 
     @commands.command(name='subjects')
