@@ -126,7 +126,8 @@ async def load_extensions():
             await bot.load_extension('cogs.education_enhanced')  # Load our enhanced cog
             await bot.load_extension('cogs.subject_chapters')  # Load chapters cog
             await bot.load_extension('cogs.admin')
-            bot.loaded_extensions.update(['cogs.education_enhanced', 'cogs.subject_chapters', 'cogs.admin'])
+            await bot.load_extension('cogs.subjects_viewer')  # Load new subjects viewer cog
+            bot.loaded_extensions.update(['cogs.education_enhanced', 'cogs.subject_chapters', 'cogs.admin', 'cogs.subjects_viewer'])
             logger.info("Successfully loaded all extensions")
         except Exception as e:
             logger.error(f"Failed to load extensions: {e}")
