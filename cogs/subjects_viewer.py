@@ -119,6 +119,62 @@ class SubjectsViewer(commands.Cog):
             }
         }
 
+    @commands.command(name='11')
+    async def class_11_chapters(self, ctx, subject: str, *args):
+        """View chapters for class 11 subjects"""
+        if args and args[0].lower() == 'chapters':
+            subject = subject.lower()
+            if subject not in self.subjects_data:
+                available_subjects = list(self.subjects_data.keys())
+                await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                return
+
+            chapters = self.subjects_data[subject][11]
+            embed = discord.Embed(
+                title=f"📚 {subject.title()} - Class 11",
+                color=discord.Color.blue()
+            )
+
+            chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
+            for i, group in enumerate(chapter_groups, 1):
+                chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
+                embed.add_field(
+                    name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
+                    value=f"```{chapter_text}```",
+                    inline=False
+                )
+            
+            embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
+            await ctx.send(embed=embed)
+
+    @commands.command(name='12')
+    async def class_12_chapters(self, ctx, subject: str, *args):
+        """View chapters for class 12 subjects"""
+        if args and args[0].lower() == 'chapters':
+            subject = subject.lower()
+            if subject not in self.subjects_data:
+                available_subjects = list(self.subjects_data.keys())
+                await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                return
+
+            chapters = self.subjects_data[subject][12]
+            embed = discord.Embed(
+                title=f"📚 {subject.title()} - Class 12",
+                color=discord.Color.blue()
+            )
+
+            chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
+            for i, group in enumerate(chapter_groups, 1):
+                chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
+                embed.add_field(
+                    name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
+                    value=f"```{chapter_text}```",
+                    inline=False
+                )
+            
+            embed.set_footer(text=f"Use !12 {subject} <chapter_name> to get questions!")
+            await ctx.send(embed=embed)
+
     @commands.command(name='class')
     async def view_class_subject_chapters(self, ctx, subject: str = None):
         """View chapters for a subject in both classes"""
