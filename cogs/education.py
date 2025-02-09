@@ -1,31 +1,4 @@
-
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-from question_generator import QuestionGenerator
-
-# Store user questions
-user_questions = {}
-
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.question_generator = QuestionGenerator()
-        self.logger = logging.getLogger('discord_bot')
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="🎓 Greetings, future scholars! I'm your friendly AI study companion, specializing in NCERT curriculum for Classes 11 & 12! \n\n🧠 Whether you're diving into Physics formulas, solving Chemistry equations, or mastering Biology concepts, I'm here to challenge you with carefully crafted questions! \n\nHere's how you can use me:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -60,28 +33,59 @@ class Education(commands.Cog):
         embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
+    def _initialize_user_tracking(self, user_id: int, subject: str):
+        """Initialize tracking for a user if not exists"""
+        if user_id not in user_questions:
+            user_questions[user_id] = {}
+        if subject not in user_questions[user_id]:
+            user_questions[user_id][subject] = {
+                'used_questions': set(),
+                'last_topic': None,
+                'question_count': 0
+            }
+
+    async def _get_unique_question(self, user_id: int, subject: str, topic: Optional[str], class_level: int) -> Tuple[dict, bool]:
+        """Get a unique question for the user, returns (question, is_new)"""
+        self._initialize_user_tracking(user_id, subject)
+        user_data = user_questions[user_id][subject]
+
+        # Try to get a new question up to 3 times
+        for _ in range(3):
+            question = self.question_generator.get_stored_question(subject, topic, class_level)
+            if question:
+                question_key = f"{question['question'][:100]}"  # Use more of the question text as key
+                if question_key not in user_data['used_questions']:
+                    user_data['used_questions'].add(question_key)
+                    user_data['last_topic'] = topic
+                    user_data['question_count'] += 1
+                    return question, True
+
+        # If we couldn't get a new question, try generating a new one
+        question = await self.question_generator.generate_question(subject, topic, class_level)
+        if question:
+            question_key = f"{question['question'][:100]}"
+            if question_key not in user_data['used_questions']:
+                user_data['used_questions'].add(question_key)
+                user_data['question_count'] += 1
+                return question, True
+
+        return question, False
+
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         if ctx.channel.id != 1337669136729243658:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-            
+
         try:
             subject = subject.lower()
-            question = await self.question_generator.generate_question(subject, topic, 11)
+            question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 11)
 
             if question:
-                question_key = f"{question['question'][:50]}"
-                if self._is_question_asked(ctx.author.id, subject, question_key):
-                    await ctx.send("🔄 Finding a new question you haven't seen before...")
-                    question = await self.question_generator.generate_question(subject, topic, 11)
-
-                if question:
-                    self._mark_question_asked(ctx.author.id, subject, question_key)
-                    await self._send_question(ctx, question)
-                else:
-                    await ctx.send("❌ Sorry, couldn't find a new question at this time.")
+                if not is_new:
+                    await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
+                await self._send_question(ctx, question)
             else:
                 await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
         except Exception as e:
@@ -94,22 +98,15 @@ class Education(commands.Cog):
         if ctx.channel.id != 1337669207193682001:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-            
+
         try:
             subject = subject.lower()
-            question = await self.question_generator.generate_question(subject, topic, 12)
+            question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 12)
 
             if question:
-                question_key = f"{question['question'][:50]}"
-                if self._is_question_asked(ctx.author.id, subject, question_key):
-                    await ctx.send("🔄 Finding a new question you haven't seen before...")
-                    question = await self.question_generator.generate_question(subject, topic, 12)
-
-                if question:
-                    self._mark_question_asked(ctx.author.id, subject, question_key)
-                    await self._send_question(ctx, question)
-                else:
-                    await ctx.send("❌ Sorry, couldn't find a new question at this time.")
+                if not is_new:
+                    await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
+                await self._send_question(ctx, question)
             else:
                 await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
         except Exception as e:
@@ -117,7 +114,7 @@ class Education(commands.Cog):
             await ctx.send("❌ An error occurred while getting your question.")
 
     async def _send_question(self, ctx, question: dict):
-        """Format and send a question via DM"""
+        """Format and send a question"""
         try:
             # Create question embed
             embed = discord.Embed(
@@ -126,39 +123,4 @@ class Education(commands.Cog):
                 color=discord.Color.blue()
             )
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-            
-            # Send question to user's DM
-            await ctx.author.send(embed=embed)
-            
-            # Send confirmation message in channel
-            confirm_embed = discord.Embed(
-                title="✉️ Question Generated Successfully",
-                description="Check your private messages for the redemption steps. If you do not receive the message, please unlock your private messages.",
-                color=discord.Color.green()
-            )
-            confirm_embed.set_image(url="https://cdn.discordapp.com/attachments/1337669136729243658/1337711889244880947/standard.gif?ex=67a870c7&is=67a71f47&hm=20f4b871a79e5d84a9d24331820477b55fc4bd80ac0cb7cd8de122bb06c3c970&")
-            await ctx.send(embed=confirm_embed)
-            
-        except discord.Forbidden:
-            await ctx.send("❌ I couldn't send you a DM! Please enable DMs from server members and try again.")
-        except Exception as e:
-            self.logger.error(f"Error sending question: {e}")
-            await ctx.send("❌ An error occurred while sending the question.")
-
-    def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
-        """Check if a question was already asked to a user"""
-        return user_id in user_questions and \
-               subject in user_questions.get(user_id, {}) and \
-               question_key in user_questions[user_id][subject]
-
-    def _mark_question_asked(self, user_id: int, subject: str, question_key: str):
-        """Mark a question as asked for a user"""
-        if user_id not in user_questions:
-            user_questions[user_id] = {}
-        if subject not in user_questions[user_id]:
-            user_questions[user_id][subject] = set()
-        user_questions[user_id][subject].add(question_key)
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+            embed.add_field(name="Options:", value=f"```{options_text}

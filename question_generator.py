@@ -263,6 +263,7 @@ class QuestionGenerator:
                 ]
             }
         }
+        self._used_questions_cache = {}  # Store generated questions to prevent duplicates
 
     def get_subjects(self):
         """Get all available subjects"""
@@ -291,28 +292,53 @@ class QuestionGenerator:
 
         return self.get_topics(subject)
 
+    def get_stored_question(self, subject: str, topic: str | None, class_level: int) -> dict | None:
+        """Get a stored question from the appropriate question bank"""
+        if class_level == 11:
+            return get_stored_question_11(subject, topic)
+        elif class_level == 12:
+            return get_stored_question_12(subject, topic)
+        return None
+
+    def _get_cache_key(self, subject: str, topic: str | None, class_level: int) -> str:
+        """Generate a cache key for tracking used questions"""
+        return f"{subject}:{topic or 'all'}:{class_level}"
+
+    def _is_question_used(self, question: dict, cache_key: str) -> bool:
+        """Check if a question has been used recently"""
+        if cache_key not in self._used_questions_cache:
+            self._used_questions_cache[cache_key] = set()
+
+        # Use a substring of the question text as the identifier
+        question_id = f"{question['question'][:100]}"
+        return question_id in self._used_questions_cache[cache_key]
+
+    def _mark_question_used(self, question: dict, cache_key: str):
+        """Mark a question as used"""
+        if cache_key not in self._used_questions_cache:
+            self._used_questions_cache[cache_key] = set()
+
+        question_id = f"{question['question'][:100]}"
+        self._used_questions_cache[cache_key].add(question_id)
+
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
-        """
-        Generate or retrieve a question based on the given parameters
-        """
+        """Generate or retrieve a question based on the given parameters"""
         try:
             subject = subject.lower()
-            stored_question = None
+            cache_key = self._get_cache_key(subject, topic, class_level)
 
-            if class_level == 11:
-                stored_question = get_stored_question_11(subject, topic)
-            elif class_level == 12:
-                stored_question = get_stored_question_12(subject, topic)
-
-            if stored_question:
+            # Try to get a stored question first
+            stored_question = self.get_stored_question(subject, topic, class_level)
+            if stored_question and not self._is_question_used(stored_question, cache_key):
+                self._mark_question_used(stored_question, cache_key)
                 return stored_question
-
-            prompt = self._create_prompt(subject, topic, class_level, difficulty)
 
             if not os.getenv('OPENAI_API_KEY'):
                 self.logger.error("OpenAI API key is not set")
                 raise Exception("OpenAI API key is not configured")
 
+            # Generate a new question using OpenAI
+            prompt = self._create_prompt(subject, topic, class_level, difficulty)
             try:
                 response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -324,6 +350,24 @@ class QuestionGenerator:
                 )
 
                 result = json.loads(response.choices[0].message.content)
+
+                # Only return and cache the question if it's unique
+                if not self._is_question_used(result, cache_key):
+                    self._mark_question_used(result, cache_key)
+                    return result
+
+                # If we got a duplicate, try one more time
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": f"You are an educational question generator for class {class_level} students. Generate a completely different question from previous ones."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+
+                result = json.loads(response.choices[0].message.content)
+                self._mark_question_used(result, cache_key)
                 return result
 
             except Exception as api_error:
