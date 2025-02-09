@@ -123,10 +123,9 @@ bot = EducationalBot()
 async def load_extensions():
     if not bot.loaded_extensions:  # Only load if not already loaded
         try:
-            # Load education_new.py instead of education.py
-            await bot.load_extension('cogs.education_new')
+            await bot.load_extension('cogs.education_cog')  # Load our new cog
             await bot.load_extension('cogs.admin')
-            bot.loaded_extensions.update(['cogs.education_new', 'cogs.admin'])
+            bot.loaded_extensions.update(['cogs.education_cog', 'cogs.admin'])
             logger.info("Successfully loaded all extensions")
         except Exception as e:
             logger.error(f"Failed to load extensions: {e}")

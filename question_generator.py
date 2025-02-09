@@ -11,6 +11,8 @@ class QuestionGenerator:
         self.logger = logging.getLogger('discord_bot')
         self.subjects = {
             'physics': [
+                'Mechanics', 
+                'Thermodynamics',
                 'Units and Measurements', 
                 'Motion in a Straight Line',
                 'Motion in a Plane',
@@ -21,7 +23,6 @@ class QuestionGenerator:
                 'Mechanical Properties of Solids',
                 'Mechanical Properties of Fluids',
                 'Thermal Properties of Matter',
-                'Thermodynamics',
                 'Kinetic Theory',
                 'Oscillations',
                 'Waves',
@@ -264,6 +265,26 @@ class QuestionGenerator:
             }
         }
         self._used_questions_cache = {}  # Store generated questions to prevent duplicates
+
+    def get_stored_question_11(self, subject: str, topic: str | None = None) -> dict | None:
+        """
+        Retrieve a pre-stored question from the class 11 question bank
+        """
+        try:
+            return get_stored_question_11(subject, topic)
+        except Exception as e:
+            self.logger.error(f"Error getting class 11 question: {e}")
+            return None
+
+    def get_stored_question_12(self, subject: str, topic: str | None = None) -> dict | None:
+        """
+        Retrieve a pre-stored question from the class 12 question bank
+        """
+        try:
+            return get_stored_question_12(subject, topic)
+        except Exception as e:
+            self.logger.error(f"Error getting class 12 question: {e}")
+            return None
 
     def get_subjects(self):
         """Get all available subjects"""
