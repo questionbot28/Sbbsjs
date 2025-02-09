@@ -75,6 +75,56 @@ This formula shows that:
             }
         ]
     },
+    'mathematics': [
+        {
+            'question': '''In a geometric progression (GP), if a₁ = 3 and r = 2, find:
+1. The 5th term (a₅)
+2. The sum of first 5 terms (S₅)''',
+            'options': [
+                'A) a₅ = 48, S₅ = 93',
+                'B) a₅ = 36, S₅ = 93',
+                'C) a₅ = 48, S₅ = 90',
+                'D) a₅ = 36, S₅ = 90'
+            ],
+            'correct_answer': 'A',
+            'explanation': '''Let's solve this step by step:
+
+1. For a GP with first term a₁ and common ratio r:
+   - a₁ = 3, r = 2
+   - General term: aₙ = a₁rⁿ⁻¹
+   - a₅ = 3(2⁴) = 3(16) = 48
+
+2. Sum of n terms in GP: Sₙ = a₁(rⁿ-1)/(r-1)
+   - S₅ = 3(2⁵-1)/(2-1)
+   - S₅ = 3(32-1)/1
+   - S₅ = 3(31) = 93'''
+        }
+    ],
+    'biology': [
+        {
+            'question': '''Which of the following is NOT a characteristic of living organisms according to NCERT?''',
+            'options': [
+                'A) Growth and Development',
+                'B) Cellular Organization',
+                'C) Consciousness and Intelligence',
+                'D) Metabolism'
+            ],
+            'correct_answer': 'C',
+            'explanation': '''According to NCERT Biology Chapter 1:
+1. The fundamental characteristics of living organisms are:
+   - Growth and Development
+   - Cellular Organization
+   - Metabolism
+   - Reproduction
+   - Response to Environment
+   - Adaptation
+
+2. Consciousness and Intelligence:
+   - Not a defining characteristic of all living things
+   - Many organisms lack complex nervous systems
+   - Not mentioned in NCERT as fundamental trait'''
+        }
+    ],
     'business_studies': {
         'Business Environment': [
             {

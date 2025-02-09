@@ -1,30 +1,4 @@
-import discord
-from discord.ext import commands
-from typing import Optional, Tuple, Dict, Set
-import logging
-from question_generator import QuestionGenerator
-
-class Education(commands.Cog):
-    """A cog for educational commands"""
-    
-    def __init__(self, bot):
-        self.bot = bot
-        self.question_generator = QuestionGenerator()
-        self.logger = logging.getLogger('discord_bot')
-        self.user_questions: Dict[int, Dict[str, Dict[str, Set[str]]]] = {}
-
-    @commands.command(name='help')
-    async def show_help(self, ctx):
-        """Show help information about the bot"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here are the commands you can use:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -109,7 +83,23 @@ class Education(commands.Cog):
             return
 
         try:
+            # Map common subject names to their standardized versions
+            subject_mapping = {
+                'maths': 'mathematics',
+                'math': 'mathematics',
+                'bio': 'biology',
+                'physics': 'physics',
+                'chemistry': 'chemistry',
+                'economics': 'economics',
+                'accountancy': 'accountancy',
+                'business': 'business_studies',
+                'business_studies': 'business_studies'
+            }
+
             subject = subject.lower()
+            # Try to get the standardized subject name, or use the original if not in mapping
+            subject = subject_mapping.get(subject, subject)
+
             question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 11)
 
             if question:
@@ -117,7 +107,8 @@ class Education(commands.Cog):
                     await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
                 await self._send_question(ctx, question)
             else:
-                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+                available_subjects = self.question_generator.get_subjects()
+                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
         except Exception as e:
             self.logger.error(f"Error in class_11 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
@@ -130,7 +121,23 @@ class Education(commands.Cog):
             return
 
         try:
+            # Map common subject names to their standardized versions
+            subject_mapping = {
+                'maths': 'mathematics',
+                'math': 'mathematics',
+                'bio': 'biology',
+                'physics': 'physics',
+                'chemistry': 'chemistry',
+                'economics': 'economics',
+                'accountancy': 'accountancy',
+                'business': 'business_studies',
+                'business_studies': 'business_studies'
+            }
+
             subject = subject.lower()
+            # Try to get the standardized subject name, or use the original if not in mapping
+            subject = subject_mapping.get(subject, subject)
+
             question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 12)
 
             if question:
@@ -138,7 +145,8 @@ class Education(commands.Cog):
                     await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
                 await self._send_question(ctx, question)
             else:
-                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+                available_subjects = self.question_generator.get_subjects()
+                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
         except Exception as e:
             self.logger.error(f"Error in class_12 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
@@ -190,12 +198,4 @@ class Education(commands.Cog):
             )
 
             subject_list = "\n".join([f"• {subject.title()}" for subject in subjects])
-            embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
-            await ctx.send(embed=embed)
-
-        except Exception as e:
-            self.logger.error(f"Error listing subjects: {e}")
-            await ctx.send("❌ An error occurred while getting the subject list.")
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+            embed.add_field(name="Subjects:", value=f"```{subject_list}
