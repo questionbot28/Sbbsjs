@@ -131,7 +131,7 @@
                 inline=True
             )
 
-            message = await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
 
             explanation_embed = discord.Embed(
                 title="📖 Explanation",
