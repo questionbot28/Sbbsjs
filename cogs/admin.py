@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import logging
+import asyncio
 
 class Admin(commands.Cog):
     def __init__(self, bot):
@@ -11,44 +12,42 @@ class Admin(commands.Cog):
     async def ping(self, ctx):
         """Check bot's latency"""
         latency = round(self.bot.latency * 1000)
-        await ctx.send(f'Pong! Latency: {latency}ms')
-
-    @commands.command(name='stats')
-    @commands.has_permissions(administrator=True)
-    async def stats(self, ctx):
-        """Show bot statistics"""
-        embed = discord.Embed(
-            title="Bot Statistics",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="Servers", value=str(len(self.bot.guilds)))
-        embed.add_field(name="Users", value=str(sum(guild.member_count for guild in self.bot.guilds)))
-        embed.add_field(name="Commands", value=str(len(self.bot.commands)))
-        await ctx.send(embed=embed)
-
-    @commands.command(name='clear')
-    @commands.has_permissions(manage_messages=True)
-    async def clear(self, ctx, amount: int = 5):
-        """Clear specified number of messages"""
-        if amount > 100:
-            await ctx.send("Cannot delete more than 100 messages at once.")
-            return
-
-        deleted = await ctx.channel.purge(limit=amount + 1)
-        await ctx.send(f"Deleted {len(deleted)-1} messages.", delete_after=5)
+        await ctx.send(f'🏓 Pong! Bot latency: {latency}ms')
 
     @commands.command(name='refresh')
     @commands.has_permissions(administrator=True)
     async def refresh(self, ctx):
         """Refresh bot by reloading all extensions"""
+        loading_msg = await ctx.send("🔄 Reloading all extensions...")
+
         try:
+            # Unload all extensions first
             for extension in list(self.bot.extensions):
-                await self.bot.reload_extension(extension)
-            await ctx.send("✅ Bot refreshed successfully!")
-            self.logger.info("Bot refreshed - all extensions reloaded")
+                await self.bot.unload_extension(extension)
+
+            # Load all extensions
+            extensions = [
+                'cogs.education_enhanced',
+                'cogs.subject_curriculum_new',  
+                'cogs.admin'
+            ]
+
+            for extension in extensions:
+                await self.bot.load_extension(extension)
+                self.logger.info(f"Successfully reloaded extension: {extension}")
+
+            await loading_msg.edit(content="✨ Rohanpreet all extensions and commands are loaded and working! ✨")
+
         except Exception as e:
-            await ctx.send(f"❌ Error refreshing bot: {str(e)}")
             self.logger.error(f"Error refreshing bot: {e}")
+            await loading_msg.edit(content=f"❌ Error refreshing bot: {str(e)}")
+            # Try to load back the extensions that were unloaded
+            try:
+                for extension in extensions:
+                    if extension not in self.bot.extensions:
+                        await self.bot.load_extension(extension)
+            except Exception as reload_error:
+                self.logger.error(f"Error reloading extensions after failure: {reload_error}")
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))
