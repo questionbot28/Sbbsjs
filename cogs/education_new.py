@@ -1,26 +1,4 @@
-
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here are the available commands:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -43,32 +21,18 @@ class Education(commands.Cog):
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         try:
-            import random
-            from question_bank_11 import get_stored_question_11
-            subject = subject.lower()
-            # Get multiple questions and choose randomly
-            questions = []
-            for _ in range(3):  # Try to get 3 different questions
-                q = get_stored_question_11(subject, topic)
-                if q and q not in questions:
-                    questions.append(q)
-            
-            question = random.choice(questions) if questions else None
-            
-            if not question:
-                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
-                return
-                
-            embed = discord.Embed(
-                title="📝 Practice Question",
-                description=question['question'],
-                color=discord.Color.blue()
-            )
-            if 'options' in question:
-                options_text = "\n".join(question['options'])
-                embed.add_field(name="Options:", value=options_text, inline=False)
-            await ctx.send(embed=embed)
-            
+            question = await self._get_unique_question(ctx, subject, topic, 11)
+            if question:
+                embed = discord.Embed(
+                    title="📝 Practice Question",
+                    description=question['question'],
+                    color=discord.Color.blue()
+                )
+                if 'options' in question:
+                    options_text = "\n".join(question['options'])
+                    embed.add_field(name="Options:", value=options_text, inline=False)
+                await ctx.send(embed=embed)
+
         except Exception as e:
             self.logger.error(f"Error in class_11 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
@@ -76,7 +40,53 @@ class Education(commands.Cog):
     @commands.command(name='12')
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 12"""
-        await ctx.send(f"Getting a question for class 12 {subject} {topic if topic else ''}")
+        try:
+            question = await self._get_unique_question(ctx, subject, topic, 12)
+            if question:
+                embed = discord.Embed(
+                    title="📝 Practice Question",
+                    description=question['question'],
+                    color=discord.Color.blue()
+                )
+                if 'options' in question:
+                    options_text = "\n".join(question['options'])
+                    embed.add_field(name="Options:", value=options_text, inline=False)
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+
+        except Exception as e:
+            self.logger.error(f"Error in class_12 command: {e}")
+            await ctx.send("❌ An error occurred while getting your question.")
+
+
+    async def _get_unique_question(self, ctx, subject: str, topic: Optional[str], class_level: int):
+        """Get a question for the given subject and topic"""
+        try:
+            import random
+            from question_bank_11 import QUESTION_BANK_11 # Assumed import
+            subject = subject.lower()
+
+            # Get all available questions for the subject/topic
+            if subject in QUESTION_BANK_11:
+                if isinstance(QUESTION_BANK_11[subject], dict):
+                    if topic:
+                        questions = QUESTION_BANK_11[subject].get(topic, [])
+                    else:
+                        questions = []
+                        for topic_questions in QUESTION_BANK_11[subject].values():
+                            questions.extend(topic_questions)
+                else:
+                    questions = QUESTION_BANK_11[subject]
+
+                if questions:
+                    return random.choice(questions)
+
+            return None # Return None if no question is found
+
+        except Exception as e:
+            self.logger.error(f"Error in _get_unique_question: {e}")
+            return None
 
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
@@ -93,8 +103,4 @@ class Education(commands.Cog):
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
-        await ctx.send(embed=embed)
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+        embed.add_field(name="Subjects:", value=f"```{subject_list}
