@@ -1,4 +1,31 @@
-!11 <subject> [topic]```\nExample: !11 physics waves",
+
+import discord
+from discord.ext import commands
+from typing import Optional
+import logging
+from question_generator import QuestionGenerator
+
+# Store user questions
+user_questions = {}
+
+class Education(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.question_generator = QuestionGenerator()
+        self.logger = logging.getLogger('discord_bot')
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show help information"""
+        embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="🎓 Greetings, future scholars! I'm your friendly AI study companion, specializing in NCERT curriculum for Classes 11 & 12! \n\n🧠 Whether you're diving into Physics formulas, solving Chemistry equations, or mastering Biology concepts, I'm here to challenge you with carefully crafted questions! \n\nHere's how you can use me:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="📘 Get Question for Class 11",
+            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -16,11 +43,11 @@
 
         creator_info = (
             "```ansi\n"
-            "[0;35m╔═════════ Creator Information ═════════╗[0m\n"
-            "[0;36m║     Made with 💖 by:                 ║[0m\n"
-            "[0;33m║  Rohanpreet Singh Pathania          ║[0m\n"
-            "[0;36m║     Language: Python 🐍             ║[0m\n"
-            "[0;35m╚═══════════════════════════════════════╝[0m\n"
+            "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
+            "[0;36m┃     Made with 💖 by:          ┃[0m\n"
+            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
+            "[0;36m┃     Language: Python 🐍      ┃[0m\n"
+            "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
             "```"
         )
 
@@ -39,7 +66,7 @@
         if ctx.channel.id != 1337669136729243658:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-
+            
         try:
             subject = subject.lower()
             question = await self.question_generator.generate_question(subject, topic, 11)
@@ -67,7 +94,7 @@
         if ctx.channel.id != 1337669207193682001:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-
+            
         try:
             subject = subject.lower()
             question = await self.question_generator.generate_question(subject, topic, 12)
@@ -99,4 +126,39 @@
                 color=discord.Color.blue()
             )
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}
+            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
+            
+            # Send question to user's DM
+            await ctx.author.send(embed=embed)
+            
+            # Send confirmation message in channel
+            confirm_embed = discord.Embed(
+                title="✉️ Question Generated Successfully",
+                description="Check your private messages for the redemption steps. If you do not receive the message, please unlock your private messages.",
+                color=discord.Color.green()
+            )
+            confirm_embed.set_image(url="https://cdn.discordapp.com/attachments/1337669136729243658/1337711889244880947/standard.gif?ex=67a870c7&is=67a71f47&hm=20f4b871a79e5d84a9d24331820477b55fc4bd80ac0cb7cd8de122bb06c3c970&")
+            await ctx.send(embed=confirm_embed)
+            
+        except discord.Forbidden:
+            await ctx.send("❌ I couldn't send you a DM! Please enable DMs from server members and try again.")
+        except Exception as e:
+            self.logger.error(f"Error sending question: {e}")
+            await ctx.send("❌ An error occurred while sending the question.")
+
+    def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
+        """Check if a question was already asked to a user"""
+        return user_id in user_questions and \
+               subject in user_questions.get(user_id, {}) and \
+               question_key in user_questions[user_id][subject]
+
+    def _mark_question_asked(self, user_id: int, subject: str, question_key: str):
+        """Mark a question as asked for a user"""
+        if user_id not in user_questions:
+            user_questions[user_id] = {}
+        if subject not in user_questions[user_id]:
+            user_questions[user_id][subject] = set()
+        user_questions[user_id][subject].add(question_key)
+
+async def setup(bot):
+    await bot.add_cog(Education(bot))
