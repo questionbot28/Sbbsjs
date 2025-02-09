@@ -8,12 +8,6 @@ class Admin(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
-    @commands.command(name='ping')
-    async def ping(self, ctx):
-        """Check bot's latency"""
-        latency = round(self.bot.latency * 1000)
-        await ctx.send(f'🏓 Pong! Bot latency: {latency}ms')
-
     @commands.command(name='refresh')
     @commands.has_permissions(administrator=True)
     async def refresh(self, ctx):
@@ -27,7 +21,7 @@ class Admin(commands.Cog):
 
             # Load all extensions
             extensions = [
-                'cogs.education_enhanced',
+                'cogs.education_enhanced_final',
                 'cogs.subject_curriculum_new',  
                 'cogs.admin'
             ]
