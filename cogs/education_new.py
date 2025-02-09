@@ -44,18 +44,23 @@ class Education(commands.Cog):
         """Get a question for class 11"""
         try:
             from question_bank_11 import get_stored_question_11
+            subject = subject.lower()
             question = get_stored_question_11(subject, topic)
-            if question:
-                embed = discord.Embed(
-                    title="📝 Practice Question",
-                    description=question['question'],
-                    color=discord.Color.blue()
-                )
+            
+            if not question:
+                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+                return
+                
+            embed = discord.Embed(
+                title="📝 Practice Question",
+                description=question['question'],
+                color=discord.Color.blue()
+            )
+            if 'options' in question:
                 options_text = "\n".join(question['options'])
                 embed.add_field(name="Options:", value=options_text, inline=False)
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+            await ctx.send(embed=embed)
+            
         except Exception as e:
             self.logger.error(f"Error in class_11 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
