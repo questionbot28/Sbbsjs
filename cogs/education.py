@@ -1,31 +1,4 @@
-
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-from question_generator import QuestionGenerator
-
-# Store user questions
-user_questions = {}
-
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.question_generator = QuestionGenerator()
-        self.logger = logging.getLogger('discord_bot')
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="🎓 Greetings, future scholars! I'm your friendly AI study companion, specializing in NCERT curriculum for Classes 11 & 12! \n\n🧠 Whether you're diving into Physics formulas, solving Chemistry equations, or mastering Biology concepts, I'm here to challenge you with carefully crafted questions! \n\nHere's how you can use me:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -60,26 +33,39 @@ class Education(commands.Cog):
         embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
+    async def generate_question_with_fallback(self, subject: str, topic: Optional[str], class_num: int):
+        """Generate a question with fallback to stored questions"""
+        try:
+            question = await self.question_generator.generate_question(subject, topic, class_num)
+            if question:
+                return question, False  # False indicates it's not a fallback
+        except Exception as e:
+            self.logger.warning(f"Failed to generate question via API: {e}")
+
+        # Fallback to stored questions
+        stored_question = get_stored_question_11(subject, topic) if class_num == 11 else get_stored_question_12(subject, topic)
+        return stored_question, True  # True indicates it's a fallback
+
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         if ctx.channel.id != 1337669136729243658:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-            
+
         try:
             subject = subject.lower()
-            question = await self.question_generator.generate_question(subject, topic, 11)
+            question, is_fallback = await self.generate_question_with_fallback(subject, topic, 11)
 
             if question:
                 question_key = f"{question['question'][:50]}"
                 if self._is_question_asked(ctx.author.id, subject, question_key):
                     await ctx.send("🔄 Finding a new question you haven't seen before...")
-                    question = await self.question_generator.generate_question(subject, topic, 11)
+                    question, is_fallback = await self.generate_question_with_fallback(subject, topic, 11)
 
                 if question:
                     self._mark_question_asked(ctx.author.id, subject, question_key)
-                    await self._send_question(ctx, question)
+                    await self._send_question(ctx, question, is_fallback)
                 else:
                     await ctx.send("❌ Sorry, couldn't find a new question at this time.")
             else:
@@ -94,20 +80,20 @@ class Education(commands.Cog):
         if ctx.channel.id != 1337669207193682001:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-            
+
         try:
             subject = subject.lower()
-            question = await self.question_generator.generate_question(subject, topic, 12)
+            question, is_fallback = await self.generate_question_with_fallback(subject, topic, 12)
 
             if question:
                 question_key = f"{question['question'][:50]}"
                 if self._is_question_asked(ctx.author.id, subject, question_key):
                     await ctx.send("🔄 Finding a new question you haven't seen before...")
-                    question = await self.question_generator.generate_question(subject, topic, 12)
+                    question, is_fallback = await self.generate_question_with_fallback(subject, topic, 12)
 
                 if question:
                     self._mark_question_asked(ctx.author.id, subject, question_key)
-                    await self._send_question(ctx, question)
+                    await self._send_question(ctx, question, is_fallback)
                 else:
                     await ctx.send("❌ Sorry, couldn't find a new question at this time.")
             else:
@@ -116,7 +102,7 @@ class Education(commands.Cog):
             self.logger.error(f"Error in class_12 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
 
-    async def _send_question(self, ctx, question: dict):
+    async def _send_question(self, ctx, question: dict, is_fallback: bool = False):
         """Format and send a question via DM"""
         try:
             # Create question embed
@@ -126,39 +112,4 @@ class Education(commands.Cog):
                 color=discord.Color.blue()
             )
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-            
-            # Send question to user's DM
-            await ctx.author.send(embed=embed)
-            
-            # Send confirmation message in channel
-            confirm_embed = discord.Embed(
-                title="✉️ Question Generated Successfully",
-                description="Check your private messages for the redemption steps. If you do not receive the message, please unlock your private messages.",
-                color=discord.Color.green()
-            )
-            confirm_embed.set_image(url="https://cdn.discordapp.com/attachments/1337669136729243658/1337711889244880947/standard.gif?ex=67a870c7&is=67a71f47&hm=20f4b871a79e5d84a9d24331820477b55fc4bd80ac0cb7cd8de122bb06c3c970&")
-            await ctx.send(embed=confirm_embed)
-            
-        except discord.Forbidden:
-            await ctx.send("❌ I couldn't send you a DM! Please enable DMs from server members and try again.")
-        except Exception as e:
-            self.logger.error(f"Error sending question: {e}")
-            await ctx.send("❌ An error occurred while sending the question.")
-
-    def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
-        """Check if a question was already asked to a user"""
-        return user_id in user_questions and \
-               subject in user_questions.get(user_id, {}) and \
-               question_key in user_questions[user_id][subject]
-
-    def _mark_question_asked(self, user_id: int, subject: str, question_key: str):
-        """Mark a question as asked for a user"""
-        if user_id not in user_questions:
-            user_questions[user_id] = {}
-        if subject not in user_questions[user_id]:
-            user_questions[user_id][subject] = set()
-        user_questions[user_id][subject].add(question_key)
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+            embed.add_field(name="Options:", value=f"```{options_text}
