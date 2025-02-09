@@ -10,7 +10,7 @@ class SubjectsViewer(commands.Cog):
             'accountancy': {
                 11: [
                     "Introduction to Accounting",
-                    "Theory Base of Accounting",
+                    "Theory Base of Accounting", 
                     "Recording of Transactions - I",
                     "Recording of Transactions - II",
                     "Bank Reconciliation Statement",
@@ -24,7 +24,7 @@ class SubjectsViewer(commands.Cog):
                 12: [
                     "Accounting for Partnership Firms",
                     "Change in Profit Sharing Ratio",
-                    "Admission of a Partner",
+                    "Admission of a Partner", 
                     "Retirement and Death of a Partner",
                     "Dissolution of Partnership",
                     "Accounting for Share Capital",
@@ -52,14 +52,12 @@ class SubjectsViewer(commands.Cog):
             color=discord.Color.blue()
         )
 
-        chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
-        for i, group in enumerate(chapter_groups, 1):
-            chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
-            embed.add_field(
-                name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
-                value=f"```{chapter_text}```",
-                inline=False
-            )
+        chapter_text = "\n".join([f"📖 {i+1}. {chapter}" for i, chapter in enumerate(chapters)])
+        embed.add_field(
+            name="Chapters",
+            value=f"```{chapter_text}```",
+            inline=False
+        )
 
         embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
         await ctx.send(embed=embed)
