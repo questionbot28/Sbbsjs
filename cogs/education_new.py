@@ -42,7 +42,38 @@ class Education(commands.Cog):
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
-        await ctx.send(f"Getting a question for class 11 {subject} {topic if topic else ''}")
+        try:
+            # Map common subject names to standardized versions
+            subject_mapping = {
+                'maths': 'mathematics',
+                'math': 'mathematics',
+                'bio': 'biology',
+                'physics': 'physics',
+                'chemistry': 'chemistry',
+                'economics': 'economics',
+                'accountancy': 'accountancy',
+                'business': 'business_studies',
+                'business_studies': 'business_studies'
+            }
+
+            subject = subject.lower()
+            subject = subject_mapping.get(subject, subject)
+            
+            question = get_stored_question_11(subject, topic)
+            if question:
+                embed = discord.Embed(
+                    title="📝 Practice Question",
+                    description=question['question'],
+                    color=discord.Color.blue()
+                )
+                
+                options_text = "\n".join(question['options'])
+                embed.add_field(name="Options:", value=options_text, inline=False)
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+        except Exception as e:
+            await ctx.send("❌ An error occurred while getting your question.")
 
     @commands.command(name='12')
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
