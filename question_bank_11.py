@@ -535,12 +535,16 @@ def get_stored_question_11(subject: str, topic: str | None = None) -> dict | Non
     if not subject or subject not in QUESTION_BANK_11:
         return None
 
-    if topic:
-        topic_questions = QUESTION_BANK_11[subject].get(topic, [])
-    else:
-        # If no topic specified, get questions from all topics
-        topic_questions = []
-        for questions in QUESTION_BANK_11[subject].values():
-            topic_questions.extend(questions)
+    if isinstance(QUESTION_BANK_11[subject], dict):
+        if topic:
+            topic_questions = QUESTION_BANK_11[subject].get(topic, [])
+            return topic_questions[0] if topic_questions else None
+        else:
+            # Get first question from any topic
+            for questions in QUESTION_BANK_11[subject].values():
+                if questions:
+                    return questions[0]
+    else:  # If subject directly contains a list of questions
+        return QUESTION_BANK_11[subject][0] if QUESTION_BANK_11[subject] else None
 
-    return topic_questions[0] if topic_questions else None
+    return None
