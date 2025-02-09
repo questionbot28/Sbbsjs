@@ -252,9 +252,9 @@ class SubjectsViewer(commands.Cog):
                 value=f"```{chapter_text}```",
                 inline=False
             )
-            
-            embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
-            await ctx.send(embed=embed)
+
+        embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
+        await ctx.send(embed=embed)
 
     @commands.command(name='12')
     async def class_12(self, ctx, subject: str, *args):
