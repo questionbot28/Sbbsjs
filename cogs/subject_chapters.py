@@ -1,4 +1,4 @@
-{chapter_list}```",
+{chapter_text}```",
             inline=False
         )
 
@@ -21,7 +21,7 @@
             color=discord.Color.blue()
         )
 
-        chapter_list = "\n".join([f"{i+1}. {chapter}" for i, chapter in enumerate(chapters)])
+        chapter_text = "\n".join([f"{i+1}. {chapter}" for i, chapter in enumerate(chapters)])
         embed.add_field(
             name="Chapters",
-            value=f"```{chapter_list}
+            value=f"```{chapter_text}
