@@ -1,5 +1,5 @@
 import os
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import json
 from question_bank_11 import get_stored_question_11
 from question_bank_12 import get_stored_question_12
@@ -7,13 +7,13 @@ import logging
 
 class QuestionGenerator:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.logger = logging.getLogger('discord_bot')
+        self._initialize_openai_client()
         self.subjects = {
             'physics': [
-                'Mechanics', 
+                'Mechanics',
                 'Thermodynamics',
-                'Units and Measurements', 
+                'Units and Measurements',
                 'Motion in a Straight Line',
                 'Motion in a Plane',
                 'Laws of Motion',
@@ -276,6 +276,34 @@ class QuestionGenerator:
         }
         self._cache_limit = 1000  # Maximum questions to track per subject
 
+    def _initialize_openai_client(self):
+        """Initialize the OpenAI client with proper error handling"""
+        try:
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                self.logger.error("OpenAI API key is not set")
+                raise ValueError("OpenAI API key is not configured")
+
+            if not api_key.startswith('sk-'):
+                self.logger.error("Invalid OpenAI API key format")
+                raise ValueError("Invalid OpenAI API key format")
+
+            self.client = OpenAI(api_key=api_key)
+            # Test the API key with a simple completion
+            self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Test"}],
+                max_tokens=5
+            )
+            self.logger.info("OpenAI client initialized successfully")
+
+        except OpenAIError as e:
+            self.logger.error(f"OpenAI API Error: {str(e)}")
+            raise ValueError(f"OpenAI API Error: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Error initializing OpenAI client: {str(e)}")
+            raise ValueError(f"Error initializing OpenAI client: {str(e)}")
+
     def _get_cache_key(self, subject: str, topic: str | None, class_level: int) -> str:
         """Generate a more specific cache key for tracking used questions"""
         return f"{subject}:{topic or 'all'}:{class_level}"
@@ -312,18 +340,22 @@ class QuestionGenerator:
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
         """Enhanced question generation with better error handling and uniqueness checks"""
         try:
+            # First try to get a stored question as fallback
+            if class_level == 11:
+                stored_question = self.get_stored_question_11(subject, topic)
+            else:
+                stored_question = self.get_stored_question_12(subject, topic)
+
+            if stored_question:
+                self.logger.info(f"Using stored question for {subject} {topic if topic else ''}")
+                return stored_question
+
+            # If no stored question, try OpenAI
             subject = subject.lower()
             cache_key = self._get_cache_key(subject, topic, class_level)
 
-            # Validate API key
-            api_key = os.getenv('OPENAI_API_KEY')
-            if not api_key:
-                self.logger.error("OpenAI API key is not set")
-                raise Exception("OpenAI API key is not configured. Please set up your API key.")
-
-            if not api_key.startswith('sk-'):
-                self.logger.error("Invalid OpenAI API key format")
-                raise Exception("Invalid OpenAI API key format. The key should start with 'sk-'")
+            if not hasattr(self, 'client'):
+                self._initialize_openai_client()
 
             # Enhanced prompt for more varied questions
             prompt = self._create_enhanced_prompt(subject, topic, class_level, difficulty)
@@ -344,6 +376,7 @@ class QuestionGenerator:
 
                     # Validate question format
                     if not all(key in result for key in ['question', 'options', 'correct_answer', 'explanation']):
+                        self.logger.warning(f"Invalid question format received, attempt {attempt + 1}")
                         continue
 
                     # Only return if question is unique
@@ -353,16 +386,16 @@ class QuestionGenerator:
 
                     self.logger.info(f"Duplicate question generated for {subject}, attempt {attempt + 1}/{max_attempts}")
 
-                except Exception as api_error:
+                except OpenAIError as api_error:
                     self.logger.error(f"API error on attempt {attempt + 1}: {api_error}")
                     if attempt == max_attempts - 1:
-                        raise
+                        raise ValueError(f"OpenAI API Error: {str(api_error)}")
 
-            raise Exception(f"Could not generate a unique question for {subject} after {max_attempts} attempts")
+            raise ValueError(f"Could not generate a unique question for {subject} after {max_attempts} attempts")
 
         except Exception as e:
             self.logger.error(f"Failed to generate question: {e}")
-            raise Exception(str(e))
+            raise ValueError(str(e))
 
     def _create_enhanced_prompt(self, subject, topic, class_level, difficulty):
         """Create an enhanced prompt for more varied questions"""
