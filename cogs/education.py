@@ -15,10 +15,12 @@
         )
 
         creator_info = (
-            "```\n"
-            "Creator Information\n"
-            "Made with love by: Rohanpreet Singh Pathania\n"
-            "Language: Python\n"
+            "```ansi\n"
+            "[0;35m╔═════════ Creator Information ═════════╗[0m\n"
+            "[0;36m║     Made with 💖 by:                 ║[0m\n"
+            "[0;33m║  Rohanpreet Singh Pathania          ║[0m\n"
+            "[0;36m║     Language: Python 🐍             ║[0m\n"
+            "[0;35m╚═══════════════════════════════════════╝[0m\n"
             "```"
         )
 
@@ -87,22 +89,8 @@
             self.logger.error(f"Error in class_12 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
 
-    def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
-        """Check if a question was already asked to a user"""
-        return user_id in user_questions and \
-               subject in user_questions.get(user_id, {}) and \
-               question_key in user_questions[user_id][subject]
-
-    def _mark_question_asked(self, user_id: int, subject: str, question_key: str):
-        """Mark a question as asked for a user"""
-        if user_id not in user_questions:
-            user_questions[user_id] = {}
-        if subject not in user_questions[user_id]:
-            user_questions[user_id][subject] = set()
-        user_questions[user_id][subject].add(question_key)
-
     async def _send_question(self, ctx, question: dict):
-        """Format and send a question"""
+        """Format and send a question via DM"""
         try:
             # Create question embed
             embed = discord.Embed(
@@ -110,19 +98,5 @@
                 description=question['question'],
                 color=discord.Color.blue()
             )
-
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-
-            # Send the question
-            message = await ctx.send(embed=embed)
-
-            # Add reaction options
-            reactions = ['🇦', '🇧', '🇨', '🇩']
-            for reaction in reactions:
-                await message.add_reaction(reaction)
-
-            # Send explanation in a separate embed
-            explanation_embed = discord.Embed(
-                title="📖 Explanation",
-                description=f"```{question['explanation']}
+            embed.add_field(name="Options:", value=f"```{options_text}
