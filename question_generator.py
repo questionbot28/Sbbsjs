@@ -322,16 +322,10 @@ class QuestionGenerator:
         self._used_questions_cache[cache_key].add(question_id)
 
     async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
-        """Generate or retrieve a question based on the given parameters"""
+        """Generate a new question using OpenAI"""
         try:
             subject = subject.lower()
             cache_key = self._get_cache_key(subject, topic, class_level)
-
-            # Try to get a stored question first
-            stored_question = self.get_stored_question(subject, topic, class_level)
-            if stored_question and not self._is_question_used(stored_question, cache_key):
-                self._mark_question_used(stored_question, cache_key)
-                return stored_question
 
             if not os.getenv('OPENAI_API_KEY'):
                 self.logger.error("OpenAI API key is not set")
