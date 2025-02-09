@@ -1,14 +1,15 @@
 import os
-from openai import OpenAI, OpenAIError
+import google.generativeai as genai
 import json
+import logging
+import random
 from question_bank_11 import get_stored_question_11
 from question_bank_12 import get_stored_question_12
-import logging
 
 class QuestionGenerator:
     def __init__(self):
         self.logger = logging.getLogger('discord_bot')
-        self._initialize_openai_client()
+        self._initialize_gemini_client()
         self.subjects = {
             'physics': [
                 'Mechanics',
@@ -274,35 +275,170 @@ class QuestionGenerator:
             'economics': set(),
             'english': set()
         }
-        self._cache_limit = 1000  # Maximum questions to track per subject
+        self._cache_limit = 1000
+        self._last_questions = {}  # Track last question per user-subject combination
 
-    def _initialize_openai_client(self):
-        """Initialize the OpenAI client with proper error handling"""
+    def _initialize_gemini_client(self):
+        """Initialize the Gemini API client"""
         try:
-            api_key = os.getenv('OPENAI_API_KEY')
+            api_key = os.getenv('GOOGLE_API_KEY')
             if not api_key:
-                self.logger.error("OpenAI API key is not set")
-                raise ValueError("OpenAI API key is not configured")
+                self.logger.error("Google API key is not set")
+                raise ValueError("Google API key is not configured")
 
-            if not api_key.startswith('sk-'):
-                self.logger.error("Invalid OpenAI API key format")
-                raise ValueError("Invalid OpenAI API key format")
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-pro')
 
-            self.client = OpenAI(api_key=api_key)
             # Test the API key with a simple completion
-            self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=5
-            )
-            self.logger.info("OpenAI client initialized successfully")
+            response = self.model.generate_content("Test")
+            if not response:
+                raise ValueError("Failed to initialize Gemini API")
 
-        except OpenAIError as e:
-            self.logger.error(f"OpenAI API Error: {str(e)}")
-            raise ValueError(f"OpenAI API Error: {str(e)}")
+            self.logger.info("Gemini client initialized successfully")
+
         except Exception as e:
-            self.logger.error(f"Error initializing OpenAI client: {str(e)}")
-            raise ValueError(f"Error initializing OpenAI client: {str(e)}")
+            self.logger.error(f"Error initializing Gemini client: {str(e)}")
+            raise ValueError(f"Gemini API Error: {str(e)}")
+
+    async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium', user_id=None):
+        """Enhanced question generation with better error handling and uniqueness checks"""
+        try:
+            # Generate cache key that includes user_id to track per-user questions
+            cache_key = self._get_cache_key(subject, topic, class_level, user_id)
+
+            # First try to get a stored question as fallback
+            if class_level == 11:
+                stored_question = self.get_stored_question_11(subject, topic)
+            else:
+                stored_question = self.get_stored_question_12(subject, topic)
+
+            if stored_question and not self._is_question_used(stored_question, cache_key):
+                self.logger.info(f"Using stored question for {subject} {topic if topic else ''}")
+                self._mark_question_used(stored_question, cache_key)
+                return stored_question
+
+            # If no stored question or it was used, try Gemini
+            subject = subject.lower()
+
+            prompt = self._create_enhanced_prompt(subject, topic, class_level, difficulty)
+
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    response = self.model.generate_content(prompt)
+
+                    if not response or not response.text:
+                        continue
+
+                    try:
+                        result = json.loads(response.text)
+                    except json.JSONDecodeError:
+                        self.logger.warning(f"Invalid JSON response from Gemini, attempt {attempt + 1}")
+                        continue
+
+                    # Validate question format
+                    if not all(key in result for key in ['question', 'options', 'correct_answer', 'explanation']):
+                        self.logger.warning(f"Invalid question format received, attempt {attempt + 1}")
+                        continue
+
+                    # Only return if question is unique
+                    if not self._is_question_used(result, cache_key):
+                        self._mark_question_used(result, cache_key)
+                        return result
+
+                except Exception as api_error:
+                    self.logger.error(f"API error on attempt {attempt + 1}: {api_error}")
+                    if attempt == max_attempts - 1:
+                        raise ValueError(f"Gemini API Error: {str(api_error)}")
+
+            # If we couldn't get a unique question, clear cache and try one more time
+            self._clear_cache_for_user(user_id, subject)
+            return await self.generate_question(subject, topic, class_level, difficulty, user_id)
+
+        except Exception as e:
+            self.logger.error(f"Failed to generate question: {e}")
+            return None
+
+    def _get_cache_key(self, subject: str, topic: str | None, class_level: int, user_id: str | None) -> str:
+        """Generate a more specific cache key for tracking used questions per user"""
+        user_part = f"user_{user_id}" if user_id else "global"
+        return f"{user_part}:{subject}:{topic or 'all'}:{class_level}"
+
+    def _clear_cache_for_user(self, user_id: str | None, subject: str):
+        """Clear the question cache for a specific user and subject"""
+        if user_id:
+            cache_key_prefix = f"user_{user_id}:{subject}"
+            self._used_questions_cache[subject] = {
+                q for q in self._used_questions_cache[subject]
+                if not q.startswith(cache_key_prefix)
+            }
+
+    def _is_question_used(self, question: dict, cache_key: str) -> bool:
+        """Enhanced check for used questions with subject-specific caching"""
+        subject = cache_key.split(':')[1]  # Now subject is the second part after user_id
+
+        if subject not in self._used_questions_cache:
+            self._used_questions_cache[subject] = set()
+
+        # Create a unique identifier for the question using both question text and options
+        question_id = f"{cache_key}:{question['question'][:100]}_{'-'.join(question['options'])[:100]}"
+
+        # Also check if this was the last question for this user-subject combination
+        last_question_key = f"{cache_key}:last"
+        if last_question_key in self._last_questions and self._last_questions[last_question_key] == question_id:
+            return True
+
+        return question_id in self._used_questions_cache[subject]
+
+    def _mark_question_used(self, question: dict, cache_key: str):
+        """Mark a question as used in the subject-specific cache"""
+        subject = cache_key.split(':')[1]
+
+        if subject not in self._used_questions_cache:
+            self._used_questions_cache[subject] = set()
+
+        # Create a unique identifier for the question
+        question_id = f"{cache_key}:{question['question'][:100]}_{'-'.join(question['options'])[:100]}"
+
+        # Update last question for this user-subject combination
+        last_question_key = f"{cache_key}:last"
+        self._last_questions[last_question_key] = question_id
+
+        # Implement cache size limit
+        if len(self._used_questions_cache[subject]) >= self._cache_limit:
+            # Remove oldest entries (20% of cache) when limit is reached
+            remove_count = int(self._cache_limit * 0.2)
+            self._used_questions_cache[subject] = set(list(self._used_questions_cache[subject])[remove_count:])
+
+        self._used_questions_cache[subject].add(question_id)
+
+    def _create_enhanced_prompt(self, subject, topic, class_level, difficulty):
+        """Create an enhanced prompt for more varied questions"""
+        topic_text = f" on {topic}" if topic else ""
+        difficulty_prompts = {
+            'easy': 'focus on fundamental concepts and basic understanding',
+            'medium': 'include application of concepts and moderate complexity',
+            'hard': 'challenge students with complex problem-solving and deeper understanding'
+        }
+
+        return f"""
+        Generate a unique NCERT-based question for class {class_level} {subject}{topic_text} at {difficulty} difficulty level.
+        {difficulty_prompts.get(difficulty, difficulty_prompts['medium'])}
+        Requirements:
+        - Question should be directly from or based on NCERT textbooks
+        - Must be different from previously generated questions
+        - Should include practical applications or real-world context where applicable
+        - If topic is specified, question must specifically address that topic
+        - Include detailed explanation with NCERT reference
+
+        Return the response in this exact JSON format:
+        {{
+            "question": "The complete question text",
+            "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
+            "correct_answer": "The correct option letter (A, B, C, or D)",
+            "explanation": "Detailed step-by-step explanation with NCERT reference"
+        }}
+        """
 
     def _get_cache_key(self, subject: str, topic: str | None, class_level: int) -> str:
         """Generate a more specific cache key for tracking used questions"""
@@ -336,94 +472,6 @@ class QuestionGenerator:
             self._used_questions_cache[subject] = set(list(self._used_questions_cache[subject])[remove_count:])
 
         self._used_questions_cache[subject].add(question_id)
-
-    async def generate_question(self, subject, topic=None, class_level=11, difficulty='medium'):
-        """Enhanced question generation with better error handling and uniqueness checks"""
-        try:
-            # First try to get a stored question as fallback
-            if class_level == 11:
-                stored_question = self.get_stored_question_11(subject, topic)
-            else:
-                stored_question = self.get_stored_question_12(subject, topic)
-
-            if stored_question:
-                self.logger.info(f"Using stored question for {subject} {topic if topic else ''}")
-                return stored_question
-
-            # If no stored question, try OpenAI
-            subject = subject.lower()
-            cache_key = self._get_cache_key(subject, topic, class_level)
-
-            if not hasattr(self, 'client'):
-                self._initialize_openai_client()
-
-            # Enhanced prompt for more varied questions
-            prompt = self._create_enhanced_prompt(subject, topic, class_level, difficulty)
-
-            max_attempts = 3  # Try up to 3 times to get a unique question
-            for attempt in range(max_attempts):
-                try:
-                    response = self.client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": f"You are an expert educational question generator for class {class_level} students focusing on NCERT curriculum. Generate unique, challenging questions that test understanding."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        response_format={"type": "json_object"}
-                    )
-
-                    result = json.loads(response.choices[0].message.content)
-
-                    # Validate question format
-                    if not all(key in result for key in ['question', 'options', 'correct_answer', 'explanation']):
-                        self.logger.warning(f"Invalid question format received, attempt {attempt + 1}")
-                        continue
-
-                    # Only return if question is unique
-                    if not self._is_question_used(result, cache_key):
-                        self._mark_question_used(result, cache_key)
-                        return result
-
-                    self.logger.info(f"Duplicate question generated for {subject}, attempt {attempt + 1}/{max_attempts}")
-
-                except OpenAIError as api_error:
-                    self.logger.error(f"API error on attempt {attempt + 1}: {api_error}")
-                    if attempt == max_attempts - 1:
-                        raise ValueError(f"OpenAI API Error: {str(api_error)}")
-
-            raise ValueError(f"Could not generate a unique question for {subject} after {max_attempts} attempts")
-
-        except Exception as e:
-            self.logger.error(f"Failed to generate question: {e}")
-            raise ValueError(str(e))
-
-    def _create_enhanced_prompt(self, subject, topic, class_level, difficulty):
-        """Create an enhanced prompt for more varied questions"""
-        topic_text = f" on {topic}" if topic else ""
-        difficulty_prompts = {
-            'easy': 'focus on fundamental concepts and basic understanding',
-            'medium': 'include application of concepts and moderate complexity',
-            'hard': 'challenge students with complex problem-solving and deeper understanding'
-        }
-
-        return f"""
-        Generate a unique NCERT-based question for class {class_level} {subject}{topic_text} at {difficulty} difficulty level.
-        {difficulty_prompts.get(difficulty, difficulty_prompts['medium'])}
-        Requirements:
-        - Question should be directly from or based on NCERT textbooks
-        - Must be different from previously generated questions
-        - Should include practical applications or real-world context where applicable
-        - If topic is specified, question must specifically address that topic
-        - Include detailed explanation with NCERT reference
-
-        The response must be in this JSON format:
-        {{
-            "question": "The complete question text",
-            "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
-            "correct_answer": "The correct option letter (A, B, C, or D)",
-            "explanation": "Detailed step-by-step explanation with NCERT reference"
-        }}
-        """
 
     def get_stored_question_11(self, subject: str, topic: str | None = None) -> dict | None:
         """

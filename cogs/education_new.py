@@ -1,36 +1,4 @@
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-from question_generator import QuestionGenerator
-import asyncio
-import random
-
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-        self.question_generator = QuestionGenerator()
-        self.user_questions = {}  # Track questions per user
-        self.question_cooldowns = {}  # Track cooldowns
-        self.command_locks = {}  # Prevent command spam
-
-    async def cog_load(self):
-        """Called when the cog is loaded"""
-        self.logger.info("Education cog loaded successfully")
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here's how to use the educational bot:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -46,18 +14,65 @@ class Education(commands.Cog):
             inline=False
         )
 
+        creator_info = (
+            "```ansi\n"
+            "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
+            "[0;36m┃     Made with 💖 by:          ┃[0m\n"
+            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
+            "[0;36m┃     Language: Python 🐍      ┃[0m\n"
+            "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
+        )
+
+        embed.add_field(
+            name="👨‍💻 Credits",
+            value=creator_info,
+            inline=False
+        )
+
+        embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
-    async def _get_unique_question(self, subject: str, topic: str, class_level: int, max_attempts: int = 3):
+    def _initialize_user_tracking(self, user_id: int, subject: str) -> None:
+        """Initialize tracking for a user if not exists"""
+        if user_id not in self.user_questions:
+            self.user_questions[user_id] = {}
+        if subject not in self.user_questions[user_id]:
+            self.user_questions[user_id][subject] = {
+                'used_questions': set(),
+                'last_topic': None,
+                'question_count': 0
+            }
+
+    @commands.command(name='11')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
+        """Get a question for class 11"""
+        if ctx.channel.id != 1337669136729243658:
+            await ctx.send("❌ This command can only be used in the designated channel!")
+            return
+        await self._handle_question_command(ctx, subject, topic, 11)
+
+    @commands.command(name='12')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
+        """Get a question for class 12"""
+        if ctx.channel.id != 1337669207193682001:
+            await ctx.send("❌ This command can only be used in the designated channel!")
+            return
+        await self._handle_question_command(ctx, subject, topic, 12)
+
+    async def _get_unique_question(self, subject: str, topic: str, class_level: int, user_id: str, max_attempts: int = 3):
         """Get a unique question for the user with retries"""
         for attempt in range(max_attempts):
             try:
                 question = await self.question_generator.generate_question(
                     subject=subject,
                     topic=topic,
-                    class_level=class_level
+                    class_level=class_level,
+                    user_id=user_id
                 )
-                
+
                 if question:
                     return question
             except Exception as e:
@@ -111,7 +126,8 @@ class Education(commands.Cog):
                     question = await self._get_unique_question(
                         subject=normalized_subject,
                         topic=topic,
-                        class_level=class_level
+                        class_level=class_level,
+                        user_id=str(ctx.author.id)
                     )
 
                     if not question:
@@ -154,18 +170,6 @@ class Education(commands.Cog):
                 self.logger.error(f"Error in question command: {str(e)}")
                 await ctx.send("❌ An error occurred while processing your request.")
 
-    @commands.command(name='11')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
-        """Get a question for class 11"""
-        await self._handle_question_command(ctx, subject, topic, 11)
-
-    @commands.command(name='12')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
-        """Get a question for class 12"""
-        await self._handle_question_command(ctx, subject, topic, 12)
-
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
         """List all available subjects"""
@@ -187,8 +191,4 @@ class Education(commands.Cog):
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
-        await ctx.send(embed=embed)
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+        embed.add_field(name="Subjects:", value=f"```{subject_list}
