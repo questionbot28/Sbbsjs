@@ -33,6 +33,18 @@
         embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
+    def _is_question_asked(self, user_id: int, subject: str, question_key: str) -> bool:
+        """Check if user has already seen this question"""
+        user_questions = self.user_questions.setdefault(user_id, {})
+        subject_questions = user_questions.setdefault(subject, set())
+        return question_key in subject_questions
+
+    def _mark_question_asked(self, user_id: int, subject: str, question_key: str):
+        """Mark a question as asked for a user"""
+        user_questions = self.user_questions.setdefault(user_id, {})
+        subject_questions = user_questions.setdefault(subject, set())
+        subject_questions.add(question_key)
+
     async def generate_question_with_fallback(self, subject: str, topic: Optional[str], class_num: int) -> Tuple[Dict[str, Any], bool]:
         """Generate a question with fallback to stored questions"""
         if class_num == 11:
@@ -96,10 +108,9 @@
             self.logger.error(f"Error in class_12 command: {e}")
             await ctx.send("❌ An error occurred while getting your question.")
 
-    async def _send_question(self, ctx, question: dict, is_fallback: bool = False):
+    async def _send_question(self, ctx, question: Dict[str, Any], is_fallback: bool = False):
         """Format and send a question"""
         try:
-            # Send question embed
             embed = discord.Embed(
                 title="📝 Practice Question",
                 description=question['question'],
@@ -120,9 +131,14 @@
                 inline=True
             )
 
-            await ctx.send(embed=embed)
+            message = await ctx.send(embed=embed)
 
-            # Send explanation in a separate embed
             explanation_embed = discord.Embed(
                 title="📖 Explanation",
-                description=f"```{question['explanation']}
+                description=f"```{question['explanation']}```",
+                color=discord.Color.green()
+            )
+
+            explanation_embed.add_field(
+                name="Correct Answer:",
+                value=f"```Option {question['correct_answer']}
