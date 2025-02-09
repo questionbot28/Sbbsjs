@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "anthropic>=0.45.2",
     "discord-py>=2.4.0",
     "openai>=1.61.1",
     "python-dotenv>=1.0.1",
+    "sendgrid>=6.11.0",
     "twilio>=9.4.4",
 ]

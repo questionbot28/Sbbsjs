@@ -44,32 +44,36 @@
                 'question_count': 0
             }
 
-    async def _get_unique_question(self, user_id: int, subject: str, topic: Optional[str], class_level: int) -> Tuple[dict, bool]:
+    async def _get_unique_question(self, user_id: int, subject: str, topic: Optional[str], class_level: int) -> Tuple[Optional[dict], bool]:
         """Get a unique question for the user, returns (question, is_new)"""
         self._initialize_user_tracking(user_id, subject)
         user_data = user_questions[user_id][subject]
 
-        # Try to get a new question up to 3 times
+        # Try to get a stored question first
         for _ in range(3):
             question = self.question_generator.get_stored_question(subject, topic, class_level)
             if question:
-                question_key = f"{question['question'][:100]}"  # Use more of the question text as key
+                question_key = f"{question['question'][:100]}"
                 if question_key not in user_data['used_questions']:
                     user_data['used_questions'].add(question_key)
                     user_data['last_topic'] = topic
                     user_data['question_count'] += 1
                     return question, True
 
-        # If we couldn't get a new question, try generating a new one
-        question = await self.question_generator.generate_question(subject, topic, class_level)
-        if question:
-            question_key = f"{question['question'][:100]}"
-            if question_key not in user_data['used_questions']:
-                user_data['used_questions'].add(question_key)
-                user_data['question_count'] += 1
-                return question, True
+        # If we couldn't get a stored question, try generating a new one
+        try:
+            question = await self.question_generator.generate_question(subject, topic, class_level)
+            if question:
+                question_key = f"{question['question'][:100]}"
+                if question_key not in user_data['used_questions']:
+                    user_data['used_questions'].add(question_key)
+                    user_data['last_topic'] = topic
+                    user_data['question_count'] += 1
+                    return question, True
+        except Exception as e:
+            self.logger.error(f"Error generating question: {e}")
 
-        return question, False
+        return None, False
 
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
@@ -116,11 +120,50 @@
     async def _send_question(self, ctx, question: dict):
         """Format and send a question"""
         try:
-            # Create question embed
             embed = discord.Embed(
                 title="📝 Practice Question",
                 description=question['question'],
                 color=discord.Color.blue()
             )
+
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}
+            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
+
+            await ctx.send(embed=embed)
+
+            correct_answer_embed = discord.Embed(
+                title="✅ Answer & Explanation",
+                color=discord.Color.green()
+            )
+            correct_answer_embed.add_field(
+                name="Correct Answer:",
+                value=f"```{question['correct_answer']}```",
+                inline=False
+            )
+            correct_answer_embed.add_field(
+                name="Explanation:",
+                value=question['explanation'],
+                inline=False
+            )
+            await ctx.send(embed=correct_answer_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error sending question: {e}")
+            await ctx.send("❌ An error occurred while sending the question.")
+
+    @commands.command(name='subjects')
+    async def list_subjects(self, ctx):
+        """List all available subjects"""
+        try:
+            subjects = self.question_generator.get_subjects()
+
+            embed = discord.Embed(
+                title="📚 Available Subjects",
+                description="Here are all the subjects you can study:",
+                color=discord.Color.blue()
+            )
+
+            subject_list = "\n".join([f"• {subject.title()}" for subject in subjects])
+            embed.add_field(
+                name="Subjects:",
+                value=f"```{subject_list}
