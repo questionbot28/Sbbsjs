@@ -1,3 +1,5 @@
+import random
+
 # Dictionary to store pre-defined questions for class 12
 QUESTION_BANK_12 = {
     'physics': {
@@ -254,4 +256,4 @@ def get_stored_question_12(subject: str, topic: str | None = None) -> dict | Non
         for questions in QUESTION_BANK_12[subject].values():
             topic_questions.extend(questions)
 
-    return topic_questions[0] if topic_questions else None
+    return random.choice(topic_questions) if topic_questions else None
