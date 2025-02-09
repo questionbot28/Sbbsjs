@@ -26,6 +26,19 @@
         embed.set_footer(text="Use these subjects with !11 or !12 commands to get practice questions! 📚✨")
         await ctx.send(embed=embed)
 
+    @commands.command(name='refresh')
+    @commands.has_permissions(administrator=True)
+    async def refresh(self, ctx):
+        """Refresh the bot (Admin only)"""
+        try:
+            await ctx.send("🔄 Refreshing bot...")
+            # Reload all cogs
+            for extension in list(self.bot.extensions):
+                await self.bot.reload_extension(extension)
+            await ctx.send("✅ Bot refreshed successfully!")
+        except Exception as e:
+            await ctx.send(f"❌ Error refreshing bot: {str(e)}")
+
     @commands.command(name='11')
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
@@ -70,29 +83,8 @@
                         await ctx.send("❌ Unable to generate a question at this time. Please try again.")
                         return
 
-                    # Create question embed
-                    embed = discord.Embed(
-                        title="📝 Practice Question",
-                        description=question['question'],
-                        color=discord.Color.blue()
-                    )
-
-                    if 'options' in question:
-                        options_text = "\n".join(question['options'])
-                        embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-
-                    await ctx.send(embed=embed)
-
-                    # Create answer embed
-                    if 'correct_answer' in question:
-                        answer_embed = discord.Embed(
-                            title="✅ Answer",
-                            description=f"Correct option: {question['correct_answer']}",
-                            color=discord.Color.green()
-                        )
-                        if 'explanation' in question:
-                            answer_embed.add_field(name="Explanation:", value=question['explanation'], inline=False)
-                        await ctx.send(embed=answer_embed)
+                    # Send question to DM
+                    await self.send_question_to_dm(ctx, question)
 
                 except Exception as e:
                     self.logger.error(f"Error generating question: {str(e)}")
@@ -128,6 +120,68 @@
             return False, normalized_subject
 
         return True, normalized_subject
+
+    async def send_question_to_dm(self, ctx, question_data: Dict[str, Any]):
+        """Send a question to user's DM with fancy formatting"""
+        try:
+            question_embed = discord.Embed(
+                title="📝 Practice Question",
+                description=question_data['question'],
+                color=discord.Color.blue()
+            )
+
+            if 'options' in question_data:
+                options_text = "\n".join(question_data['options'])
+                question_embed.add_field(
+                    name="Options:",
+                    value=f"```{options_text}```",
+                    inline=False
+                )
+
+            question_embed.set_footer(text="💫 The answer will be revealed in 60 seconds... 💫")
+
+            try:
+                await ctx.author.send(embed=question_embed)
+
+                channel_embed = discord.Embed(
+                    title="📨 Question Generated!",
+                    description="I've sent you a DM with the question! Check your private messages.",
+                    color=discord.Color.green()
+                )
+                channel_embed.set_image(url=self.dm_gif_url)
+                channel_embed.set_footer(text="Made with ❤️ by Rohanpreet Singh Pathania")
+                await ctx.send(embed=channel_embed)
+
+                await asyncio.sleep(60)
+
+                if 'correct_answer' in question_data:
+                    answer_embed = discord.Embed(
+                        title="✨ Answer Revealed! ✨",
+                        color=discord.Color.gold()
+                    )
+
+                    correct_letter = question_data['correct_answer']
+                    emoji = self.option_emojis.get(correct_letter, '✅')
+
+                    answer_text = f"{emoji} The correct answer is {correct_letter}"
+                    if 'explanation' in question_data:
+                        answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
+
+                    answer_embed.description = answer_text
+                    await ctx.author.send(embed=answer_embed)
+
+            except discord.Forbidden:
+                error_embed = discord.Embed(
+                    title="❌ Cannot Send Private Message",
+                    description="Please enable direct messages from server members:\n"
+                                "Right-click the server icon → Privacy Settings → Enable direct messages",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=error_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error sending question to DM: {str(e)}")
+            await ctx.send("❌ An error occurred while sending the question.")
 
     @commands.command(name='chapters11')
     async def view_chapters_11(self, ctx, subject: str = None):

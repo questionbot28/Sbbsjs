@@ -123,8 +123,8 @@ bot = EducationalBot()
 async def load_extensions():
     if not bot.loaded_extensions:  # Only load if not already loaded
         extensions = [
-            'cogs.education_core_v2',  # Using the new education manager cog
-            'cogs.admin_core'  # Using the new admin cog
+            'cogs.education_manager_new',  # Using the new education manager
+            'cogs.admin_core'  # Keep admin functionality
         ]
 
         for extension in extensions:

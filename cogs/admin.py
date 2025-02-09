@@ -21,8 +21,7 @@ class Admin(commands.Cog):
 
             # Load all extensions
             extensions = [
-                'cogs.education_enhanced_final',
-                'cogs.subject_curriculum_new',  
+                'cogs.education_manager_new',  # Using the new education manager
                 'cogs.admin'
             ]
 
@@ -30,7 +29,7 @@ class Admin(commands.Cog):
                 await self.bot.load_extension(extension)
                 self.logger.info(f"Successfully reloaded extension: {extension}")
 
-            await loading_msg.edit(content="✨ Rohanpreet all extensions and commands are loaded and working! ✨")
+            await loading_msg.edit(content="✨ All extensions and commands are loaded and working! ✨")
 
         except Exception as e:
             self.logger.error(f"Error refreshing bot: {e}")
