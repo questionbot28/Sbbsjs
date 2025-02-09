@@ -116,6 +116,116 @@ class SubjectsViewer(commands.Cog):
                     "Biotechnology and Its Applications",
                     "Ecology and Environment"
                 ]
+            },
+            'economics': {
+                11: [
+                    "Introduction to Economics",
+                    "Statistics for Economics",
+                    "Indian Economic Development",
+                    "Development Experience (1947-90)",
+                    "Economic Reforms since 1991",
+                    "Current Challenges facing Indian Economy",
+                    "Development Experience of India"
+                ],
+                12: [
+                    "Introduction to Micro Economics",
+                    "Consumer's Equilibrium and Demand",
+                    "Producer Behaviour and Supply",
+                    "Forms of Market and Price Determination",
+                    "National Income and Related Aggregates",
+                    "Money and Banking",
+                    "Determination of Income and Employment",
+                    "Government Budget and the Economy",
+                    "Balance of Payments"
+                ]
+            },
+            'business_studies': {
+                11: [
+                    "Nature and Purpose of Business",
+                    "Forms of Business Organisation",
+                    "Private, Public and Global Enterprises",
+                    "Business Services",
+                    "Emerging Modes of Business",
+                    "Social Responsibility of Business",
+                    "Formation of a Company",
+                    "Sources of Business Finance",
+                    "Small Business",
+                    "Internal Trade",
+                    "International Business"
+                ],
+                12: [
+                    "Nature and Significance of Management",
+                    "Principles of Management",
+                    "Business Environment",
+                    "Planning",
+                    "Organising",
+                    "Staffing",
+                    "Directing",
+                    "Controlling",
+                    "Financial Management",
+                    "Financial Markets",
+                    "Marketing Management",
+                    "Consumer Protection"
+                ]
+            },
+            'accountancy': {
+                11: [
+                    "Introduction to Accounting",
+                    "Theory Base of Accounting",
+                    "Recording of Transactions - I",
+                    "Recording of Transactions - II",
+                    "Bank Reconciliation Statement",
+                    "Trial Balance and Rectification of Errors",
+                    "Depreciation, Provisions and Reserves",
+                    "Bills of Exchange",
+                    "Financial Statements",
+                    "Accounts from Incomplete Records",
+                    "Applications of Computers in Accounting"
+                ],
+                12: [
+                    "Accounting for Partnership Firms",
+                    "Change in Profit Sharing Ratio",
+                    "Admission of a Partner",
+                    "Retirement and Death of a Partner",
+                    "Dissolution of Partnership Firm",
+                    "Accounting for Share Capital",
+                    "Issue and Redemption of Debentures",
+                    "Financial Statements of Companies",
+                    "Financial Statement Analysis",
+                    "Accounting Ratios",
+                    "Cash Flow Statement"
+                ]
+            },
+            'english': {
+                11: [
+                    "The Portrait of a Lady",
+                    "We're Not Afraid to Die",
+                    "Discovering Tut",
+                    "Landscape of the Soul",
+                    "The Ailing Planet",
+                    "The Browning Version",
+                    "The Adventure",
+                    "Silk Road",
+                    "Father to Son",
+                    "Writing Skills",
+                    "Grammar"
+                ],
+                12: [
+                    "The Last Lesson",
+                    "Lost Spring",
+                    "Deep Water",
+                    "The Rattrap",
+                    "Indigo",
+                    "Poets and Pancakes",
+                    "The Interview",
+                    "Going Places",
+                    "My Mother at Sixty-six",
+                    "An Elementary School",
+                    "Keeping Quiet",
+                    "A Thing of Beauty",
+                    "Writing Skills",
+                    "Advanced Grammar"
+                ]
             }
         }
 
