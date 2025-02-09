@@ -33,18 +33,12 @@
         embed.set_footer(text="Use these commands to practice and learn! 📚✨")
         await ctx.send(embed=embed)
 
-    async def generate_question_with_fallback(self, subject: str, topic: Optional[str], class_num: int):
+    async def generate_question_with_fallback(self, subject: str, topic: Optional[str], class_num: int) -> Tuple[Dict[str, Any], bool]:
         """Generate a question with fallback to stored questions"""
-        try:
-            question = await self.question_generator.generate_question(subject, topic, class_num)
-            if question:
-                return question, False  # False indicates it's not a fallback
-        except Exception as e:
-            self.logger.warning(f"Failed to generate question via API: {e}")
-
-        # Fallback to stored questions
-        stored_question = get_stored_question_11(subject, topic) if class_num == 11 else get_stored_question_12(subject, topic)
-        return stored_question, True  # True indicates it's a fallback
+        if class_num == 11:
+            return get_stored_question_11(subject, topic), True
+        else:
+            return get_stored_question_12(subject, topic), True
 
     @commands.command(name='11')
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
@@ -103,13 +97,32 @@
             await ctx.send("❌ An error occurred while getting your question.")
 
     async def _send_question(self, ctx, question: dict, is_fallback: bool = False):
-        """Format and send a question via DM"""
+        """Format and send a question"""
         try:
-            # Create question embed
+            # Send question embed
             embed = discord.Embed(
                 title="📝 Practice Question",
                 description=question['question'],
                 color=discord.Color.blue()
             )
+
             options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}
+            embed.add_field(
+                name="Options:",
+                value=f"```{options_text}```",
+                inline=False
+            )
+
+            source_text = "📚 From Question Bank" if is_fallback else "🤖 AI Generated"
+            embed.add_field(
+                name="Source:",
+                value=source_text,
+                inline=True
+            )
+
+            await ctx.send(embed=embed)
+
+            # Send explanation in a separate embed
+            explanation_embed = discord.Embed(
+                title="📖 Explanation",
+                description=f"```{question['explanation']}
