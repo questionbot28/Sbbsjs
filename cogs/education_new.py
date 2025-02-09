@@ -43,9 +43,17 @@ class Education(commands.Cog):
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         try:
+            import random
             from question_bank_11 import get_stored_question_11
             subject = subject.lower()
-            question = get_stored_question_11(subject, topic)
+            # Get multiple questions and choose randomly
+            questions = []
+            for _ in range(3):  # Try to get 3 different questions
+                q = get_stored_question_11(subject, topic)
+                if q and q not in questions:
+                    questions.append(q)
+            
+            question = random.choice(questions) if questions else None
             
             if not question:
                 await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
