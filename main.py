@@ -123,9 +123,9 @@ bot = EducationalBot()
 async def load_extensions():
     if not bot.loaded_extensions:  # Only load if not already loaded
         extensions = [
-            'cogs.education_enhanced',
-            'cogs.subject_curriculum_new',  # Changed from subject_curriculum to subject_curriculum_new
-            'cogs.admin'  # This contains !ping and !refresh commands
+            'cogs.education_enhanced_new',  # Using the new enhanced education cog
+            'cogs.subject_curriculum_new',
+            'cogs.admin'
         ]
 
         for extension in extensions:
