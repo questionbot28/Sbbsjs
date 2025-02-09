@@ -293,12 +293,8 @@ class QuestionGenerator:
         return self.get_topics(subject)
 
     def get_stored_question(self, subject: str, topic: str | None, class_level: int) -> dict | None:
-        """Get a stored question from the appropriate question bank"""
-        if class_level == 11:
-            return get_stored_question_11(subject, topic)
-        elif class_level == 12:
-            return get_stored_question_12(subject, topic)
-        return None
+        """Generate a new question instead of using stored ones"""
+        return self.generate_question(subject, topic, class_level)
 
     def _get_cache_key(self, subject: str, topic: str | None, class_level: int) -> str:
         """Generate a cache key for tracking used questions"""

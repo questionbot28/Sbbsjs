@@ -1,28 +1,4 @@
-
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-from question_bank_11 import get_stored_question_11
-from question_bank_12 import get_stored_question_12
-
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here are the available commands:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -59,17 +35,16 @@ class Education(commands.Cog):
 
             subject = subject.lower()
             subject = subject_mapping.get(subject, subject)
-            
-            question = get_stored_question_11(subject, topic)
+
+            # Generate question using OpenAI
+            question = await self.question_generator.generate_question(subject, topic, 11)
             if question:
                 embed = discord.Embed(
                     title="📝 Practice Question",
                     description=question['question'],
                     color=discord.Color.blue()
                 )
-                if 'options' in question:
-                    options_text = "\n".join(question['options'])
-                    embed.add_field(name="Options:", value=options_text, inline=False)
+                # Assuming OpenAI response doesn't include options for simplicity.
                 await ctx.send(embed=embed)
             else:
                 available_subjects = list(subject_mapping.keys())
@@ -83,16 +58,15 @@ class Education(commands.Cog):
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 12"""
         try:
-            question = get_stored_question_12(subject, topic)
+            # Generate question using OpenAI
+            question = await self.question_generator.generate_question(subject, topic, 12)
             if question:
                 embed = discord.Embed(
                     title="📝 Practice Question",
                     description=question['question'],
                     color=discord.Color.blue()
                 )
-                if 'options' in question:
-                    options_text = "\n".join(question['options'])
-                    embed.add_field(name="Options:", value=options_text, inline=False)
+                # Assuming OpenAI response doesn't include options for simplicity.
                 await ctx.send(embed=embed)
             else:
                 await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
@@ -112,16 +86,12 @@ class Education(commands.Cog):
             'Accountancy',
             'Business Studies'
         ]
-        
+
         embed = discord.Embed(
             title="📚 Available Subjects",
             description="Here are all the subjects you can study:",
             color=discord.Color.blue()
         )
-        
-        subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
-        await ctx.send(embed=embed)
 
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+        subject_list = "\n".join([f"• {subject}" for subject in subjects])
+        embed.add_field(name="Subjects:", value=f"```{subject_list}
