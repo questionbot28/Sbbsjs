@@ -1,4 +1,36 @@
-!11 <subject> [topic]```\nExample: !11 physics waves",
+import discord
+from discord.ext import commands
+from typing import Optional
+import logging
+from question_generator import QuestionGenerator
+import asyncio
+import random
+
+class Education(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = logging.getLogger('discord_bot')
+        self.question_generator = QuestionGenerator()
+        self.user_questions = {}  # Track questions per user
+        self.question_cooldowns = {}  # Track cooldowns
+        self.command_locks = {}  # Prevent command spam
+
+    async def cog_load(self):
+        """Called when the cog is loaded"""
+        self.logger.info("Education cog loaded successfully")
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show help information"""
+        embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="Here's how to use the educational bot:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(
+            name="📘 Get Question for Class 11",
+            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -194,4 +226,8 @@
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}
+        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
+        await ctx.send(embed=embed)
+
+async def setup(bot):
+    await bot.add_cog(Education(bot))
