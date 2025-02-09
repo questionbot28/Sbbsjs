@@ -229,8 +229,8 @@ class SubjectsViewer(commands.Cog):
             }
         }
 
-    @commands.command(name='11')
-    async def class_11_chapters(self, ctx, subject: str, *args):
+    @commands.command(name='11chapters')
+    async def class_11_chapters(self, ctx, subject: str):
         """View chapters for class 11 subjects"""
         if args and args[0].lower() == 'chapters':
             subject = subject.lower()
@@ -257,8 +257,8 @@ class SubjectsViewer(commands.Cog):
             embed.set_footer(text=f"Use !11 {subject} <chapter_name> to get questions!")
             await ctx.send(embed=embed)
 
-    @commands.command(name='12')
-    async def class_12_chapters(self, ctx, subject: str, *args):
+    @commands.command(name='12chapters')
+    async def class_12_chapters(self, ctx, subject: str):
         """View chapters for class 12 subjects"""
         if args and args[0].lower() == 'chapters':
             subject = subject.lower()
