@@ -1,201 +1,164 @@
-!11 <subject> [topic]```\nExample: !11 physics waves",
-            inline=False
-        )
+{options_text}```",
+                    inline=False
+                )
 
-        embed.add_field(
-            name="📗 Get Question for Class 12",
-            value="```!12 <subject> [topic]```\nExample: !12 chemistry electrochemistry",
-            inline=False
-        )
+            question_embed.set_footer(text="The answer will be revealed in 60 seconds...")
 
-        embed.add_field(
-            name="📋 List Available Subjects",
-            value="```!subjects```\nShows all subjects you can study",
-            inline=False
-        )
+            # Send question first
+            try:
+                await ctx.author.send(embed=question_embed)
 
-        creator_info = (
-            "```ansi\n"
-            "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
-            "[0;36m┃     Made with 💖 by:          ┃[0m\n"
-            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
-            "[0;36m┃     Language: Python 🐍      ┃[0m\n"
-            "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "```"
-        )
+                # Send confirmation in channel
+                channel_embed = discord.Embed(
+                    title="Question Generated!",
+                    description="I've sent you a DM with the question! Check your private messages.",
+                    color=discord.Color.green()
+                )
+                channel_embed.set_image(url=self.dm_gif_url)
+                channel_embed.set_footer(text="Made by: Rohanpreet Singh Pathania")
+                await ctx.send(embed=channel_embed)
 
-        embed.add_field(
-            name="👨‍💻 Credits",
-            value=creator_info,
-            inline=False
-        )
+                # Wait 60 seconds
+                await asyncio.sleep(60)
 
-        embed.set_footer(text="Use these commands to practice and learn! 📚✨")
-        await ctx.send(embed=embed)
+                # Create and send answer embed
+                if 'correct_answer' in question_data:
+                    answer_embed = discord.Embed(
+                        title="✨ Answer Revealed!",
+                        color=discord.Color.gold()
+                    )
 
-    def _initialize_user_tracking(self, user_id: int, subject: str):
-        """Initialize tracking for a user if not exists"""
-        if user_id not in self.user_questions:
-            self.user_questions[user_id] = {}
-        if subject not in self.user_questions[user_id]:
-            self.user_questions[user_id][subject] = {
-                'used_questions': set(),
-                'last_topic': None,
-                'question_count': 0
-            }
+                    correct_letter = question_data['correct_answer']
+                    emoji = self.option_emojis.get(correct_letter, '✅')
 
-    async def _get_unique_question(self, user_id: int, subject: str, topic: Optional[str], class_level: int) -> Tuple[Optional[dict], bool]:
-        """Get a unique question for the user, returns (question, is_new)"""
-        self._initialize_user_tracking(user_id, subject)
-        user_data = self.user_questions[user_id][subject]
+                    answer_text = f"{emoji} The correct answer is {correct_letter}"
+                    if 'explanation' in question_data:
+                        answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
 
-        # Try to get a stored question first
-        for _ in range(3):
-            question = self.question_generator.get_stored_question(subject, topic, class_level)
-            if question:
-                question_key = f"{question['question'][:100]}"
-                if question_key not in user_data['used_questions']:
-                    user_data['used_questions'].add(question_key)
-                    user_data['last_topic'] = topic
-                    user_data['question_count'] += 1
-                    return question, True
+                    answer_embed.description = answer_text
+                    await ctx.author.send(embed=answer_embed)
 
-        # If we couldn't get a stored question, try generating a new one
-        try:
-            question = await self.question_generator.generate_question(subject, topic, class_level)
-            if question:
-                question_key = f"{question['question'][:100]}"
-                if question_key not in user_data['used_questions']:
-                    user_data['used_questions'].add(question_key)
-                    user_data['last_topic'] = topic
-                    user_data['question_count'] += 1
-                    return question, True
+            except discord.Forbidden:
+                error_embed = discord.Embed(
+                    title="❌ Cannot Send Private Message",
+                    description="Please enable direct messages from server members:\n"
+                               "Right-click the server icon → Privacy Settings → Enable direct messages",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=error_embed)
+
         except Exception as e:
-            self.logger.error(f"Error generating question: {e}")
-
-        return None, False
+            self.logger.error(f"Error sending question to DM: {str(e)}")
+            await ctx.send("❌ An error occurred while sending the question.")
 
     @commands.command(name='11')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         if ctx.channel.id != 1337669136729243658:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
-
-        try:
-            # Map common subject names to their standardized versions
-            subject_mapping = {
-                'maths': 'mathematics',
-                'math': 'mathematics',
-                'bio': 'biology',
-                'physics': 'physics',
-                'chemistry': 'chemistry',
-                'economics': 'economics',
-                'accountancy': 'accountancy',
-                'business': 'business_studies',
-                'business_studies': 'business_studies'
-            }
-
-            subject = subject.lower()
-            # Try to get the standardized subject name, or use the original if not in mapping
-            subject = subject_mapping.get(subject, subject)
-
-            question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 11)
-
-            if question:
-                if not is_new:
-                    await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
-                await self._send_question(ctx, question)
-            else:
-                available_subjects = self.question_generator.get_subjects()
-                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
-        except Exception as e:
-            self.logger.error(f"Error in class_11 command: {e}")
-            await ctx.send("❌ An error occurred while getting your question.")
+        await self._handle_question_command(ctx, subject, topic, 11)
 
     @commands.command(name='12')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 12"""
         if ctx.channel.id != 1337669207193682001:
             await ctx.send("❌ This command can only be used in the designated channel!")
             return
+        await self._handle_question_command(ctx, subject, topic, 12)
 
-        try:
-            # Map common subject names to their standardized versions
-            subject_mapping = {
-                'maths': 'mathematics',
-                'math': 'mathematics',
-                'bio': 'biology',
-                'physics': 'physics',
-                'chemistry': 'chemistry',
-                'economics': 'economics',
-                'accountancy': 'accountancy',
-                'business': 'business_studies',
-                'business_studies': 'business_studies'
-            }
+    async def _handle_question_command(self, ctx, subject: str, topic: Optional[str], class_level: int):
+        """Handle question generation for both class 11 and 12"""
+        # Get lock for this user
+        if ctx.author.id not in self.command_locks:
+            self.command_locks[ctx.author.id] = asyncio.Lock()
 
-            subject = subject.lower()
-            # Try to get the standardized subject name, or use the original if not in mapping
-            subject = subject_mapping.get(subject, subject)
+        async with self.command_locks[ctx.author.id]:
+            try:
+                # Validate subject
+                is_valid, normalized_subject = self._validate_subject(subject)
+                if not is_valid:
+                    available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
+                                       'Economics', 'Accountancy', 'Business Studies', 'English']
+                    await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                    return
 
-            question, is_new = await self._get_unique_question(ctx.author.id, subject, topic, 12)
+                # Initialize tracking for this user and subject
+                if ctx.author.id not in self.user_questions:
+                    self.user_questions[ctx.author.id] = {}
 
-            if question:
-                if not is_new:
-                    await ctx.send("⚠️ Note: You've seen all available questions for this topic. Generating a new one...")
-                await self._send_question(ctx, question)
-            else:
-                available_subjects = self.question_generator.get_subjects()
-                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
-        except Exception as e:
-            self.logger.error(f"Error in class_12 command: {e}")
-            await ctx.send("❌ An error occurred while getting your question.")
+                # Generate question
+                try:
+                    question = await self.question_generator.generate_question(
+                        subject=normalized_subject,
+                        topic=topic,
+                        class_level=class_level,
+                        user_id=str(ctx.author.id)
+                    )
 
-    async def _send_question(self, ctx, question: dict):
-        """Format and send a question"""
-        try:
-            embed = discord.Embed(
-                title="📝 Practice Question",
-                description=question['question'],
-                color=discord.Color.blue()
-            )
+                    if not question:
+                        await ctx.send("❌ Unable to generate a question at this time. Please try again.")
+                        return
 
-            options_text = "\n".join(question['options'])
-            embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
+                    # Send question to DM
+                    await self.send_question_to_dm(ctx, question)
 
-            await ctx.send(embed=embed)
+                except Exception as e:
+                    self.logger.error(f"Error generating question: {str(e)}")
+                    error_message = str(e)
+                    if "API key" in error_message:
+                        await ctx.send("❌ There's an issue with the API configuration. Please contact the bot administrator.")
+                    else:
+                        await ctx.send(f"❌ An error occurred while getting your question: {error_message}")
 
-            correct_answer_embed = discord.Embed(
-                title="✅ Answer & Explanation",
-                color=discord.Color.green()
-            )
-            correct_answer_embed.add_field(
-                name="Correct Answer:",
-                value=f"```{question['correct_answer']}```",
-                inline=False
-            )
-            correct_answer_embed.add_field(
-                name="Explanation:",
-                value=question['explanation'],
-                inline=False
-            )
-            await ctx.send(embed=correct_answer_embed)
+            except Exception as e:
+                self.logger.error(f"Error in question command: {str(e)}")
+                await ctx.send("❌ An error occurred while processing your request.")
 
-        except Exception as e:
-            self.logger.error(f"Error sending question: {e}")
-            await ctx.send("❌ An error occurred while sending the question.")
+    def _validate_subject(self, subject: str) -> tuple[bool, str]:
+        """Validate and normalize subject name"""
+        subject_mapping = {
+            'maths': 'mathematics',
+            'math': 'mathematics',
+            'bio': 'biology',
+            'physics': 'physics',
+            'chemistry': 'chemistry',
+            'economics': 'economics',
+            'accountancy': 'accountancy',
+            'business': 'business_studies',
+            'business_studies': 'business_studies',
+            'english': 'english'
+        }
+
+        normalized_subject = subject.lower()
+        normalized_subject = subject_mapping.get(normalized_subject, normalized_subject)
+
+        if normalized_subject not in subject_mapping.values():
+            return False, normalized_subject
+
+        return True, normalized_subject
 
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
         """List all available subjects"""
-        try:
-            subjects = self.question_generator.get_subjects()
+        subjects = [
+            'Mathematics',
+            'Physics',
+            'Chemistry',
+            'Biology',
+            'Economics',
+            'Accountancy',
+            'Business Studies',
+            'English'
+        ]
 
-            embed = discord.Embed(
-                title="📚 Available Subjects",
-                description="Here are all the subjects you can study:",
-                color=discord.Color.blue()
-            )
+        embed = discord.Embed(
+            title="📚 Available Subjects",
+            description="Here are all the subjects you can study:",
+            color=discord.Color.blue()
+        )
 
-            subject_list = "\n".join([f"• {subject.title()}" for subject in subjects])
-            embed.add_field(name="Subjects:", value=f"```{subject_list}
+        subject_list = "\n".join([f"• {subject}" for subject in subjects])
+        embed.add_field(name="Subjects:", value=f"```{subject_list}

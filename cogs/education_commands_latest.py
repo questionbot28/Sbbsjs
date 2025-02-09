@@ -1,57 +1,4 @@
-{options_text}```", inline=False)
-
-            # Add answer and explanation in the same DM
-            if 'correct_answer' in question_data:
-                answer_text = f"**Correct Answer:** {question_data['correct_answer']}"
-                if 'explanation' in question_data:
-                    answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
-                embed.add_field(name="Solution", value=answer_text, inline=False)
-
-            # Try to send DM to user
-            try:
-                await ctx.author.send(embed=embed)
-
-                # Send confirmation message in channel
-                channel_embed = discord.Embed(
-                    title="Question Generated!",
-                    description="Check your private messages for the question and solution. If you do not receive the message, please unlock your private messages.",
-                    color=discord.Color.green()
-                )
-                channel_embed.set_image(url=self.dm_gif_url)
-                channel_embed.set_footer(text="Made by: Rohanpreet Singh Pathania")
-
-                await ctx.send(embed=channel_embed)
-
-            except discord.Forbidden:
-                # If DM fails, send message in channel
-                error_embed = discord.Embed(
-                    title="❌ Cannot Send Private Message",
-                    description="Please enable direct messages from server members to receive the question.\n"
-                               "Right-click the server icon → Privacy Settings → Enable direct messages.",
-                    color=discord.Color.red()
-                )
-                await ctx.send(embed=error_embed)
-
-        except Exception as e:
-            self.logger.error(f"Error sending question to DM: {str(e)}")
-            await ctx.send("❌ An error occurred while sending the question.")
-
-    async def cog_load(self):
-        """Called when the cog is loaded"""
-        self.logger.info("Education cog loaded successfully")
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here's how to use the educational bot:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -185,7 +132,7 @@
 
         return True, normalized_subject
 
-    async def _get_unique_question(self, subject: str, topic: str, class_level: int, user_id: str, max_attempts: int = 3):
+    async def _get_unique_question(self, subject: str, topic: Optional[str], class_level: int, user_id: str, max_attempts: int = 3):
         """Get a unique question for the user with retries"""
         for attempt in range(max_attempts):
             try:
@@ -226,4 +173,4 @@
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}\n
+        embed.add_field(name="Subjects:", value=f"```{subject_list}
