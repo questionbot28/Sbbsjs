@@ -238,6 +238,7 @@ class SubjectsViewer(commands.Cog):
                 available_subjects = list(self.subjects_data.keys())
                 await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
                 return
+                return
 
             chapters = self.subjects_data[subject][11]
             embed = discord.Embed(
