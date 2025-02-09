@@ -119,31 +119,40 @@ class SubjectsViewer(commands.Cog):
             }
         }
 
-    @commands.command(name='viewall')
-    async def view_all_subjects_chapters(self, ctx):
-        """View all subjects and their chapters for both classes"""
-        for subject, class_data in self.subjects_data.items():
-            for class_level in [11, 12]:
-                chapters = class_data[class_level]
-                
-                embed = discord.Embed(
-                    title=f"📚 {subject.title()} - Class {class_level}",
-                    color=discord.Color.blue()
+    @commands.command(name='class')
+    async def view_class_subject_chapters(self, ctx, subject: str = None):
+        """View chapters for a subject in both classes"""
+        if not subject:
+            await ctx.send("❌ Please specify a subject. Example: !class physics")
+            return
+            
+        subject = subject.lower()
+        if subject not in self.subjects_data:
+            available_subjects = list(self.subjects_data.keys())
+            await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+            return
+
+        for class_level in [11, 12]:
+            chapters = self.subjects_data[subject][class_level]
+            
+            embed = discord.Embed(
+                title=f"📚 {subject.title()} - Class {class_level}",
+                color=discord.Color.blue()
+            )
+
+            # Split chapters into groups of 10 for field limits
+            chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
+            
+            for i, group in enumerate(chapter_groups, 1):
+                chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
+                embed.add_field(
+                    name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
+                    value=f"```{chapter_text}```",
+                    inline=False
                 )
 
-                # Split chapters into groups of 10 for field limits
-                chapter_groups = [chapters[i:i + 10] for i in range(0, len(chapters), 10)]
-                
-                for i, group in enumerate(chapter_groups, 1):
-                    chapter_text = "\n".join([f"📖 {j+1}. {chapter}" for j, chapter in enumerate(group)])
-                    embed.add_field(
-                        name=f"Chapters (Part {i})" if len(chapter_groups) > 1 else "Chapters",
-                        value=f"```{chapter_text}```",
-                        inline=False
-                    )
-
-                embed.set_footer(text=f"Use !{class_level} {subject} <chapter_name> to get questions!")
-                await ctx.send(embed=embed)
+            embed.set_footer(text=f"Use !{class_level} {subject} <chapter_name> to get questions!")
+            await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(SubjectsViewer(bot))
