@@ -229,18 +229,16 @@ class SubjectsViewer(commands.Cog):
             }
         }
 
-    @commands.command(name='11')
-    async def class_11(self, ctx, subject: str, *args):
+    @commands.command(name='viewchapters11')
+    async def view_chapters_11(self, ctx, subject: str):
         """View chapters for class 11 subjects"""
-        if args and args[0].lower() == 'chapters':
-            subject = subject.lower()
-            if subject not in self.subjects_data:
-                available_subjects = list(self.subjects_data.keys())
-                await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
-                return
-                return
+        subject = subject.lower()
+        if subject not in self.subjects_data:
+            available_subjects = list(self.subjects_data.keys())
+            await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+            return
 
-            chapters = self.subjects_data[subject][11]
+        chapters = self.subjects_data[subject][11]
             embed = discord.Embed(
                 title=f"📚 {subject.title()} - Class 11",
                 color=discord.Color.blue()
