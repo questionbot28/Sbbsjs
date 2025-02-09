@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 import logging
@@ -34,7 +33,7 @@ class Admin(commands.Cog):
         if amount > 100:
             await ctx.send("Cannot delete more than 100 messages at once.")
             return
-        
+
         deleted = await ctx.channel.purge(limit=amount + 1)
         await ctx.send(f"Deleted {len(deleted)-1} messages.", delete_after=5)
 
@@ -50,19 +49,6 @@ class Admin(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Error refreshing bot: {str(e)}")
             self.logger.error(f"Error refreshing bot: {e}")
-
-    @commands.command(name='subjects')
-    async def subjects(self, ctx):
-        """List available subjects"""
-        embed = discord.Embed(
-            title="📚 Available Subjects",
-            description="Here are the subjects you can study:",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="Commerce", value="Accountancy, Business Studies, Economics", inline=False)
-        embed.add_field(name="Arts", value="History, Geography, Political Science, Psychology, Sociology", inline=False)
-        embed.add_field(name="Science", value="Physics, Chemistry, Biology, Maths", inline=False)
-        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))
