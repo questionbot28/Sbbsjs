@@ -43,6 +43,23 @@ class Education(commands.Cog):
     async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
         """Get a question for class 11"""
         try:
+            # Map common subject names to their standardized versions
+            subject_mapping = {
+                'maths': 'mathematics',
+                'math': 'mathematics',
+                'bio': 'biology',
+                'physics': 'physics',
+                'chemistry': 'chemistry',
+                'economics': 'economics',
+                'accountancy': 'accountancy',
+                'business': 'business_studies',
+                'business_studies': 'business_studies'
+            }
+
+            subject = subject.lower()
+            # Try to get the standardized subject name
+            subject = subject_mapping.get(subject, subject)
+            
             question = await self._get_unique_question(ctx, subject, topic, 11)
             if question:
                 embed = discord.Embed(
@@ -55,7 +72,8 @@ class Education(commands.Cog):
                     embed.add_field(name="Options:", value=options_text, inline=False)
                 await ctx.send(embed=embed)
             else:
-                await ctx.send("❌ Sorry, I couldn't find a question for that subject/topic.")
+                available_subjects = list(subject_mapping.keys())
+                await ctx.send(f"❌ Sorry, I couldn't find a question for that subject/topic.\nAvailable subjects: {', '.join(available_subjects)}")
 
         except Exception as e:
             self.logger.error(f"Error in class_11 command: {e}")
