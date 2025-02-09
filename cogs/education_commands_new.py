@@ -1,19 +1,40 @@
-import discord
-from discord.ext import commands
-from typing import Optional
-import logging
-from question_generator import QuestionGenerator
-import asyncio
-import random
+{options_text}```", inline=False)
 
-class Education(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-        self.question_generator = QuestionGenerator()
-        self.user_questions = {}  # Track questions per user
-        self.question_cooldowns = {}  # Track cooldowns
-        self.command_locks = {}  # Prevent command spam
+            # Add answer and explanation in the same DM
+            if 'correct_answer' in question_data:
+                answer_text = f"**Correct Answer:** {question_data['correct_answer']}"
+                if 'explanation' in question_data:
+                    answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
+                embed.add_field(name="Solution", value=answer_text, inline=False)
+
+            # Try to send DM to user
+            try:
+                await ctx.author.send(embed=embed)
+
+                # Send confirmation message in channel
+                channel_embed = discord.Embed(
+                    title="Question Generated!",
+                    description="Check your private messages for the question and solution. If you do not receive the message, please unlock your private messages.",
+                    color=discord.Color.green()
+                )
+                channel_embed.set_image(url=self.dm_gif_url)
+                channel_embed.set_footer(text="Made by: Rohanpreet Singh Pathania")
+
+                await ctx.send(embed=channel_embed)
+
+            except discord.Forbidden:
+                # If DM fails, send message in channel
+                error_embed = discord.Embed(
+                    title="❌ Cannot Send Private Message",
+                    description="Please enable direct messages from server members to receive the question.\n"
+                               "Right-click the server icon → Privacy Settings → Enable direct messages.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=error_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error sending question to DM: {str(e)}")
+            await ctx.send("❌ An error occurred while sending the question.")
 
     async def cog_load(self):
         """Called when the cog is loaded"""
@@ -94,25 +115,52 @@ class Education(commands.Cog):
             return
         await self._handle_question_command(ctx, subject, topic, 12)
 
-    async def _get_unique_question(self, subject: str, topic: str, class_level: int, user_id: str, max_attempts: int = 3):
-        """Get a unique question for the user with retries"""
-        for attempt in range(max_attempts):
+    async def _handle_question_command(self, ctx, subject: str, topic: Optional[str], class_level: int):
+        """Handle question generation for both class 11 and 12"""
+        # Get lock for this user
+        if ctx.author.id not in self.command_locks:
+            self.command_locks[ctx.author.id] = asyncio.Lock()
+
+        async with self.command_locks[ctx.author.id]:
             try:
-                question = await self.question_generator.generate_question(
-                    subject=subject,
-                    topic=topic,
-                    class_level=class_level,
-                    user_id=user_id
-                )
+                # Validate subject
+                is_valid, normalized_subject = self._validate_subject(subject)
+                if not is_valid:
+                    available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
+                                      'Economics', 'Accountancy', 'Business Studies', 'English']
+                    await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
+                    return
 
-                if question:
-                    return question
+                # Initialize tracking for this user and subject
+                self._initialize_user_tracking(ctx.author.id, normalized_subject)
+
+                # Generate question
+                try:
+                    question = await self._get_unique_question(
+                        subject=normalized_subject,
+                        topic=topic,
+                        class_level=class_level,
+                        user_id=str(ctx.author.id)
+                    )
+
+                    if not question:
+                        await ctx.send("❌ Unable to generate a question at this time. Please try again.")
+                        return
+
+                    # Send question to DM instead of channel
+                    await self.send_question_to_dm(ctx, question)
+
+                except Exception as e:
+                    self.logger.error(f"Error generating question: {str(e)}")
+                    error_message = str(e)
+                    if "API key" in error_message:
+                        await ctx.send("❌ There's an issue with the API configuration. Please contact the bot administrator.")
+                    else:
+                        await ctx.send(f"❌ An error occurred while getting your question: {error_message}")
+
             except Exception as e:
-                self.logger.error(f"Error generating question (attempt {attempt+1}/{max_attempts}): {str(e)}")
-                if attempt == max_attempts - 1:
-                    raise
-
-        return None
+                self.logger.error(f"Error in question command: {str(e)}")
+                await ctx.send("❌ An error occurred while processing your request.")
 
     def _validate_subject(self, subject: str) -> tuple[bool, str]:
         """Validate and normalize subject name"""
@@ -137,73 +185,25 @@ class Education(commands.Cog):
 
         return True, normalized_subject
 
-    async def _handle_question_command(self, ctx, subject: str, topic: Optional[str], class_level: int):
-        """Handle question generation for both class 11 and 12"""
-        # Get lock for this user
-        if ctx.author.id not in self.command_locks:
-            self.command_locks[ctx.author.id] = asyncio.Lock()
-
-        async with self.command_locks[ctx.author.id]:
+    async def _get_unique_question(self, subject: str, topic: str, class_level: int, user_id: str, max_attempts: int = 3):
+        """Get a unique question for the user with retries"""
+        for attempt in range(max_attempts):
             try:
-                # Validate subject
-                is_valid, normalized_subject = self._validate_subject(subject)
-                if not is_valid:
-                    available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
-                                       'Economics', 'Accountancy', 'Business Studies', 'English']
-                    await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
-                    return
+                question = await self.question_generator.generate_question(
+                    subject=subject,
+                    topic=topic,
+                    class_level=class_level,
+                    user_id=user_id
+                )
 
-                # Initialize tracking for this user and subject
-                self._initialize_user_tracking(ctx.author.id, normalized_subject)
-
-                # Generate question
-                try:
-                    question = await self._get_unique_question(
-                        subject=normalized_subject,
-                        topic=topic,
-                        class_level=class_level,
-                        user_id=str(ctx.author.id)
-                    )
-
-                    if not question:
-                        await ctx.send("❌ Unable to generate a question at this time. Please try again.")
-                        return
-
-                    # Create question embed
-                    embed = discord.Embed(
-                        title="📝 Practice Question",
-                        description=question['question'],
-                        color=discord.Color.blue()
-                    )
-
-                    if 'options' in question:
-                        options_text = "\n".join(question['options'])
-                        embed.add_field(name="Options:", value=f"```{options_text}```", inline=False)
-
-                    await ctx.send(embed=embed)
-
-                    # Create answer embed
-                    if 'correct_answer' in question:
-                        answer_embed = discord.Embed(
-                            title="✅ Answer",
-                            description=f"Correct option: {question['correct_answer']}",
-                            color=discord.Color.green()
-                        )
-                        if 'explanation' in question:
-                            answer_embed.add_field(name="Explanation:", value=question['explanation'], inline=False)
-                        await ctx.send(embed=answer_embed)
-
-                except Exception as e:
-                    self.logger.error(f"Error generating question: {str(e)}")
-                    error_message = str(e)
-                    if "API key" in error_message:
-                        await ctx.send("❌ There's an issue with the API configuration. Please contact the bot administrator.")
-                    else:
-                        await ctx.send(f"❌ An error occurred while getting your question: {error_message}")
-
+                if question:
+                    return question
             except Exception as e:
-                self.logger.error(f"Error in question command: {str(e)}")
-                await ctx.send("❌ An error occurred while processing your request.")
+                self.logger.error(f"Error generating question (attempt {attempt+1}/{max_attempts}): {str(e)}")
+                if attempt == max_attempts - 1:
+                    raise
+
+        return None
 
     @commands.command(name='subjects')
     async def list_subjects(self, ctx):
@@ -226,8 +226,4 @@ class Education(commands.Cog):
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
-        await ctx.send(embed=embed)
-
-async def setup(bot):
-    await bot.add_cog(Education(bot))
+        embed.add_field(name="Subjects:", value=f"```{subject_list}
