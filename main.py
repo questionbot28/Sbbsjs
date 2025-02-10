@@ -127,10 +127,8 @@ async def load_extensions():
     """Load bot extensions"""
     if not bot.loaded_extensions:  # Only load if not already loaded
         extensions = [
-            'cogs.education_manager_new',  # Primary education management cog
-            'cogs.subject_curriculum_new',  # Chapter viewing functionality
-            'cogs.staff_commands',  # Enhanced staff commands
-            'cogs.ticket_manager'  # Ticket system
+            'cogs.education_manager_new',  # Primary education cog
+            'cogs.admin_commands'  # Admin commands
         ]
 
         for extension in extensions:
