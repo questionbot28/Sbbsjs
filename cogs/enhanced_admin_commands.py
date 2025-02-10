@@ -1,41 +1,11 @@
-import discord
-from discord.ext import commands
-import logging
-from typing import Optional, Union
-import asyncio
-
-class EnhancedAdminCommands(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-        # Define staff role IDs
-        self.owner_role_id = 1337415762947604521
-        self.mod_role_id = 1337415926164750386
-        self.helper_role_id = 1337416072382386187
-        self.announcement_channel_id = 1337410366401151038
-
-    def is_staff(self, member: discord.Member) -> bool:
-        """Check if a member has any staff role"""
-        return any(role.id in [self.owner_role_id, self.mod_role_id, self.helper_role_id] 
-                  for role in member.roles)
-
-    @commands.command(name='staffhelp')
-    async def staff_help(self, ctx):
-        """Show enhanced staff-only help menu"""
-        if not self.is_staff(ctx.author):
-            await ctx.send("❌ You don't have permission to use this command!")
-            return
-
-        help_embed = discord.Embed(
-            title="🎓 EduSphere Staff Panel",
-            description="Complete guide to staff commands",
+\n[2;34m✨ Welcome to the Staff Control Panel ✨[0m```",
             color=discord.Color.blue()
         )
 
-        # Member Management Section
+        # Member Management Section with fancy formatting
         member_commands = (
             "```ansi\n"
-            "[2;31m👥 Member Management[0m\n\n"
+            "[2;31m👥 Member Control Commands[0m\n\n"
             "[2;34m!mute[0m [2;37m<member> [reason][0m\n"
             "└─ Silence a member temporarily\n\n"
             "[2;34m!unmute[0m [2;37m<member>[0m\n"
@@ -74,94 +44,9 @@ class EnhancedAdminCommands(commands.Cog):
         # System Commands Section
         system_commands = (
             "```ansi\n"
-            "[2;31m⚙️ System Controls[0m\n\n"
+            "[2;31m⚙️ System Management[0m\n\n"
             "[2;34m!refresh[0m\n"
             "└─ Reload bot extensions\n\n"
             "[2;34m!ping[0m\n"
             "└─ Check bot latency\n"
-            "```"
-        )
-        help_embed.add_field(
-            name="🔧 System Controls",
-            value=system_commands,
-            inline=False
-        )
-
-        help_embed.set_footer(text="EduSphere Staff Panel • Made with 💖")
-        await ctx.send(embed=help_embed)
-
-    @commands.command(name='announce')
-    async def make_announcement(self, ctx, *, content: str):
-        """Make a server announcement with role ping support
-        Usage: !announce -r @role Your announcement message"""
-        if not self.is_staff(ctx.author):
-            await ctx.send("❌ You don't have permission to use this command!")
-            return
-
-        try:
-            # Get the announcement channel
-            announcement_channel = self.bot.get_channel(self.announcement_channel_id)
-            if not announcement_channel:
-                await ctx.send("❌ Announcement channel not found!")
-                return
-
-            # Parse role mention if present
-            if content.startswith('-r '):
-                try:
-                    # Split content into role mention and message
-                    _, role_mention, *message_parts = content.split(maxsplit=2)
-                    message = message_parts[0] if message_parts else ""
-                    
-                    # Convert role mention to actual role
-                    if role_mention.startswith('<@&') and role_mention.endswith('>'):
-                        role_id = int(role_mention[3:-1])
-                        role = ctx.guild.get_role(role_id)
-                        if role:
-                            ping = role.mention
-                        else:
-                            await ctx.send("❌ Invalid role mention!")
-                            return
-                    else:
-                        await ctx.send("❌ Please provide a valid role mention!")
-                        return
-                except Exception as e:
-                    await ctx.send("❌ Invalid command format! Use: !announce -r @role Your message")
-                    return
-            else:
-                ping = ""
-                message = content
-
-            # Create and send announcement embed
-            embed = discord.Embed(
-                title="📢 EduSphere Announcement",
-                description=message,
-                color=discord.Color.blue()
-            )
-            embed.set_author(
-                name=ctx.author.display_name,
-                icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-            )
-            embed.set_footer(text=f"Announced at {ctx.message.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-
-            # Send announcement
-            if ping:
-                await announcement_channel.send(ping, embed=embed)
-            else:
-                await announcement_channel.send(embed=embed)
-
-            # Send confirmation
-            confirm_embed = discord.Embed(
-                title="✅ Announcement Sent!",
-                description="Your announcement has been sent to the announcements channel.",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=confirm_embed)
-
-        except Exception as e:
-            self.logger.error(f"Error making announcement: {e}")
-            await ctx.send("❌ An error occurred while making the announcement.")
-
-    # [Other admin commands remain the same as before]
-
-async def setup(bot):
-    await bot.add_cog(EnhancedAdminCommands(bot))
+            "
