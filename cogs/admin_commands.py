@@ -18,8 +18,24 @@ class AdminCommands(commands.Cog):
             description="Available administrator commands:",
             color=discord.Color.gold()
         )
+
+        # Member Management Commands
+        member_commands = (
+            "• **!mute** `<member> [reason]` - Temporarily restrict member's messaging ability\n"
+            "• **!unmute** `<member>` - Restore member's messaging privileges\n"
+            "• **!kick** `<member> [reason]` - Remove a member from the server\n"
+            "• **!ban** `<member> [reason]` - Permanently ban a member\n"
+            "• **!unban** `<user_id>` - Revoke a member's ban"
+        )
         embed.add_field(
-            name="Commands",
+            name="🛡️ Member Management",
+            value=member_commands,
+            inline=False
+        )
+
+        # System Commands
+        embed.add_field(
+            name="⚙️ System Commands",
             value="```\n!refresh - Reload all bot extensions\n!ping - Check bot latency```",
             inline=False
         )
