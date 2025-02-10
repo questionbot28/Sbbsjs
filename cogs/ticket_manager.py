@@ -59,22 +59,35 @@ class TicketView(View):
         
         # Create embed for the ticket channel
         embed = discord.Embed(
-            title="🎫 Support Ticket",
-            description="Thank you for creating a ticket! Support staff will assist you shortly.",
+            title=f"🎫 {ticket_type.title()} Ticket",
+            description=f"Welcome {interaction.user.mention}!\n**Please wait until our support team assists you shortly.**",
             color=discord.Color.blue()
+        )
+        embed.add_field(
+            name="Ticket Type",
+            value=f"{'🎫 Support' if ticket_type == 'support' else '🎁 Reward Claim'}",
+            inline=True
         )
         embed.add_field(
             name="User",
             value=f"{interaction.user.mention}",
             inline=True
         )
-        embed.add_field(
-            name="Commands",
-            value="Use `!close` to close this ticket when resolved.",
-            inline=False
-        )
+
+        class CloseButton(discord.ui.Button):
+            def __init__(self):
+                super().__init__(style=discord.ButtonStyle.danger, label="Close Ticket", emoji="🔒")
+
+            async def callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                cog = interaction.client.get_cog('TicketManager')
+                ctx = await interaction.client.get_context(interaction.message)
+                await cog.close_ticket(ctx)
+
+        view = discord.ui.View(timeout=None)
+        view.add_item(CloseButton())
         
-        await ticket_channel.send(embed=embed)
+        await ticket_channel.send(f"{interaction.user.mention}", embed=embed, view=view)
         await interaction.followup.send(f"✅ Ticket created! Please check {ticket_channel.mention}", ephemeral=True)
 
 class TicketManager(commands.Cog):
