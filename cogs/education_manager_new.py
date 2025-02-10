@@ -1,4 +1,36 @@
-\n"
+import discord
+from discord.ext import commands
+import logging
+from typing import Dict, Any, Tuple, Optional
+import asyncio
+from question_generator import QuestionGenerator
+
+class EducationManager(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = logging.getLogger('discord_bot')
+        self.question_generator = QuestionGenerator()
+        self.command_locks = {}
+        self.user_questions = {}
+        self.dm_gif_url = "https://i.imgur.com/v2ak2ph.gif"
+        self.option_emojis = {
+            'A': '🅰️',
+            'B': '🅱️',
+            'C': '©️',
+            'D': '📝'
+        }
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show help information with fancy formatting"""
+        help_embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="Your personal study companion for Class 11 & 12!",
+            color=discord.Color.blue()
+        )
+
+        commands_info = (
+            "```\n"
             "!11 - Get Class 11 Questions\n"
             "!12 - Get Class 12 Questions\n"
             "!subjects - List All Subjects\n"
@@ -107,7 +139,7 @@
                 is_valid, normalized_subject = self._validate_subject(subject)
                 if not is_valid:
                     available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
-                                          'Economics', 'Accountancy', 'Business Studies', 'English']
+                                      'Economics', 'Accountancy', 'Business Studies', 'English']
                     await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
                     return
 
@@ -179,4 +211,54 @@
                 options_text = "\n".join(question_data['options'])
                 question_embed.add_field(
                     name="Options:",
-                    value=f"```{options_text}
+                    value=f"```{options_text}```",
+                    inline=False
+                )
+
+            question_embed.set_footer(text="💫 The answer will be revealed in 60 seconds... 💫")
+
+            try:
+                await ctx.author.send(embed=question_embed)
+
+                channel_embed = discord.Embed(
+                    title="📨 Question Generated!",
+                    description="I've sent you a DM with the question! Check your private messages.",
+                    color=discord.Color.green()
+                )
+                channel_embed.set_image(url=self.dm_gif_url)
+                channel_embed.set_footer(text="Made with ❤️ by Rohanpreet Singh Pathania")
+                await ctx.send(embed=channel_embed)
+
+                await asyncio.sleep(60)
+
+                if 'correct_answer' in question_data:
+                    answer_embed = discord.Embed(
+                        title="✨ Answer Revealed! ✨",
+                        color=discord.Color.gold()
+                    )
+
+                    correct_letter = question_data['correct_answer']
+                    emoji = self.option_emojis.get(correct_letter, '✅')
+
+                    answer_text = f"{emoji} The correct answer is {correct_letter}"
+                    if 'explanation' in question_data:
+                        answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
+
+                    answer_embed.description = answer_text
+                    await ctx.author.send(embed=answer_embed)
+
+            except discord.Forbidden:
+                error_embed = discord.Embed(
+                    title="❌ Cannot Send Private Message",
+                    description="Please enable direct messages from server members:\n"
+                              "Right-click the server icon → Privacy Settings → Enable direct messages",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=error_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error sending question to DM: {str(e)}")
+            await ctx.send("❌ An error occurred while sending the question.")
+
+async def setup(bot):
+    await bot.add_cog(EducationManager(bot))
