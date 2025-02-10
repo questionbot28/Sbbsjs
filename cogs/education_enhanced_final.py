@@ -296,4 +296,11 @@
             "📒 Business Studies\n"
             "📚 English\n"
             "[1;34m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "
+            "```"
+        )
+        embed.add_field(name="Subjects", value=subjects_format, inline=False)
+        await ctx.send(embed=embed)
+
+
+def setup(bot):
+    bot.add_cog(EducationCog(bot))

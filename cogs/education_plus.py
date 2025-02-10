@@ -1,4 +1,40 @@
-\n"
+import discord
+import asyncio
+import logging
+from typing import Dict, Any, Optional
+from discord.ext import commands
+
+class QuestionGenerator:  # Assuming this class exists elsewhere
+    pass
+
+
+class EducationCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = logging.getLogger('discord_bot')
+        self.question_generator = QuestionGenerator()
+        self.command_locks = {}
+        self.user_questions = {}
+        self.dm_gif_url = "https://cdn.discordapp.com/attachments/1337684938111320116/1338339774309728256/350kb.gif?ex=67aab98b&is=67a9680b&hm=722d53a6a09c99b68742cd2bfb5792f02a732bd2d0ba6ce9dfbf5cc8858721fe"
+        self.option_emojis = {
+            'A': '🅰️',
+            'B': '🅱️',
+            'C': '©️',
+            'D': '📝'
+        }
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show the help command"""
+        help_embed = discord.Embed(
+            title="📚 Education Bot Help",
+            description="This bot helps you practice your knowledge!",
+            color=discord.Color.blue()
+        )
+
+        # Commands Section
+        commands_info = (
+            "```ansi\n"
             "[1;34m┏━━━━━ Main Commands ━━━━━┓[0m\n"
             "[1;32m!11[0m - Get Class 11 Questions\n"
             "[1;32m!12[0m - Get Class 12 Questions\n"
@@ -189,7 +225,7 @@
                 is_valid, normalized_subject = self._validate_subject(subject)
                 if not is_valid:
                     available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
-                                       'Economics', 'Accountancy', 'Business Studies', 'English']
+                                           'Economics', 'Accountancy', 'Business Studies', 'English']
                     await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
                     return
 
@@ -272,4 +308,11 @@
             "📒 Business Studies\n"
             "📚 English\n"
             "[1;34m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "
+            "```"
+        )
+        embed.add_field(name="Subjects", value=subjects_format, inline=False)
+        await ctx.send(embed=embed)
+
+
+def setup(bot):
+    bot.add_cog(EducationCog(bot))

@@ -1,38 +1,4 @@
-import discord
-from discord.ext import commands
-from typing import Optional
-import asyncio
-import logging
-
-class EducationCog(commands.Cog):
-    def __init__(self, bot, question_generator):
-        self.bot = bot
-        self.question_generator = question_generator
-        self.logger = logging.getLogger(__name__)
-        self.user_questions = {}  # Track questions per user
-        self.command_locks = {}  # Prevent concurrent commands per user
-        self.dm_gif_url = "https://cdn.discordapp.com/attachments/1337684938111320116/1338339774309728256/350kb.gif?ex=67aab98b&is=67a9680b&hm=722d53a6a09c99b68742cd2bfb5792f02a732bd2d0ba6ce9dfbf5cc8858721fe"
-
-
-    async def send_question_to_dm(self, ctx, question_data):
-        """Send question and solution to user's DM"""
-        try:
-            # Create embed for DM
-            embed = discord.Embed(
-                title=question_data['question'],
-                description=question_data['options_text'],
-                color=discord.Color.blue()
-            )
-            embed.set_author(name=f"Class {question_data['class_level']} {question_data['subject']}",
-                             icon_url=ctx.author.avatar.url)
-            embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1337684938111320116/1337685177401036800/giphy.gif")  #add  a thumbnail
-            embed.set_footer(text=f"Generated at {question_data['timestamp']}")
-
-            # Add options as fields in the embed.
-            options = question_data['options']
-            for i, option in enumerate(options):
-                option_text = f"{chr(ord('A') + i)}. {option}"
-                embed.add_field(name=f"Option {chr(ord('A') + i)}", value=f"```{option_text}```", inline=False)
+{option_text}```", inline=False)
 
             # Add answer and explanation in the same DM
             if 'correct_answer' in question_data:
@@ -260,5 +226,4 @@ class EducationCog(commands.Cog):
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}\n```", inline=False)
-        await ctx.send(embed=embed)
+        embed.add_field(name="Subjects:", value=f"```{subject_list}\n
