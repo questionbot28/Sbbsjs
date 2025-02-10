@@ -16,7 +16,7 @@ class AdminCommands(commands.Cog):
         embed = discord.Embed(
             title="👑 Staff Commands",
             description="✨ Welcome to the Administrative Control Panel ✨\nYour gateway to managing EduSphere with excellence!",
-            color=discord.Color.light_blue()
+            color=discord.Color.blue().lighter()
         )
 
         # Member Management Commands
