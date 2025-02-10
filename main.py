@@ -129,7 +129,7 @@ async def load_extensions():
         extensions = [
             'cogs.education_manager_new',  # Primary education management cog
             'cogs.subject_curriculum_new',  # Chapter viewing functionality
-            'cogs.admin_commands',  # New admin commands cog
+            'cogs.admin_core_new',  # New admin commands cog
             'cogs.ticket_manager'  # Ticket system
         ]
 

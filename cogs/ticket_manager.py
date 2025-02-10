@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 import asyncio
@@ -8,10 +7,25 @@ from discord.ui import Button, View
 class TicketSelect(discord.ui.Select):
     def __init__(self):
         options = [
-            SelectOption(label="Support Ticket", description="Get help with any issues", emoji="🎫", value="support"),
-            SelectOption(label="Claim Reward", description="Claim your rewards and prizes", emoji="🎁", value="reward")
+            SelectOption(
+                label="Academic Support",
+                description="Get help with your studies",
+                emoji="📚",
+                value="support"
+            ),
+            SelectOption(
+                label="Resource Access",
+                description="Access study materials and guides",
+                emoji="📖",
+                value="reward"
+            )
         ]
-        super().__init__(placeholder="Choose ticket type...", min_values=1, max_values=1, options=options)
+        super().__init__(
+            placeholder="Choose support type...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view = self.view
@@ -23,71 +37,71 @@ class TicketView(View):
         super().__init__(timeout=None)
         self.bot = bot
         self.add_item(TicketSelect())
-    
+
     async def create_ticket_callback(self, interaction: discord.Interaction, ticket_type: str):
         await interaction.response.defer(ephemeral=True)
-        
+
         # Check if user already has a ticket
         cog = self.bot.get_cog('TicketManager')
         if interaction.user.id in cog.active_tickets:
             await interaction.followup.send("❌ You already have an active ticket!", ephemeral=True)
             return
-            
+
         # Create ticket channel
         guild = interaction.guild
         category = discord.utils.get(guild.categories, name='Tickets')
-        
+
         if category is None:
             category = await guild.create_category('Tickets')
-            
+
         channel_name = f'ticket-{interaction.user.name}'
-        
+
         # Set permissions
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        
+
         # Create the ticket channel
         ticket_channel = await category.create_text_channel(
             name=channel_name,
             overwrites=overwrites
         )
-        
+
         cog.active_tickets[interaction.user.id] = ticket_channel.id
-        
+
         # Create embed for the ticket channel
         welcome_message = (
-            "┏━━━━━━━━━━ 🎟️ Ticket Opened ━━━━━━━━━━┓\n"
+            "┏━━━━━━━━━━ 🎟️ EduSphere Support ━━━━━━━━━━┓\n"
             f"👋 Hello, {interaction.user.mention}!\n"
-            "Your support ticket has been created successfully.\n"
-            "A staff member will assist you shortly.\n"
+            "Your educational support ticket has been created.\n"
+            "An EduSphere advisor will assist you shortly.\n"
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
-        
+
         ticket_details = (
             "┏━━━━━━━━━━ 📜 Ticket Details ━━━━━━━━━━┓\n"
             f"🔹 User: {interaction.user.mention}\n"
             f"🔹 ID: {interaction.user.id}\n"
-            f"🔹 Type: {'Support' if ticket_type == 'support' else 'Reward'}\n"
+            f"🔹 Type: {'Academic Support' if ticket_type == 'support' else 'Resource Access'}\n"
             "🔹 Status: 🟢 Active\n"
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
-        
+
         instructions = (
             "┏━━━━━━━━━━ ℹ️ Instructions ━━━━━━━━━━┓\n"
-            "✅ Clearly explain your issue or request.\n"
-            "✅ Wait patiently for a staff response.\n"
-            "✅ Click the 🔒 button when your issue is resolved.\n"
+            "✅ Clearly explain your academic query or request.\n"
+            "✅ Wait for an EduSphere advisor to respond.\n"
+            "✅ Click the 🔒 button when your query is resolved.\n"
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
-        
+
         embed = discord.Embed(
             description=f"{welcome_message}\n\n{ticket_details}\n\n{instructions}",
             color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
         )
-        embed.set_footer(text="🔔 A staff member will be with you shortly!")
+        embed.set_footer(text="🔔 An EduSphere advisor will be with you shortly!")
 
         class CloseButton(discord.ui.Button):
             def __init__(self):
@@ -101,7 +115,7 @@ class TicketView(View):
 
         view = discord.ui.View(timeout=None)
         view.add_item(CloseButton())
-        
+
         await ticket_channel.send(f"{interaction.user.mention}", embed=embed, view=view)
         await interaction.followup.send(f"✅ Ticket created! Please check {ticket_channel.mention}", ephemeral=True)
 
@@ -119,26 +133,26 @@ class TicketManager(commands.Cog):
         if not channel:
             await ctx.send("❌ Channel not found!")
             return
-            
+
         self.ticket_channel_id = channel.id
-        
-        # Create the ticket message
+
+        # Create the ticket message with new formatting
         embed = discord.Embed(
-            title="🎫 Support & Rewards Center",
-            description="📌 **Available Services – Select a Ticket Type Below**\n\n📩 Need assistance? Choose the category that best fits your request from the dropdown menu!",
+            title="🎓 EduSphere Support Center",
+            description="📚 **Welcome to Your EduSphere Support Hub**\n\nGet assistance with your studies and access educational resources!",
             color=discord.Color.blue()
         )
         ticket_types = (
-            "🎫 **Support Ticket**\n\n"
-            "🔹 Get help with technical issues, account problems, or general inquiries.\n"
-            "🔹 Report bugs, glitches, or issues with our services.\n"
-            "🔹 Ask for guidance or troubleshooting assistance.\n\n"
-            "🎁 **Reward Claims**\n\n"
-            "🎉 Claim event rewards, giveaways, or special prizes.\n"
-            "🎟️ Redeem your loyalty points or promotional rewards.\n"
-            "📜 Request exclusive perks or custom benefits.\n\n"
-            "⚠️ **Note:** Abusing the ticket system may result in restrictions.\n\n"
-            "👨‍💻 Staff will assist you as soon as possible!"
+            "🎫 **Academic Support**\n\n"
+            "🔹 Get help with study materials and concepts\n"
+            "🔹 Ask questions about specific topics\n"
+            "🔹 Request additional learning resources\n\n"
+            "🎁 **Resource Access**\n\n"
+            "📘 Access study materials and guides\n"
+            "📝 Request practice questions and solutions\n"
+            "📚 Get help with subject-specific queries\n\n"
+            "⚠️ **Note:** Please be specific with your academic queries.\n\n"
+            "👨‍🏫 Our EduSphere advisors will assist you promptly!"
         )
         embed.add_field(
             name="",
@@ -147,14 +161,14 @@ class TicketManager(commands.Cog):
         )
         embed.add_field(
             name="💡 How it works",
-            value="1️⃣ Click the appropriate button below\n"
-                  "2️⃣ A private channel will be created\n"
-                  "3️⃣ Describe your request there\n"
-                  "4️⃣ Staff will assist you shortly",
+            value="1️⃣ Select your request type below\n"
+                  "2️⃣ A private support channel will be created\n"
+                  "3️⃣ Describe your academic query clearly\n"
+                  "4️⃣ An EduSphere advisor will assist you",
             inline=False
         )
-        embed.set_footer(text="Choose your ticket type below!")
-        
+        embed.set_footer(text="Select your support type below! 📚")
+
         # Send message with button
         view = TicketView(self.bot)
         await channel.send(embed=embed, view=view)
@@ -167,13 +181,13 @@ class TicketManager(commands.Cog):
             return
 
         close_embed = discord.Embed(
-            title="🔒 Closing Ticket",
+            title="🔒 Closing EduSphere Support Ticket",
             description="This ticket will be closed in 5 seconds...",
             color=discord.Color.orange()
         )
         await ctx.send(embed=close_embed)
         await asyncio.sleep(5)
-        
+
         # Remove from active tickets
         user_id = next((k for k, v in self.active_tickets.items() if v == ctx.channel.id), None)
         if user_id:
