@@ -5,31 +5,26 @@ import asyncio
 from discord import ButtonStyle, SelectOption
 from discord.ui import Button, View
 
+class TicketSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            SelectOption(label="Support Ticket", description="Get help with any issues", emoji="🎫", value="support"),
+            SelectOption(label="Claim Reward", description="Claim your rewards and prizes", emoji="🎁", value="reward")
+        ]
+        super().__init__(placeholder="Choose ticket type...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        if isinstance(view, TicketView):
+            await view.create_ticket_callback(interaction, self.values[0])
+
 class TicketView(View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
-        
-        # Support ticket button
-        support_button = Button(
-            style=ButtonStyle.primary,
-            label="🎫 Support Ticket",
-            custom_id="support_ticket"
-        )
-        support_button.callback = self.create_ticket_callback
-        
-        # Reward claim button
-        reward_button = Button(
-            style=ButtonStyle.success,
-            label="🎁 Claim Reward",
-            custom_id="reward_ticket"
-        )
-        reward_button.callback = self.create_ticket_callback
-        
-        self.add_item(support_button)
-        self.add_item(reward_button)
+        self.add_item(TicketSelect())
     
-    async def create_ticket_callback(self, interaction: discord.Interaction):
+    async def create_ticket_callback(self, interaction: discord.Interaction, ticket_type: str):
         await interaction.response.defer(ephemeral=True)
         
         # Check if user already has a ticket
