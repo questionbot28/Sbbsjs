@@ -59,21 +59,36 @@ class TicketView(View):
         
         # Create embed for the ticket channel
         embed = discord.Embed(
-            title=f"{'🎫 Support Request' if ticket_type == 'support' else '🎁 Reward Claim Request'}",
-            description=f"👋 **Welcome {interaction.user.mention}!**\n\n🔹 Your ticket has been created successfully.\n🔹 **Please wait until our support team assists you shortly.**\n🔹 Describe your request in detail while waiting.",
+            title=f"{'🎫 Support Request Channel' if ticket_type == 'support' else '🎁 Reward Claim Channel'}",
+            description=f"```ansi\n[1;36m┏━━━━━ Welcome Message ━━━━━┓[0m\n[1;33m👋 Hello {interaction.user.name}![0m\n[0;37mYour ticket has been created![0m\n[1;36m┗━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n```\n⌛ **Please wait while our team assists you**\n💬 Meanwhile, feel free to describe your request in detail.",
             color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
         )
-        embed.add_field(
-            name="👤 User Information",
-            value=f"**Requestor:** {interaction.user.mention}\n**ID:** {interaction.user.id}",
-            inline=True
+        
+        # User Information with fancy formatting
+        user_info = (
+            "```ansi\n"
+            "[1;35m┏━━━━━ Ticket Info ━━━━━┓[0m\n"
+            f"[0;36m▸ User:[0m {interaction.user.name}\n"
+            f"[0;36m▸ ID:[0m {interaction.user.id}\n"
+            f"[0;36m▸ Type:[0m {'Support' if ticket_type == 'support' else 'Reward'}\n"
+            f"[0;36m▸ Status:[0m [1;32mActive[0m\n"
+            "[1;35m┗━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
         )
-        embed.add_field(
-            name="🎫 Ticket Details",
-            value=f"**Type:** {'Support Assistance' if ticket_type == 'support' else 'Reward Claim'}\n**Status:** Active",
-            inline=True
+        embed.add_field(name="", value=user_info, inline=False)
+        
+        # Instructions
+        instructions = (
+            "```ansi\n"
+            "[1;33m┏━━━━━ Instructions ━━━━━┓[0m\n"
+            "1️⃣ Describe your request clearly\n"
+            "2️⃣ Wait for staff response\n"
+            "3️⃣ Use 🔒 button when done\n"
+            "[1;33m┗━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
         )
-        embed.set_footer(text="Use the 🔒 Close Ticket button when your request is resolved")
+        embed.add_field(name="", value=instructions, inline=False)
+        embed.set_footer(text="🔔 A staff member will be with you shortly!")
 
         class CloseButton(discord.ui.Button):
             def __init__(self):
@@ -110,14 +125,27 @@ class TicketManager(commands.Cog):
         
         # Create the ticket message
         embed = discord.Embed(
-            title="🎫 Ticket System",
-            description="Click on the button corresponding to the type of ticket you wish to open!",
+            title="🎫 Support & Rewards Center",
+            description="```ansi\n[1;35m┏━━━━━ Welcome to Ticket System ━━━━━┓[0m\n[0;36mSelect your ticket type from the menu below![0m\n[1;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n```",
             color=discord.Color.blue()
         )
+        ticket_types = (
+            "```ansi\n"
+            "[1;33m┏━━━━━ Available Options ━━━━━┓[0m\n"
+            "[1;34m🎫 Support Ticket[0m\n"
+            "  • Technical assistance\n"
+            "  • General inquiries\n"
+            "  • Issue reporting\n\n"
+            "[1;32m🎁 Reward Claims[0m\n"
+            "  • Claim prizes\n"
+            "  • Redeem rewards\n"
+            "  • Special requests\n"
+            "[1;33m┗━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
+        )
         embed.add_field(
-            name="📋 Available Ticket Types",
-            value="🎫 **Support Ticket**\n• Get help with any issues\n• Ask questions\n• Report problems\n\n"
-                  "🎁 **Claim Reward**\n• Claim your rewards\n• Redeem prizes\n• Special requests",
+            name="",
+            value=ticket_types,
             inline=False
         )
         embed.add_field(
