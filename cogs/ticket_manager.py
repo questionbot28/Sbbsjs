@@ -58,34 +58,34 @@ class TicketView(View):
         cog.active_tickets[interaction.user.id] = ticket_channel.id
         
         # Create embed for the ticket channel
-        embed = discord.Embed(
-            title=f"{'🎫 Support Request Channel' if ticket_type == 'support' else '🎁 Reward Claim Channel'}",
-            description=f"### 👋 Welcome {interaction.user.mention}!\n\n**Your ticket has been created successfully!**\n\n⌛ Please wait while our team assists you\n💬 Meanwhile, feel free to describe your request in detail.",
-            color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
+        welcome_message = (
+            "┏━━━━━━━━━━ 🎟️ Ticket Opened ━━━━━━━━━━┓\n"
+            f"👋 Hello, {interaction.user.mention}!\n"
+            "Your support ticket has been created successfully.\n"
+            "A staff member will assist you shortly.\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
         
-        # User Information with fancy formatting
-        user_info = (
-            "```ansi\n"
-            "[1;35m┏━━━━━ Ticket Info ━━━━━┓[0m\n"
-            f"[0;36m▸ User:[0m {interaction.user.name}\n"
-            f"[0;36m▸ ID:[0m {interaction.user.id}\n"
-            f"[0;36m▸ Type:[0m {'Support' if ticket_type == 'support' else 'Reward'}\n"
-            f"[0;36m▸ Status:[0m [1;32mActive[0m\n"
-            "[1;35m┗━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "```"
+        ticket_details = (
+            "┏━━━━━━━━━━ 📜 Ticket Details ━━━━━━━━━━┓\n"
+            f"🔹 User: {interaction.user.mention}\n"
+            f"🔹 ID: {interaction.user.id}\n"
+            f"🔹 Type: {'Support' if ticket_type == 'support' else 'Reward'}\n"
+            "🔹 Status: 🟢 Active\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
-        embed.add_field(name="", value=user_info, inline=False)
         
-        # Instructions
         instructions = (
-            "```ansi\n"
-            "[1;33m┏━━━━━ Instructions ━━━━━┓[0m\n"
-            "1️⃣ Describe your request clearly\n"
-            "2️⃣ Wait for staff response\n"
-            "3️⃣ Use 🔒 button when done\n"
-            "[1;33m┗━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "```"
+            "┏━━━━━━━━━━ ℹ️ Instructions ━━━━━━━━━━┓\n"
+            "✅ Clearly explain your issue or request.\n"
+            "✅ Wait patiently for a staff response.\n"
+            "✅ Click the 🔒 button when your issue is resolved.\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        )
+        
+        embed = discord.Embed(
+            description=f"{welcome_message}\n\n{ticket_details}\n\n{instructions}",
+            color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
         )
         embed.add_field(name="", value=instructions, inline=False)
         embed.set_footer(text="🔔 A staff member will be with you shortly!")
