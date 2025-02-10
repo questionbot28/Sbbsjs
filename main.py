@@ -7,6 +7,9 @@ from utils.logger import setup_logger
 from difflib import get_close_matches
 import asyncio
 import time
+from keep_alive import keep_alive
+
+keep_alive()
 
 # Load environment variables
 load_dotenv()
