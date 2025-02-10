@@ -16,7 +16,7 @@ class StaffCommands(commands.Cog):
 
     def is_staff(self, member: discord.Member) -> bool:
         """Check if a member has any staff role"""
-        return any(role.id in [self.owner_role_id, self.mod_role_id, self.helper_role_id] 
+        return any(role.id in [self.owner_role_id, self.mod_role_id, self.helper_role_id]
                   for role in member.roles)
 
     @commands.command(name='staffhelp')
@@ -29,29 +29,20 @@ class StaffCommands(commands.Cog):
         help_embed = discord.Embed(
             title="🎓 EduSphere Staff Panel",
             description=(
-                "```ansi\n"
-                "[2;34m✨ Welcome to the Administrative Control Panel ✨[0m\n"
+                "✨ Welcome to the Administrative Control Panel ✨\n"
                 "Your gateway to managing EduSphere with excellence!\n"
-                "```"
             ),
             color=discord.Color.blue()
         )
 
         # Member Management Section
         member_commands = (
-            "```ansi\n"
-            "[2;31m🛡️ Member Management[0m\n\n"
-            "[2;34m!mute[0m [2;37m<member> [reason][0m\n"
-            "└─ Temporarily restrict member's messaging ability\n\n"
-            "[2;34m!unmute[0m [2;37m<member>[0m\n"
-            "└─ Restore member's messaging privileges\n\n"
-            "[2;34m!kick[0m [2;37m<member> [reason][0m\n"
-            "└─ Remove a member from the server\n\n"
-            "[2;34m!ban[0m [2;37m<member> [reason][0m\n"
-            "└─ Permanently ban a member\n\n"
-            "[2;34m!unban[0m [2;37m<user_id>[0m\n"
-            "└─ Revoke a member's ban\n"
-            "```"
+            "**🛡️ Member Management**\n\n"
+            "• **!mute** `<member> [reason]` - Temporarily restrict member's messaging ability\n"
+            "• **!unmute** `<member>` - Restore member's messaging privileges\n"
+            "• **!kick** `<member> [reason]` - Remove a member from the server\n"
+            "• **!ban** `<member> [reason]` - Permanently ban a member\n"
+            "• **!unban** `<user_id>` - Revoke a member's ban\n"
         )
         help_embed.add_field(
             name="👥 Member Controls",
@@ -61,14 +52,10 @@ class StaffCommands(commands.Cog):
 
         # Channel Management Section
         channel_commands = (
-            "```ansi\n"
-            "[2;31m📢 Channel Controls[0m\n\n"
-            "[2;34m!announce[0m [2;37m-r <role> <message>[0m\n"
-            "└─ Make an announcement with role ping\n"
-            "[2;37m  Example: !announce -r @everyone New update![0m\n\n"
-            "[2;34m!clear[0m [2;37m<amount>[0m\n"
-            "└─ Clear specified number of messages\n"
-            "```"
+            "**📢 Channel Controls**\n\n"
+            "• **!announce** `-r <role> <message>` - Make an announcement with role ping\n"
+            "  Example: `!announce -r @everyone New update!`\n"
+            "• **!clear** `<amount>` - Clear specified number of messages\n"
         )
         help_embed.add_field(
             name="💬 Channel Management",
@@ -78,13 +65,9 @@ class StaffCommands(commands.Cog):
 
         # System Management Section
         system_commands = (
-            "```ansi\n"
-            "[2;31m⚙️ System Management[0m\n\n"
-            "[2;34m!refresh[0m\n"
-            "└─ Reload all bot extensions\n\n"
-            "[2;34m!ping[0m\n"
-            "└─ Check bot's connection status\n"
-            "```"
+            "**⚙️ System Management**\n\n"
+            "• **!refresh** - Reload all bot extensions\n"
+            "• **!ping** - Check bot's connection status\n"
         )
         help_embed.add_field(
             name="🔧 System Controls",
@@ -115,7 +98,7 @@ class StaffCommands(commands.Cog):
                     # Split content into role mention and message
                     _, role_mention, *message_parts = content.split(maxsplit=2)
                     message = message_parts[0] if message_parts else ""
-                    
+
                     # Convert role mention to actual role
                     if role_mention.startswith('<@&') and role_mention.endswith('>'):
                         role_id = int(role_mention[3:-1])
@@ -141,12 +124,12 @@ class StaffCommands(commands.Cog):
                 description=message,
                 color=discord.Color.blue()
             )
-            
+
             announcement_embed.set_author(
                 name=ctx.author.display_name,
                 icon_url=ctx.author.avatar.url if ctx.author.avatar else None
             )
-            
+
             current_time = ctx.message.created_at.strftime('%Y-%m-%d %H:%M:%S')
             announcement_embed.set_footer(
                 text=f"Announced by {ctx.author.name} • {current_time}"
@@ -192,7 +175,7 @@ class StaffCommands(commands.Cog):
     async def ping(self, ctx):
         """Check bot's latency"""
         latency = round(self.bot.latency * 1000)
-        
+
         if latency < 100:
             color = discord.Color.green()
             status = "🟢 Excellent"
