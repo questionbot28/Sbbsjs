@@ -10,14 +10,24 @@ class TicketView(View):
         super().__init__(timeout=None)
         self.bot = bot
         
-        # Create ticket button
-        ticket_button = Button(
+        # Support ticket button
+        support_button = Button(
             style=ButtonStyle.primary,
-            label="🎫 Create Ticket",
-            custom_id="create_ticket"
+            label="🎫 Support Ticket",
+            custom_id="support_ticket"
         )
-        ticket_button.callback = self.create_ticket_callback
-        self.add_item(ticket_button)
+        support_button.callback = self.create_ticket_callback
+        
+        # Reward claim button
+        reward_button = Button(
+            style=ButtonStyle.success,
+            label="🎁 Claim Reward",
+            custom_id="reward_ticket"
+        )
+        reward_button.callback = self.create_ticket_callback
+        
+        self.add_item(support_button)
+        self.add_item(reward_button)
     
     async def create_ticket_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -80,22 +90,36 @@ class TicketManager(commands.Cog):
 
     @commands.command(name='setuptickets')
     @commands.has_permissions(administrator=True)
-    async def setup_tickets(self, ctx, channel: discord.TextChannel):
+    async def setup_tickets(self, ctx, channel: discord.TextChannel = None):
         """Set up the ticket system in a specific channel"""
+        channel = channel or ctx.guild.get_channel(1338330187632476291)
+        if not channel:
+            await ctx.send("❌ Channel not found!")
+            return
+            
         self.ticket_channel_id = channel.id
         
         # Create the ticket message
         embed = discord.Embed(
-            title="🎫 Support Tickets",
-            description="Need help? Create a support ticket by clicking the button below!",
+            title="🎫 Ticket System",
+            description="Click on the button corresponding to the type of ticket you wish to open!",
             color=discord.Color.blue()
         )
         embed.add_field(
-            name="💡 How it works",
-            value="1️⃣ Click the button below\n2️⃣ A private channel will be created\n3️⃣ Describe your issue there\n4️⃣ Staff will assist you shortly",
+            name="📋 Available Ticket Types",
+            value="🎫 **Support Ticket**\n• Get help with any issues\n• Ask questions\n• Report problems\n\n"
+                  "🎁 **Claim Reward**\n• Claim your rewards\n• Redeem prizes\n• Special requests",
             inline=False
         )
-        embed.set_footer(text="Support is just one click away!")
+        embed.add_field(
+            name="💡 How it works",
+            value="1️⃣ Click the appropriate button below\n"
+                  "2️⃣ A private channel will be created\n"
+                  "3️⃣ Describe your request there\n"
+                  "4️⃣ Staff will assist you shortly",
+            inline=False
+        )
+        embed.set_footer(text="Choose your ticket type below!")
         
         # Send message with button
         view = TicketView(self.bot)
