@@ -15,7 +15,7 @@ class AdminCommands(commands.Cog):
         """Show staff commands help"""
         embed = discord.Embed(
             title="👑 Staff Commands",
-            description="Available administrator commands:",
+            description="✨ Welcome to the Administrative Control Panel ✨\nYour gateway to managing EduSphere with excellence!",
             color=discord.Color.gold()
         )
 
@@ -33,12 +33,30 @@ class AdminCommands(commands.Cog):
             inline=False
         )
 
-        # System Commands
+        # Channel Control Commands
+        channel_commands = (
+            "• **!announce** `-r <role> <message>` - Make an announcement with role ping\n"
+            "  Example: `!announce -r @everyone New update!`\n"
+            "• **!clear** `<amount>` - Clear specified number of messages"
+        )
         embed.add_field(
-            name="⚙️ System Commands",
-            value="```\n!refresh - Reload all bot extensions\n!ping - Check bot latency```",
+            name="📢 Channel Controls",
+            value=channel_commands,
             inline=False
         )
+
+        # System Management Commands
+        system_commands = (
+            "• **!refresh** - Reload all bot extensions\n"
+            "• **!ping** - Check bot's connection status"
+        )
+        embed.add_field(
+            name="⚙️ System Management",
+            value=system_commands,
+            inline=False
+        )
+
+        embed.set_footer(text="EduSphere Staff Panel • Made with 💖 by Rohanpreet singh Pathania")
         await ctx.send(embed=embed)
 
     @commands.command(name='refresh')
