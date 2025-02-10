@@ -9,34 +9,11 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
-    @commands.command(name='setuptickets')
-    @commands.has_permissions(administrator=True)
-    async def setup_tickets(self, ctx, channel: discord.TextChannel = None):
-        """Set up the ticket system in a specific channel"""
-        channel = channel or ctx.channel
-
-        # Create the ticket message with formatting
-        embed = discord.Embed(
-            title="🎓 EduSphere Support Center",
-            description="📚 **Welcome to Your EduSphere Support Hub**\n\nGet assistance with your studies and access educational resources!",
-            color=discord.Color.blue()
-        )
-        ticket_types = (
-            "🎫 **Academic Support**\n\n"
-            "🔹 Get help with study materials and concepts\n"
-            "🔹 Ask questions about specific topics\n"
-            "🔹 Request additional learning resources\n\n"
-            "🎁 **Resource Access**\n\n"
-            "📘 Access study materials and guides\n"
-            "📝 Request practice questions and solutions\n"
-            "📚 Get help with subject-specific queries"
-        )
-        embed.add_field(
-            name="Support Options",
-            value=ticket_types,
-            inline=False
-        )
-        embed.set_footer(text="Click the button below to create a ticket! 📚")
+    @commands.command(name='ping')
+    async def ping(self, ctx):
+        """Check bot latency"""
+        latency = round(self.bot.latency * 1000)
+        await ctx.send(f"🏓 Pong! Latency: {latency}ms") below to create a ticket! 📚")
 
         class TicketButton(discord.ui.Button):
             def __init__(self):

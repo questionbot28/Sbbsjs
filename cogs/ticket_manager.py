@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 import asyncio
@@ -17,7 +18,7 @@ class TicketSelect(discord.ui.Select):
                 label="Resource Access",
                 description="Access study materials and guides",
                 emoji="📖",
-                value="reward"
+                value="resource"
             )
         ]
         super().__init__(
@@ -40,38 +41,35 @@ class TicketView(View):
 
     async def create_ticket_callback(self, interaction: discord.Interaction, ticket_type: str):
         await interaction.response.defer(ephemeral=True)
-
-        # Check if user already has a ticket
-        cog = self.bot.get_cog('TicketManager')
-        if interaction.user.id in cog.active_tickets:
+        
+        # Get ticket manager cog
+        ticket_manager = self.bot.get_cog('TicketManager')
+        if interaction.user.id in ticket_manager.active_tickets:
             await interaction.followup.send("❌ You already have an active ticket!", ephemeral=True)
             return
 
         # Create ticket channel
         guild = interaction.guild
         category = discord.utils.get(guild.categories, name='Tickets')
-
+        
         if category is None:
             category = await guild.create_category('Tickets')
 
         channel_name = f'ticket-{interaction.user.name}'
-
-        # Set permissions
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
 
-        # Create the ticket channel
         ticket_channel = await category.create_text_channel(
             name=channel_name,
             overwrites=overwrites
         )
 
-        cog.active_tickets[interaction.user.id] = ticket_channel.id
+        ticket_manager.active_tickets[interaction.user.id] = ticket_channel.id
 
-        # Create embed for the ticket channel
+        # Create welcome embed
         welcome_message = (
             "┏━━━━━━━━━━ 🎟️ EduSphere Support ━━━━━━━━━━┓\n"
             f"👋 Hello, {interaction.user.mention}!\n"
@@ -99,7 +97,7 @@ class TicketView(View):
 
         embed = discord.Embed(
             description=f"{welcome_message}\n\n{ticket_details}\n\n{instructions}",
-            color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
+            color=discord.Color.blue()
         )
         embed.set_footer(text="🔔 An EduSphere advisor will be with you shortly!")
 
@@ -109,9 +107,9 @@ class TicketView(View):
 
             async def callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                cog = interaction.client.get_cog('TicketManager')
+                ticket_manager = interaction.client.get_cog('TicketManager')
                 ctx = await interaction.client.get_context(interaction.message)
-                await cog.close_ticket(ctx)
+                await ticket_manager.close_ticket(ctx)
 
         view = discord.ui.View(timeout=None)
         view.add_item(CloseButton())
@@ -129,12 +127,7 @@ class TicketManager(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def setup_tickets(self, ctx, channel: discord.TextChannel = None):
         """Set up the ticket system in a specific channel"""
-        channel = channel or ctx.guild.get_channel(1338330187632476291)
-        if not channel:
-            await ctx.send("❌ Channel not found!")
-            return
-
-        self.ticket_channel_id = channel.id
+        channel = channel or ctx.channel
 
         # Create the ticket message with new formatting
         embed = discord.Embed(
@@ -169,7 +162,7 @@ class TicketManager(commands.Cog):
         )
         embed.set_footer(text="Select your support type below! 📚")
 
-        # Send message with button
+        # Send message with view
         view = TicketView(self.bot)
         await channel.send(embed=embed, view=view)
 
