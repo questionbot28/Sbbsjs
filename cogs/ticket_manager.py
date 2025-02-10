@@ -87,7 +87,6 @@ class TicketView(View):
             description=f"{welcome_message}\n\n{ticket_details}\n\n{instructions}",
             color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
         )
-        embed.add_field(name="", value=instructions, inline=False)
         embed.set_footer(text="🔔 A staff member will be with you shortly!")
 
         class CloseButton(discord.ui.Button):
