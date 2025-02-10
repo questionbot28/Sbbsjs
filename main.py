@@ -163,6 +163,8 @@ async def on_command_error(ctx, error):
         matches = get_close_matches(attempted_command, available_commands, n=1, cutoff=0.6)
         suggestion = matches[0] if matches else available_commands[0]
         await ctx.send(f"Command '{attempted_command}' not found. Did you mean '!{suggestion}'?")
+    elif "Section not found" in str(error):
+        await ctx.send("❌ The specified section or category was not found. Please check available sections using !subjects or !chapters11/!chapters12 commands.")
     else:
         logger.error(f"Error occurred: {error}")
         await ctx.send("An error occurred while processing your command.")
