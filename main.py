@@ -171,7 +171,11 @@ async def main():
     try:
         async with bot:
             await load_extensions()
-            await bot.start(os.getenv('DISCORD_TOKEN'))
+            token = os.getenv('DISCORD_TOKEN')
+            if not token:
+                logger.error("Discord token not found in environment variables")
+                return
+            await bot.start(token)
     except Exception as e:
         logger.error(f"Main loop error: {e}")
         await asyncio.sleep(5)  # Wait before retry
