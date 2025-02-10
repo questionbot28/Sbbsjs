@@ -13,15 +13,60 @@ class StaffCommands(commands.Cog):
         self.mod_role_id = 1337415926164750386
         self.helper_role_id = 1337416072382386187
         self.announcement_channel_id = 1337410366401151038
+        self.staff_cmd_channel_id = 1338360696873680999
+        self.mod_log_channel_id = 1337415561537257582
 
     def is_staff(self, member: discord.Member) -> bool:
         """Check if a member has any staff role"""
         return any(role.id in [self.owner_role_id, self.mod_role_id, self.helper_role_id]
                   for role in member.roles)
 
+    async def log_staff_action(self, staff_member: discord.Member, action: str, details: str = None):
+        """Log staff actions to mod log channel"""
+        try:
+            log_channel = self.bot.get_channel(self.mod_log_channel_id)
+            if not log_channel:
+                return
+
+            log_embed = discord.Embed(
+                title="👮‍♂️ Staff Action Log",
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+
+            log_embed.add_field(
+                name="Staff Member",
+                value=f"{staff_member.mention} ({staff_member.name})",
+                inline=False
+            )
+
+            log_embed.add_field(
+                name="Action",
+                value=action,
+                inline=False
+            )
+
+            if details:
+                log_embed.add_field(
+                    name="Details",
+                    value=details,
+                    inline=False
+                )
+
+            log_embed.set_footer(text=f"Staff ID: {staff_member.id}")
+            await log_channel.send(embed=log_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error logging staff action: {e}")
+
     @commands.command(name='staffhelp')
     async def staff_help(self, ctx):
         """Show enhanced staff-only help menu"""
+        # Check if command is used in staff command channel
+        if ctx.channel.id != self.staff_cmd_channel_id:
+            await ctx.send("❌ This command can only be used in the staff commands channel!")
+            return
+
         if not self.is_staff(ctx.author):
             await ctx.send("❌ You don't have permission to use this command!")
             return
@@ -77,6 +122,13 @@ class StaffCommands(commands.Cog):
 
         help_embed.set_footer(text="EduSphere Staff Panel • Made with 💖 by Rohanpreet singh Pathania")
         await ctx.send(embed=help_embed)
+
+        # Log the staff help command usage
+        await self.log_staff_action(
+            ctx.author,
+            "Used !staffhelp command",
+            f"Channel: {ctx.channel.mention}"
+        )
 
     @commands.command(name='announce')
     async def announce(self, ctx, *, content: str):
@@ -136,10 +188,18 @@ class StaffCommands(commands.Cog):
             )
 
             # Send announcement
+            sent_message = None
             if ping:
-                await announcement_channel.send(ping, embed=announcement_embed)
+                sent_message = await announcement_channel.send(ping, embed=announcement_embed)
             else:
-                await announcement_channel.send(embed=announcement_embed)
+                sent_message = await announcement_channel.send(embed=announcement_embed)
+
+            # Log the announcement
+            await self.log_staff_action(
+                ctx.author,
+                "Made an announcement",
+                f"Channel: {announcement_channel.mention}\nMessage: {message[:100]}{'...' if len(message) > 100 else ''}"
+            )
 
             # Send confirmation
             confirm_embed = discord.Embed(
@@ -164,6 +224,14 @@ class StaffCommands(commands.Cog):
         try:
             deleted = await ctx.channel.purge(limit=amount + 1)
             msg = await ctx.send(f"✨ Successfully cleared {len(deleted)-1} messages!")
+
+            # Log the clear action
+            await self.log_staff_action(
+                ctx.author,
+                "Cleared messages",
+                f"Channel: {ctx.channel.mention}\nAmount: {len(deleted)-1} messages"
+            )
+
             await asyncio.sleep(3)
             await msg.delete()
         except Exception as e:
@@ -193,6 +261,13 @@ class StaffCommands(commands.Cog):
         )
         embed.add_field(name="Connection Status", value=status)
         await ctx.send(embed=embed)
+
+        # Log the ping check
+        await self.log_staff_action(
+            ctx.author,
+            "Checked bot latency",
+            f"Latency: {latency}ms | Status: {status}"
+        )
 
 async def setup(bot):
     await bot.add_cog(StaffCommands(bot))
