@@ -59,20 +59,21 @@ class TicketView(View):
         
         # Create embed for the ticket channel
         embed = discord.Embed(
-            title=f"🎫 {ticket_type.title()} Ticket",
-            description=f"Welcome {interaction.user.mention}!\n**Please wait until our support team assists you shortly.**",
-            color=discord.Color.blue()
+            title=f"{'🎫 Support Request' if ticket_type == 'support' else '🎁 Reward Claim Request'}",
+            description=f"👋 **Welcome {interaction.user.mention}!**\n\n🔹 Your ticket has been created successfully.\n🔹 **Please wait until our support team assists you shortly.**\n🔹 Describe your request in detail while waiting.",
+            color=discord.Color.brand_green() if ticket_type == 'support' else discord.Color.gold()
         )
         embed.add_field(
-            name="Ticket Type",
-            value=f"{'🎫 Support' if ticket_type == 'support' else '🎁 Reward Claim'}",
+            name="👤 User Information",
+            value=f"**Requestor:** {interaction.user.mention}\n**ID:** {interaction.user.id}",
             inline=True
         )
         embed.add_field(
-            name="User",
-            value=f"{interaction.user.mention}",
+            name="🎫 Ticket Details",
+            value=f"**Type:** {'Support Assistance' if ticket_type == 'support' else 'Reward Claim'}\n**Status:** Active",
             inline=True
         )
+        embed.set_footer(text="Use the 🔒 Close Ticket button when your request is resolved")
 
         class CloseButton(discord.ui.Button):
             def __init__(self):
