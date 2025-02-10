@@ -9,6 +9,22 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
+    @commands.command(name='staffhelp')
+    @commands.has_permissions(administrator=True)
+    async def staff_help(self, ctx):
+        """Show staff commands help"""
+        embed = discord.Embed(
+            title="👑 Staff Commands",
+            description="Available administrator commands:",
+            color=discord.Color.gold()
+        )
+        embed.add_field(
+            name="Commands",
+            value="```\n!refresh - Reload all bot extensions\n!ping - Check bot latency```",
+            inline=False
+        )
+        await ctx.send(embed=embed)
+
     @commands.command(name='refresh')
     @commands.has_permissions(administrator=True)
     async def refresh(self, ctx):
@@ -18,7 +34,6 @@ class AdminCommands(commands.Cog):
         try:
             extensions = [
                 'cogs.education_manager_new',
-                'cogs.subject_curriculum_new',
                 'cogs.admin_commands'
             ]
 
@@ -26,7 +41,7 @@ class AdminCommands(commands.Cog):
                 await self.bot.reload_extension(extension)
                 self.logger.info(f"Successfully reloaded extension: {extension}")
 
-            await loading_msg.edit(content="✨ Rohanpreet all extensions and commands are loaded and working! ✨")
+            await loading_msg.edit(content="✨ All extensions and commands are loaded and working! ✨")
 
         except Exception as e:
             self.logger.error(f"Error refreshing bot: {e}")
