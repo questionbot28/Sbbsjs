@@ -126,19 +126,20 @@ class TicketManager(commands.Cog):
         # Create the ticket message
         embed = discord.Embed(
             title="🎫 Support & Rewards Center",
-            description="### Welcome to our Support Center!\nSelect your ticket type from the menu below to get started.",
+            description="📌 **Available Services – Select a Ticket Type Below**\n\n📩 Need assistance? Choose the category that best fits your request from the dropdown menu!",
             color=discord.Color.blue()
         )
         ticket_types = (
-            "**Available Services:**\n\n" 
-            "🎫 **Support Ticket**\n" 
-            "• Technical assistance\n"
-            "• General inquiries\n"
-            "• Issue reporting\n\n"
-            "🎁 **Reward Claims**\n"
-            "• Claim prizes\n"
-            "• Redeem rewards\n"
-            "• Special requests"
+            "🎫 **Support Ticket**\n\n"
+            "🔹 Get help with technical issues, account problems, or general inquiries.\n"
+            "🔹 Report bugs, glitches, or issues with our services.\n"
+            "🔹 Ask for guidance or troubleshooting assistance.\n\n"
+            "🎁 **Reward Claims**\n\n"
+            "🎉 Claim event rewards, giveaways, or special prizes.\n"
+            "🎟️ Redeem your loyalty points or promotional rewards.\n"
+            "📜 Request exclusive perks or custom benefits.\n\n"
+            "⚠️ **Note:** Abusing the ticket system may result in restrictions.\n\n"
+            "👨‍💻 Staff will assist you as soon as possible!"
         )
         embed.add_field(
             name="",
