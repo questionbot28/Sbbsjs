@@ -9,6 +9,62 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
+    @commands.command(name='setuptickets')
+    @commands.has_permissions(administrator=True)
+    async def setup_tickets(self, ctx, channel: discord.TextChannel = None):
+        """Set up the ticket system in a specific channel"""
+        channel = channel or ctx.channel
+
+        # Create the ticket message with formatting
+        embed = discord.Embed(
+            title="🎓 EduSphere Support Center",
+            description="📚 **Welcome to Your EduSphere Support Hub**\n\nGet assistance with your studies and access educational resources!",
+            color=discord.Color.blue()
+        )
+        ticket_types = (
+            "🎫 **Academic Support**\n\n"
+            "🔹 Get help with study materials and concepts\n"
+            "🔹 Ask questions about specific topics\n"
+            "🔹 Request additional learning resources\n\n"
+            "🎁 **Resource Access**\n\n"
+            "📘 Access study materials and guides\n"
+            "📝 Request practice questions and solutions\n"
+            "📚 Get help with subject-specific queries"
+        )
+        embed.add_field(
+            name="Support Options",
+            value=ticket_types,
+            inline=False
+        )
+        embed.set_footer(text="Click the button below to create a ticket! 📚")
+
+        class TicketButton(discord.ui.Button):
+            def __init__(self):
+                super().__init__(style=discord.ButtonStyle.primary, label="Create Ticket", emoji="🎫")
+
+            async def callback(self, interaction):
+                # Create ticket channel
+                guild = interaction.guild
+                category = discord.utils.get(guild.categories, name='Tickets')
+                
+                if category is None:
+                    category = await guild.create_category('Tickets')
+
+                channel_name = f'ticket-{interaction.user.name.lower()}'
+                
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                    interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+                    guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+                }
+
+                ticket_channel = await category.create_text_channel(name=channel_name, overwrites=overwrites)
+                await interaction.response.send_message(f"Ticket created! Check {ticket_channel.mention}", ephemeral=True)
+
+        view = discord.ui.View()
+        view.add_item(TicketButton())
+        await channel.send(embed=embed, view=view)
+
     @commands.command(name='staffhelp')
     @commands.has_permissions(administrator=True)
     async def staff_help(self, ctx):
