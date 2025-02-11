@@ -12,11 +12,12 @@ from discord.ui import View, Select, Button
 from discord import ButtonStyle
 
 class SongSelectionView(discord.ui.View):
-    def __init__(self, bot, ctx, songs):
+    def __init__(self, bot, ctx, songs, effect=None):
         super().__init__(timeout=15)  # Reduced timeout
         self.ctx = ctx
         self.songs = songs
         self.bot = bot
+        self.effect = effect
 
         select = discord.ui.Select(placeholder="Choose a song...", min_values=1, max_values=1)
 
@@ -38,10 +39,25 @@ class SongSelectionView(discord.ui.View):
             if not vc or not vc.is_connected():
                 vc = await self.ctx.author.voice.channel.connect()
 
-            FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
+            # Apply audio effects if specified
+            filters = {
+                "bassboost": "bass=g=10",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25",
+                "reverb": "aecho=0.8:0.9:1000:0.3",
+                "8d": "apulsator=hz=0.09"
+            }
+            
+            filter_options = f"-af {filters[self.effect]}" if self.effect in filters else ""
+            
+            FFMPEG_OPTIONS = {
+                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "options": f"{filter_options} -vn"
+            }
+            
             vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
 
-            await interaction.followup.send(f"🎶 Now playing: {song['title']}")
+            effect_msg = f" with {self.effect} effect" if self.effect else ""
+            await interaction.followup.send(f"🎶 Now playing: {song['title']}{effect_msg}")
         except Exception as e:
             await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
 
@@ -108,30 +124,40 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='play')
     async def play(self, ctx, *, query: str):
-        """Play audio from a song name, YouTube URL, or Spotify URL"""
+        """Play audio from a song name with optional effects (bassboost, nightcore, reverb, 8d)"""
         if not ctx.author.voice:
             await ctx.send("❌ You must be in a voice channel!")
             return
+
+        # Extract effect from query (last word)
+        args = query.split()
+        effect = args[-1].lower() if len(args) > 1 else None
+        if effect not in ["bassboost", "nightcore", "reverb", "8d"]:
+            effect = None
+            song_query = query
+        else:
+            song_query = " ".join(args[:-1])
 
         status_msg = await ctx.send("🔍 Searching for songs...")
 
         try:
             # Handle Spotify URLs
-            if "spotify.com/track/" in query and self.sp:
-                query = self.get_spotify_track(query)
-                if not query:
+            if "spotify.com/track/" in song_query and self.sp:
+                song_query = self.get_spotify_track(song_query)
+                if not song_query:
                     await status_msg.edit(content="❌ Invalid Spotify URL or song not found.")
                     return
 
             # Get YouTube results asynchronously
-            songs = await self.get_youtube_results(query)
+            songs = await self.get_youtube_results(song_query)
             if not songs:
-                await status_msg.edit(content=f"❌ No songs found matching '{query}'!")
+                await status_msg.edit(content=f"❌ No songs found matching '{song_query}'!")
                 return
 
-            # Show song selection dropdown
-            view = SongSelectionView(self.bot, ctx, songs)
-            await status_msg.edit(content="🎵 Select a song to play:", view=view)
+            # Show song selection dropdown with effect
+            view = SongSelectionView(self.bot, ctx, songs, effect)
+            effect_msg = f" with {effect} effect" if effect else ""
+            await status_msg.edit(content=f"🎵 Select a song to play{effect_msg}:", view=view)
 
         except Exception as e:
             self.logger.error(f"Error in play command: {e}")
