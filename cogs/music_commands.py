@@ -38,30 +38,39 @@ class SongSelectionView(discord.ui.View):
         self.add_item(select)
 
     async def song_selected(self, interaction: discord.Interaction):
+        """Handle song selection and queue management"""
         try:
-            await interaction.response.defer()
+            # Defer the response to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+
             bot_cog = self.bot.get_cog('MusicCommands')
             if not bot_cog:
                 await interaction.followup.send("❌ Bot configuration error!", ephemeral=True)
+                self.logger.error("MusicCommands cog not found")
                 return
 
             selected_index = int(interaction.data["values"][0])
             song = self.songs[selected_index]
 
-            # Extract additional song metadata
-            song_info = {
-                'title': song['title'],
-                'url': song['url'],
-                'artist': song.get('artist', 'Unknown Artist'),
-                'thumbnail': song.get('thumbnail', None),
-                'duration_ms': song.get('duration', 0),
-                'requester': interaction.user  # Changed from interaction.author to interaction.user
-            }
+            # Extract additional song metadata with proper error handling
+            try:
+                song_info = {
+                    'title': song['title'],
+                    'url': song['url'],
+                    'artist': song.get('artist', 'Unknown Artist'),
+                    'thumbnail': song.get('thumbnail', None),
+                    'duration_ms': song.get('duration', 0),
+                    'requester': interaction.user
+                }
+            except KeyError as ke:
+                self.logger.error(f"Missing key in song data: {ke}")
+                await interaction.followup.send("❌ Error processing song metadata", ephemeral=True)
+                return
 
             # Add song to queue
             bot_cog.queue.append(song_info)
 
-            # If nothing is playing, start playing and update progress
+            # If nothing is playing, start playing
             if not interaction.guild.voice_client or not interaction.guild.voice_client.is_playing():
                 start_time = time.time()
                 # Start progress tracking task
@@ -76,7 +85,7 @@ class SongSelectionView(discord.ui.View):
                 )
                 await bot_cog._play_next(interaction)
             else:
-                # Show queued message
+                # Show queued message with enhanced embed
                 embed = discord.Embed(
                     title="🎵 Added to Queue",
                     description=f"**{song['title']}**\nPosition in queue: {len(bot_cog.queue)}",
@@ -87,9 +96,12 @@ class SongSelectionView(discord.ui.View):
                 await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            self.logger.error(f"Error in song selection: {e}")
-            await interaction.followup.send(f"❌ Error adding song to queue: {str(e)}", ephemeral=True)
-
+            self.logger.error(f"Error in song selection: {str(e)}", exc_info=True)
+            error_message = f"❌ Error processing song selection: {str(e)}"
+            if not interaction.response.is_done():
+                await interaction.response.send_message(error_message, ephemeral=True)
+            else:
+                await interaction.followup.send(error_message, ephemeral=True)
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
@@ -274,7 +286,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"❌ An error occurred: {str(e)}")
 
     async def update_song_progress(self, ctx, message, start_time, duration_ms, song_info):
-        """Updates the song progress embed in real-time with enhanced visuals"""
+        """Updates the song progress embed in real-time with percentage display"""
         try:
             while True:
                 if not ctx.voice_client or not ctx.voice_client.is_playing():
@@ -284,20 +296,19 @@ class MusicCommands(commands.Cog):
                 if elapsed_ms >= duration_ms:
                     return
 
-                # Calculate progress bar (20 segments)
-                progress = int((elapsed_ms / duration_ms) * 20)
-                bar = f"{'▰' * progress}{'▱' * (20 - progress)}"
+                # Calculate progress percentage
+                progress_percent = min(100, (elapsed_ms / duration_ms) * 100)
 
                 # Format times
                 elapsed = f"{int(elapsed_ms/60000):02d}:{int((elapsed_ms/1000)%60):02d}"
                 total = f"{int(duration_ms/60000):02d}:{int((duration_ms/1000)%60):02d}"
 
-                # Create embed with enhanced visuals
-                notes = ["♫", "♪", "♬", "♩", "♭"]
-                random_note = random.choice(notes)
+                # Create embed with percentage progress
                 embed = discord.Embed(
-                    title=f"{random_note} Now Playing: {song_info['title']}",
-                    description=f"Artist: **{song_info['artist']}**\n\n`{elapsed} {bar} {total}`",
+                    title=f"🎵 Now Playing: {song_info['title']}",
+                    description=f"Artist: **{song_info['artist']}**\n\n"
+                                f"Progress: **{progress_percent:.1f}%**\n"
+                                f"Time: `{elapsed} / {total}`",
                     color=discord.Color.blue()
                 )
 
@@ -754,8 +765,7 @@ class MusicCommands(commands.Cog):
         """Fetch lyrics for a song from Lyrics.ovh"""
         try:
             # Initialize status_msg at the start
-            embed = discord.Embed(
-                title="🔍 Searching for Lyrics",
+            embed = discord.Embed(title="🔍 Searching for Lyrics",
                 description=f"Searching for: **{song_name}**",
                 color=discord.Color.blue()
             )
@@ -770,7 +780,7 @@ class MusicCommands(commands.Cog):
                     async with session.get(url) as response:
                         if response.status != 200:
                             embed.title = "❌ Not Found"
-                            embed.description = "Could notfind lyrics for this song."
+                            embed.description = "Could not find lyrics for this song."
                             embed.color = discord.Color.red()
                             await status_msg.edit(embed=embed)
                             return
@@ -781,33 +791,31 @@ class MusicCommands(commands.Cog):
                         # Split lyrics into chunks of 4096 characters (Discord embed limit)
                         chunks = [lyrics[i:i + 4096] for i in range(0, len(lyrics), 4096)]
 
-                        # Create first embed with song info and first chunk
-                        first_embed = discord.Embed(
-                            title=f"🎵 Lyrics for {song_name}",
-                            description=chunks[0],
-                            color=discord.Color.blue()
-                        )
-                        await status_msg.edit(embed=first_embed)
+                        # Send first chunk in original embed
+                        embed.title = f"🎵 Lyrics for {song_name}"
+                        embed.description = chunks[0]
+                        embed.color = discord.Color.green()
+                        await status_msg.edit(embed=embed)
 
-                        # Send remaining chunks
-                        for i, chunk in enumerate(chunks[1:], 2):
-                            embed = discord.Embed(
+                        # Send additional chunks if any
+                        for chunk in chunks[1:]:
+                            additional_embed = discord.Embed(
                                 title=f"🎵 {song_name} (Continued)",
                                 description=chunk,
-                                color=discord.Color.blue()
+                                color=discord.Color.green()
                             )
-                            await ctx.send(embed=embed)
+                            await ctx.send(embed=additional_embed)
 
             except Exception as e:
                 self.logger.error(f"Error fetching lyrics: {e}")
                 embed.title = "❌ Error"
-                embed.description = f"An error occurred while fetching lyrics: {str(e)}"
+                embed.description = "Failed to fetch lyrics. Please try again later."
                 embed.color = discord.Color.red()
                 await status_msg.edit(embed=embed)
 
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {e}")
-            await ctx.send(f"❌ Error: {str(e)}")
+            await ctx.send("❌ An error occurred while fetching lyrics.")
 
     @commands.command(name='queue')
     async def view_queue(self, ctx):
@@ -908,3 +916,4 @@ class MusicCommands(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
+    logging.getLogger('discord_bot').info("Music commands cog loaded successfully")

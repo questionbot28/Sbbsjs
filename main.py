@@ -31,7 +31,9 @@ class EducationalBot(commands.Bot):
         self.initial_extensions = [
             'cogs.education_manager_new',
             'cogs.admin_commands',
-            'cogs.subject_curriculum_new'
+            'cogs.subject_curriculum_new',
+            'cogs.music_commands',
+            'cogs.staff_commands'  # Added staff commands cog
         ]
 
     async def setup_hook(self):
@@ -41,6 +43,7 @@ class EducationalBot(commands.Bot):
 
         for extension in self.initial_extensions:
             try:
+                logger.info(f"Attempting to load extension: {extension}")
                 await self.load_extension(extension)
                 logger.info(f"Successfully loaded extension: {extension}")
             except Exception as e:
