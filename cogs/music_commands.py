@@ -260,11 +260,16 @@ class MusicCommands(commands.Cog):
     @commands.command(name='stop')
     async def stop(self, ctx):
         """Stop the currently playing audio"""
-        if ctx.voice_client and ctx.voice_client.is_playing():
-            ctx.voice_client.stop()
-            await ctx.send("⏹️ Music stopped.")
-        else:
-            await ctx.send("❌ No music is playing.")
+        if not ctx.voice_client:
+            await ctx.send("❌ I'm not in a voice channel!")
+            return
+
+        if not ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
+            await ctx.send("❌ No music is currently playing!")
+            return
+
+        ctx.voice_client.stop()
+        await ctx.send("⏹️ Music stopped.")
 
     @commands.command(name='vplay')
     async def vplay(self, ctx, *, query: str = None):
@@ -412,8 +417,12 @@ class MusicCommands(commands.Cog):
     @commands.command(name='volume')
     async def volume(self, ctx, level: int):
         """Change the volume of the currently playing audio (0-100)"""
-        if not ctx.voice_client or not ctx.voice_client.is_playing():
-            await ctx.send("❌ The bot is not playing any music!")
+        if not ctx.voice_client:
+            await ctx.send("❌ The bot is not connected to a voice channel!")
+            return
+
+        if not ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
+            await ctx.send("❌ No music is currently playing or paused!")
             return
 
         if level < 0 or level > 100:
@@ -425,7 +434,9 @@ class MusicCommands(commands.Cog):
         # Update volume of currently playing audio
         if isinstance(ctx.voice_client.source, PCMVolumeTransformer):
             ctx.voice_client.source.volume = self.current_volume
-            await ctx.send(f"🔊 Volume set to **{level}%**")
+            # Create a visual representation of the volume level
+            volume_bar = "▮" * (level // 10) + "▯" * ((100 - level) // 10)
+            await ctx.send(f"🔊 Volume set to **{level}%**\n`{volume_bar}`")
         else:
             await ctx.send("❌ Cannot adjust volume - incompatible audio source!")
 
