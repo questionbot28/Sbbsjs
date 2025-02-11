@@ -46,7 +46,7 @@ class MusicCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
         self.youtube_together_id = "880218394199220334"  # YouTube Together App ID
-        
+
         # Configure yt-dlp options
         self.ydl_opts = {
             'format': 'bestaudio/best',
@@ -327,9 +327,7 @@ class MusicCommands(commands.Cog):
                         await status_msg.edit(content=f"❌ Failed to create Watch Party: {error_msg}")
                         return
 
-                    invite_link = f"https://discord.com/invite/{data['code']}"
-                    video_id = video_url.split("v=")[-1]
-                    autoplay_url = f"https://www.youtube.com/watch?v={video_id}&autoplay=1"
+                    invite_link = f"https://discord.com/invite/{data['code']}?video={video_url.split('v=')[-1]}"
                     
                     embed = discord.Embed(
                         title="📽️ YouTube Watch Party Started!",
@@ -343,11 +341,11 @@ class MusicCommands(commands.Cog):
                     )
                     embed.add_field(
                         name="▶️ Auto-Play Video",
-                        value=f"[Click to Auto-Play]({autoplay_url})",
+                        value=f"[Click to Auto-Play](https://www.youtube.com/watch?v={video_url.split('v=')[-1]}&autoplay=1)",
                         inline=False
                     )
                     embed.set_footer(text="💡 Tip: After joining, click Auto-Play to start the video!")
-                    
+
                     await status_msg.edit(content=None, embed=embed)
                     self.logger.info(f"Watch Party ready for: {query}")
 
