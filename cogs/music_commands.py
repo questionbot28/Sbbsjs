@@ -759,7 +759,7 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"❌ An error occurred while processing your request: {str(e)}")
 
     @commands.command(name='queue')
-    async def view_queue(self, ctx):
+    async def queue(self, ctx):
         """Display the current music queue"""
         if not self.queue:
             embed = discord.Embed(
@@ -772,7 +772,7 @@ class MusicCommands(commands.Cog):
 
         embed = discord.Embed(
             title="🎵 Music Queue",
-            description=f"Currently {len(self.queue)} songs in queue",
+            description=f"There are {len(self.queue)} songs in queue",
             color=discord.Color.blue()
         )
 
@@ -782,7 +782,8 @@ class MusicCommands(commands.Cog):
                 name=f"{i}. {song['title']}",
                 value=f"By: {song['artist']}\nDuration: {duration}\nRequested by: {song['requester'].mention}",
                 inline=False
-            )            
+            )
+
         await ctx.send(embed=embed)
 
     async def _play_next(self, ctx):
@@ -899,75 +900,98 @@ class MusicCommands(commands.Cog):
     async def ydl_opts(self, ctx):
         await ctx.send(f"ydl_opts: {self.ydl_opts}")
 
-    class SongSelectionView(discord.ui.View):
-        def __init__(self, bot, ctx, songs):
-            super().__init__(timeout=30)
-            self.bot = bot
-            self.ctx = ctx
-            self.songs = songs
-            self.message = None
-            self.logger = logging.getLogger('discord_bot')
+class SongSelectionView(discord.ui.View):
+    def __init__(self, bot, ctx, songs):
+        super().__init__(timeout=30)
+        self.bot = bot
+        self.ctx = ctx
+        self.songs = songs
+        self.message = None
+        self.logger = logging.getLogger('discord_bot')
 
-            # Create song selection dropdown
-            options = []
-            for i, song in enumerate(songs, 1):
-                duration = f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}"
-                options.append(
-                    discord.SelectOption(
-                        label=f"{song['title'][:80]}",  # Discord has 100 char limit
-                        description=f"By {song['artist'][:80]} • {duration}",
-                        value=str(i-1)
-                    )
+        # Create song selection dropdown
+        options = []
+        for i, song in enumerate(songs):
+            duration = f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}"
+            options.append(
+                discord.SelectOption(
+                    label=f"{song['title'][:80]}", # Discord has 100 char limit
+                    description=f"By {song['artist'][:80]} • {duration}",
+                    value=str(i)
                 )
-
-            # Add select menu to the view
-            select_menu = discord.ui.Select(
-                placeholder="Choose a song to play...",
-                options=options
             )
-            select_menu.callback = self.song_selected
-            self.add_item(select_menu)
 
-        async def song_selected(self, interaction: discord.Interaction):
-            try:
-                # Get selected song
-                song_index = int(interaction.data['values'][0])
-                selected_song = self.songs[song_index]
+        # Add select menu to the view
+        select_menu = discord.ui.Select(
+            placeholder="Choose a song to play...",
+            options=options
+        )
+        select_menu.callback = self.song_selected
+        self.add_item(select_menu)
 
-                # Add to queue
-                music_cog = self.bot.get_cog('MusicCommands')
-                if not music_cog:
-                    await interaction.response.send_message("❌ Music system error", ephemeral=True)
+    async def song_selected(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer(ephemeral=True)
+
+            # Get selected song
+            song_index = int(interaction.data['values'][0])
+            selected_song = self.songs[song_index]
+
+            # Check voice state
+            if not interaction.user.voice:
+                await interaction.followup.send("❌ You must be in a voice channel!", ephemeral=True)
+                return
+
+            # Get music cog
+            music_cog = self.bot.get_cog('MusicCommands')
+            if not music_cog:
+                await interaction.followup.send("❌ Music system error", ephemeral=True)
+                return
+
+            # Get or create voice client
+            voice_client = interaction.guild.voice_client
+            if not voice_client:
+                try:
+                    voice_client = await interaction.user.voice.channel.connect()
+                except Exception as e:
+                    self.logger.error(f"Error connecting to voice channel: {e}")
+                    await interaction.followup.send("❌ Could not join voice channel!", ephemeral=True)
                     return
 
-                music_cog.queue.append(selected_song)
+            # Add to queue
+            music_cog.queue.append(selected_song)
 
-                # Update embed
-                embed = discord.Embed(
-                    title="✅ Song Added to Queue",
-                    description=f"**{selected_song['title']}**\nBy: {selected_song['artist']}",
-                    color=discord.Color.green()
-                )
+            # Update embed
+            embed = discord.Embed(
+                title="✅ Song Added to Queue",
+                description=f"**{selected_song['title']}**\nBy: {selected_song['artist']}",
+                color=discord.Color.green()
+            )
 
-                if selected_song.get('thumbnail'):
-                    embed.set_thumbnail(url=selected_song['thumbnail'])
+            if selected_song.get('thumbnail'):
+                embed.set_thumbnail(url=selected_song['thumbnail'])
 
-                await interaction.response.edit_message(embed=embed, view=None)
-
-                # Start playing if not already playing
-                if not self.ctx.voice_client or not self.ctx.voice_client.is_playing():
-                    await music_cog._play_next(self.ctx)
-
-            except Exception as e:
-                self.logger.error(f"Error in song selection: {e}")
-                await interaction.response.send_message(
-                    "❌ An error occurred while selecting the song.",
-                    ephemeral=True
-                )
-
-        async def on_timeout(self):
+            # Edit original message
             if self.message:
-                await self.message.edit(view=None)
+                await self.message.edit(embed=embed, view=None)
+
+            # Start playing if not already playing
+            if not voice_client.is_playing():
+                await music_cog._play_next(self.ctx)
+
+            # Send confirmation
+            await interaction.followup.send("✅ Added to queue!", ephemeral=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in song selection: {e}")
+            await interaction.followup.send(
+                "❌ An error occurred while selecting the song.",
+                ephemeral=True
+            )
+
+    async def on_timeout(self):
+        if self.message:
+            await self.message.edit(view=None)
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))

@@ -1,51 +1,4 @@
-{option_text}```",
-                    inline=False
-                )
-
-            # Add answer and explanation
-            if 'correct_answer' in question_data:
-                answer_text = f"**Correct Answer:** {question_data['correct_answer']}"
-                if 'explanation' in question_data:
-                    answer_text += f"\n\n**Explanation:**\n{question_data['explanation']}"
-                embed.add_field(name="Solution", value=answer_text, inline=False)
-
-            # Try to send DM
-            try:
-                await ctx.author.send(embed=embed)
-
-                # Send confirmation in channel
-                channel_embed = discord.Embed(
-                    title="Question Generated!",
-                    description="Check your private messages for the question and solution.",
-                    color=discord.Color.green()
-                )
-                channel_embed.set_image(url=self.dm_gif_url)
-                await ctx.send(embed=channel_embed)
-
-            except discord.Forbidden:
-                error_embed = discord.Embed(
-                    title="❌ Cannot Send Private Message",
-                    description="Please enable direct messages from server members to receive questions.",
-                    color=discord.Color.red()
-                )
-                await ctx.send(embed=error_embed)
-
-        except Exception as e:
-            self.logger.error(f"Error sending question to DM: {str(e)}")
-            await ctx.send("❌ An error occurred while sending the question.")
-
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information"""
-        embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Here's how to use the educational bot:",
-            color=discord.Color.blue()
-        )
-
-        embed.add_field(
-            name="📘 Get Question for Class 11",
-            value="```!11 <subject> [topic]```\nExample: !11 physics waves",
+!11 <subject> [topic]```\nExample: !11 physics waves",
             inline=False
         )
 
@@ -58,6 +11,22 @@
         embed.add_field(
             name="📋 List Available Subjects",
             value="```!subjects```\nShows all subjects you can study",
+            inline=False
+        )
+
+        creator_info = (
+            "```ansi\n"
+            "[0;35m┏━━━━━ Creator Information ━━━━━┓[0m\n"
+            "[0;36m┃     Made with 💖 by:          ┃[0m\n"
+            "[0;33m┃  Rohanpreet Singh Pathania   ┃[0m\n"
+            "[0;36m┃     Language: Python 🐍      ┃[0m\n"
+            "[0;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
+        )
+
+        embed.add_field(
+            name="👨‍💻 Credits",
+            value=creator_info,
             inline=False
         )
 
@@ -93,7 +62,7 @@
                 is_valid, normalized_subject = self._validate_subject(subject)
                 if not is_valid:
                     available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
-                                       'Economics', 'Accountancy', 'Business Studies', 'English']
+                                           'Economics', 'Accountancy', 'Business Studies', 'English']
                     await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
                     return
 
@@ -196,4 +165,17 @@
         )
 
         subject_list = "\n".join([f"• {subject}" for subject in subjects])
-        embed.add_field(name="Subjects:", value=f"```{subject_list}
+        embed.add_field(name="Subjects:", value=f"```{subject_list}```", inline=False)
+        await ctx.send(embed=embed)
+
+    async def send_question_to_dm(self, ctx, question_data):
+        """Send the question to the user's DM."""
+        embed = discord.Embed(
+            title=f"Question for Class {question_data['class_level']}",
+            description=question_data['question'],
+            color=discord.Color.blue()
+        )
+
+        if 'options' in question_data and question_data['options']:
+            option_text = "\n".join([f"{i+1}. {option}" for i, option in enumerate(question_data['options'])])
+            embed.add_field(name="Options", value=f"```{option_text}\n
