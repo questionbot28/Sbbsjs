@@ -287,9 +287,12 @@ class MusicCommands(commands.Cog):
                 await ctx.send(f"❌ Missing required permissions: {', '.join(missing_perms)}")
                 return
 
+            # Send searching message
+            status_msg = await ctx.send("🔍 Searching for your song...")
+
             video_url = self.get_youtube_video_url(query)
             if not video_url:
-                await ctx.send(f"❌ No videos found for '{query}'!")
+                await status_msg.edit(content=f"❌ No videos found for '{query}'!")
                 return
 
             voice_channel_id = ctx.author.voice.channel.id
@@ -304,7 +307,8 @@ class MusicCommands(commands.Cog):
                     "validate": None,
                 }
 
-                self.logger.info(f"Sending request to create Watch Party with data: {json_data}")
+                self.logger.info(f"Creating Watch Party for: {query}")
+                await status_msg.edit(content="⚡ Creating Watch Party...")
 
                 async with session.post(
                     f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
@@ -312,22 +316,37 @@ class MusicCommands(commands.Cog):
                     headers={"Authorization": f"Bot {self.bot.http.token}", "Content-Type": "application/json"}
                 ) as resp:
                     data = await resp.json()
-                    self.logger.info(f"Watch Party API Response: {data}")
+                    self.logger.info(f"Watch Party created: {data}")
 
                     if resp.status != 200:
-                        await ctx.send(f"❌ API Error: Status {resp.status}, Response: {data}")
+                        await status_msg.edit(content=f"❌ API Error: Status {resp.status}, Response: {data}")
                         return
 
                     if "code" not in data:
                         error_msg = data.get('message', 'Unknown error')
-                        await ctx.send(f"❌ Failed to create Watch Party: {error_msg}")
+                        await status_msg.edit(content=f"❌ Failed to create Watch Party: {error_msg}")
                         return
 
                     invite_link = f"https://discord.com/invite/{data['code']}"
-                    await ctx.send(f"📽️ **Click below to watch '{query}' together!**\n"
-                                 f"🎬 **YouTube Party:** {invite_link}\n"
-                                 f"▶️ **Song Video:** {video_url}")
-                    self.logger.info(f"Created YouTube Watch Party for: {query}")
+                    embed = discord.Embed(
+                        title="📽️ YouTube Watch Party Started!",
+                        description=f"**Playing:** {query}",
+                        color=0x00ff00
+                    )
+                    embed.add_field(
+                        name="🎬 Join Watch Party",
+                        value=f"[Click to Join]({invite_link})",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="▶️ Video Link",
+                        value=f"[Open in YouTube]({video_url})",
+                        inline=False
+                    )
+                    embed.set_footer(text="💡 Tip: Click the video link to play it in the Watch Party!")
+                    
+                    await status_msg.edit(content=None, embed=embed)
+                    self.logger.info(f"Watch Party ready for: {query}")
 
         except Exception as e:
             self.logger.error(f"Error in vplay command: {e}")
