@@ -40,19 +40,21 @@ class SongSelectionView(discord.ui.View):
                 vc = await self.ctx.author.voice.channel.connect()
 
             # Apply audio effects if specified
-            filters = {
-                "bassboost": "bass=g=10",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25",
-                "reverb": "aecho=0.8:0.9:1000:0.3",
-                "8d": "apulsator=hz=0.09"
-            }
-
-            filter_options = f"-af {filters[self.effect]}" if self.effect in filters else ""
-
             FFMPEG_OPTIONS = {
                 "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": f"{filter_options} -vn -b:a 320k -bufsize 2M"
+                "options": "-vn -b:a 256k -af volume=2.0,bass=g=3"
             }
+
+            # Add effect filters if specified
+            filters = {
+                "bassboost": "bass=g=3,volume=2.0",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=2.0",
+                "reverb": "aecho=0.8:0.9:1000:0.3,volume=2.0",
+                "8d": "apulsator=hz=0.09,volume=2.0"
+            }
+
+            if self.effect in filters:
+                FFMPEG_OPTIONS["options"] = f"-vn -b:a 256k -af {filters[self.effect]}"
 
             try:
                 vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS), 
