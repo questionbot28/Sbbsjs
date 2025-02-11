@@ -662,6 +662,15 @@ class MusicCommands(commands.Cog):
             )
             status_msg = await ctx.send(embed=embed)
 
+        try:
+            # Send searching message with embed
+            embed = discord.Embed(
+                title="🔍 Searching for Lyrics",
+                description=f"Searching for: **{song_name}**",
+                color=discord.Color.blue()
+            )
+            status_msg = await ctx.send(embed=embed)
+
             # Search for the song using Genius API directly
             async with aiohttp.ClientSession() as session:
                 headers = {
@@ -696,6 +705,15 @@ class MusicCommands(commands.Cog):
                     song_title = first_hit['result']['title']
                     artist_name = first_hit['result']['primary_artist']['name']
                     song_url = first_hit['result']['url']
+
+                    # Log the found song details and URL
+                    self.logger.info(f"Found song: {song_title} by {artist_name}")
+                    self.logger.info(f"Original URL: {song_url}")
+                    await status_msg.edit(embed=discord.Embed(
+                        title="🔗 Found Song!",
+                        description=f"**Title:** {song_title}\n**Artist:** {artist_name}\n**URL:** {song_url}",
+                        color=discord.Color.gold()
+                    ))
 
                     # Log the found song details and URL
                     self.logger.info(f"Found song: {song_title} by {artist_name}")
