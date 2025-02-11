@@ -178,7 +178,8 @@ async def load_extensions():
         extensions = [
             'cogs.education_manager_new',  # Primary education cog
             'cogs.admin_commands',  # Admin commands
-            'cogs.ticket_manager'  # Ticket system
+            'cogs.ticket_manager',  # Ticket system
+            'cogs.music_commands'  # Voice commands
         ]
 
         for extension in extensions:
