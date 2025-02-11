@@ -1,5 +1,6 @@
 import os
 import discord
+import ctypes.util
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import logging
@@ -8,6 +9,7 @@ from difflib import get_close_matches
 import asyncio
 import time
 from keep_alive import keep_alive
+import glob
 
 keep_alive()
 
@@ -16,6 +18,53 @@ load_dotenv()
 
 # Setup logging
 logger = setup_logger()
+
+# Configure Opus for voice support
+try:
+    # First try finding opus through ctypes
+    opus_path = ctypes.util.find_library('opus')
+    if opus_path:
+        discord.opus.load_opus(opus_path)
+        logger.info(f"Successfully loaded Opus from system path: {opus_path}")
+    else:
+        # Additional paths to check for Opus
+        common_opus_paths = [
+            '/usr/lib/libopus.so.0',
+            '/usr/lib/x86_64-linux-gnu/libopus.so.0',
+            '/usr/local/lib/libopus.so.0',
+            '/nix/store/*/lib/libopus.so.0',  # Nix store path
+            './libopus.so.0'  # Local directory
+        ]
+
+        opus_loaded = False
+        for path in common_opus_paths:
+            try:
+                if '*' in path:
+                    # Handle Nix store wildcard path
+                    matching_paths = glob.glob(path)
+                    for actual_path in matching_paths:
+                        try:
+                            discord.opus.load_opus(actual_path)
+                            logger.info(f"Successfully loaded Opus from Nix store: {actual_path}")
+                            opus_loaded = True
+                            break
+                        except Exception:
+                            continue
+                else:
+                    discord.opus.load_opus(path)
+                    logger.info(f"Successfully loaded Opus from alternate path: {path}")
+                    opus_loaded = True
+                    break
+            except Exception as path_error:
+                logger.debug(f"Failed to load Opus from {path}: {path_error}")
+                continue
+
+        if not opus_loaded:
+            logger.warning("Failed to load Opus. Voice functionality may be limited.")
+            logger.debug("Attempted paths: " + ", ".join(common_opus_paths))
+
+except Exception as e:
+    logger.error(f"Error during Opus initialization: {e}")
 
 # Bot configuration
 COMMAND_PREFIX = '!'

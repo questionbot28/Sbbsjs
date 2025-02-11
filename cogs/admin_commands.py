@@ -13,7 +13,18 @@ class AdminCommands(commands.Cog):
     async def ping(self, ctx):
         """Check bot latency"""
         latency = round(self.bot.latency * 1000)
-        await ctx.send(f"🏓 Pong! Latency: {latency}ms") below to create a ticket! 📚")
+        await ctx.send(f"🏓 Pong! Latency: {latency}ms")
+
+    @commands.command(name='setupticket')
+    @commands.has_permissions(administrator=True)
+    async def setup_ticket(self, ctx, channel: discord.TextChannel = None):
+        """Set up the ticket system in a channel"""
+        channel = channel or ctx.channel
+        embed = discord.Embed(
+            title="Support Ticket System",
+            description="Click the button below to create a support ticket!",
+            color=discord.Color.blue()
+        )
 
         class TicketButton(discord.ui.Button):
             def __init__(self):
@@ -23,12 +34,12 @@ class AdminCommands(commands.Cog):
                 # Create ticket channel
                 guild = interaction.guild
                 category = discord.utils.get(guild.categories, name='Tickets')
-                
+
                 if category is None:
                     category = await guild.create_category('Tickets')
 
                 channel_name = f'ticket-{interaction.user.name.lower()}'
-                
+
                 overwrites = {
                     guild.default_role: discord.PermissionOverwrite(read_messages=False),
                     interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
@@ -47,8 +58,8 @@ class AdminCommands(commands.Cog):
     async def staff_help(self, ctx):
         """Show staff commands help"""
         embed = discord.Embed(
-            title="👑 Staff Commands",
-            description="✨ Welcome to the Administrative Control Panel ✨\nYour gateway to managing EduSphere with excellence!",
+            title="Staff Commands",
+            description="Here are the available staff commands:",
             color=discord.Color.blurple()
         )
 
@@ -61,7 +72,7 @@ class AdminCommands(commands.Cog):
             "• **!unban** `<user_id>` - Revoke a member's ban"
         )
         embed.add_field(
-            name="🛡️ Member Management",
+            name="Member Management",
             value=member_commands,
             inline=False
         )
@@ -73,7 +84,7 @@ class AdminCommands(commands.Cog):
             "• **!clear** `<amount>` - Clear specified number of messages"
         )
         embed.add_field(
-            name="📢 Channel Controls",
+            name="Channel Controls",
             value=channel_commands,
             inline=False
         )
@@ -84,12 +95,12 @@ class AdminCommands(commands.Cog):
             "• **!ping** - Check bot's connection status"
         )
         embed.add_field(
-            name="⚙️ System Management",
+            name="System Management",
             value=system_commands,
             inline=False
         )
 
-        embed.set_footer(text="EduSphere Staff Panel • Made with 💖 by Rohanpreet singh Pathania")
+        embed.set_footer(text="EduSphere Staff Panel • Made with ♥ by Rohanpreet singh Pathania")
         await ctx.send(embed=embed)
 
     @commands.command(name='refresh')
@@ -113,30 +124,6 @@ class AdminCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error refreshing bot: {e}")
             await loading_msg.edit(content=f"❌ Error refreshing bot: {str(e)}")
-
-    @commands.command(name='ping')
-    async def ping(self, ctx):
-        """Check bot's latency"""
-        latency = round(self.bot.latency * 1000)
-        ping_embed = discord.Embed(
-            title="🏓 Pong!",
-            description=f"Bot latency: {latency}ms",
-            color=discord.Color.green() if latency < 200 else discord.Color.orange()
-        )
-
-        if latency < 100:
-            status = "🟢 Excellent"
-        elif latency < 200:
-            status = "🟡 Good"
-        else:
-            status = "🔴 Poor"
-
-        ping_embed.add_field(
-            name="Connection Quality",
-            value=status,
-            inline=False
-        )
-        await ctx.send(embed=ping_embed)
 
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
