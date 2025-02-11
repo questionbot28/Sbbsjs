@@ -659,11 +659,17 @@ class MusicCommands(commands.Cog):
 
             # Search for the song using Genius API directly
             async with aiohttp.ClientSession() as session:
-                headers = {"Authorization": f"Bearer {self.genius_token}"}
+                headers = {
+                    "Authorization": f"Bearer {self.genius_token}",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
                 search_url = f"https://api.genius.com/search?q={song_name}"
 
+                self.logger.info(f"Searching Genius for: {song_name}")
                 async with session.get(search_url, headers=headers) as response:
-                    if response.status != 200:  # Changed from status_code to status
+                    if response.status != 200:
+                        error_msg = await response.text()
+                        self.logger.error(f"Genius API error: {error_msg}")
                         await status_msg.edit(content=f"❌ API Error: {response.status}")
                         return
 
@@ -679,54 +685,74 @@ class MusicCommands(commands.Cog):
                     artist_name = first_hit['result']['primary_artist']['name']
                     song_url = first_hit['result']['url']
 
-                    # Update status message
+                    self.logger.info(f"Found song: {song_title} by {artist_name}")
                     await status_msg.edit(content=f"📥 Found song! Fetching lyrics for **{song_title}** by **{artist_name}**...")
 
-                    # Download and extract lyrics using trafilatura
+                    # Download and extract lyrics using trafilatura with custom settings
                     downloaded = await asyncio.get_event_loop().run_in_executor(
-                        None, trafilatura.fetch_url, song_url
+                        None,
+                        lambda: trafilatura.fetch_url(
+                            song_url,
+                            config={'USER_AGENT': headers['User-Agent']}
+                        )
                     )
 
-                    if downloaded:
-                        lyrics = await asyncio.get_event_loop().run_in_executor(
-                            None, trafilatura.extract, downloaded
+                    if not downloaded:
+                        self.logger.error(f"Failed to fetch lyrics page: {song_url}")
+                        await status_msg.edit(content="❌ Failed to access the lyrics page. The song might be restricted.")
+                        return
+
+                    lyrics = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: trafilatura.extract(
+                            downloaded,
+                            include_comments=False,
+                            include_tables=False,
+                            no_fallback=False
                         )
+                    )
 
-                        if lyrics:
-                            # Clean up lyrics
-                            lyrics = re.sub(r'\[.*?\]', '', lyrics)  # Remove [Verse], [Chorus] etc.
-                            lyrics = lyrics.strip()
+                    if not lyrics:
+                        self.logger.error(f"Failed to extract lyrics from page content")
+                        await status_msg.edit(content="❌ Could not extract lyrics from the page.")
+                        return
 
-                            # Split lyrics into chunks (Discord has 4096 char limit for embed description)
-                            chunks = [lyrics[i:i + 4000] for i in range(0, len(lyrics), 4000)]
+                    # Clean up lyrics
+                    lyrics = re.sub(r'\[.*?\]', '', lyrics)  # Remove [Verse], [Chorus] etc.
+                    lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Remove excessive newlines
+                    lyrics = lyrics.strip()
 
-                            # Send first chunk with song info
-                            first_embed = discord.Embed(
-                                title=f"🎵 {song_title}",
-                                description=chunks[0],
-                                color=discord.Color.blue(),
-                                url=song_url
-                            )
-                            first_embed.add_field(name="Artist", value=artist_name, inline=False)
-                            first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
-                            await status_msg.edit(content=None, embed=first_embed)
+                    # Split lyrics into chunks (Discord has 4096 char limit for embed description)
+                    chunks = [lyrics[i:i + 4000] for i in range(0, len(lyrics), 4000)]
 
-                            # Send remaining chunks if any
-                            for i, chunk in enumerate(chunks[1:], 2):
-                                embed = discord.Embed(
-                                    description=chunk,
-                                    color=discord.Color.blue()
-                                )
-                                embed.set_footer(text=f"Page {i} of {len(chunks)}")
-                                await ctx.send(embed=embed)
-                        else:
-                            await status_msg.edit(content="❌ Could not extract lyrics from the page.")
-                    else:
-                        await status_msg.edit(content="❌ Failed to fetch the lyrics page.")
+                    # Send first chunk with song info
+                    first_embed = discord.Embed(
+                        title=f"🎵 {song_title}",
+                        description=chunks[0],
+                        color=discord.Color.blue(),
+                        url=song_url
+                    )
+                    first_embed.add_field(name="Artist", value=artist_name, inline=False)
+                    first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
+                    await status_msg.edit(content=None, embed=first_embed)
 
+                    # Send remaining chunks if any
+                    for i, chunk in enumerate(chunks[1:], 2):
+                        embed = discord.Embed(
+                            description=chunk,
+                            color=discord.Color.blue()
+                        )
+                        embed.set_footer(text=f"Page {i} of {len(chunks)}")
+                        await ctx.send(embed=embed)
+
+                    self.logger.info(f"Successfully fetched lyrics for: {song_title}")
+
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error fetching lyrics: {e}")
+            await status_msg.edit(content="❌ Network error while fetching lyrics. Please try again later.")
         except Exception as e:
             self.logger.error(f"Error fetching lyrics: {e}")
-            await ctx.send(f"❌ An error occurred while fetching lyrics: {str(e)}")
+            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
 
     @commands.command(name='queue')
     async def view_queue(self, ctx):
