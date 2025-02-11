@@ -328,6 +328,9 @@ class MusicCommands(commands.Cog):
                         return
 
                     invite_link = f"https://discord.com/invite/{data['code']}"
+                    video_id = video_url.split("v=")[-1]
+                    autoplay_url = f"https://www.youtube.com/watch?v={video_id}&autoplay=1"
+                    
                     embed = discord.Embed(
                         title="📽️ YouTube Watch Party Started!",
                         description=f"**Playing:** {query}",
@@ -339,11 +342,11 @@ class MusicCommands(commands.Cog):
                         inline=False
                     )
                     embed.add_field(
-                        name="▶️ Video Link",
-                        value=f"[Open in YouTube]({video_url})",
+                        name="▶️ Auto-Play Video",
+                        value=f"[Click to Auto-Play]({autoplay_url})",
                         inline=False
                     )
-                    embed.set_footer(text="💡 Tip: Click the video link to play it in the Watch Party!")
+                    embed.set_footer(text="💡 Tip: After joining, click Auto-Play to start the video!")
                     
                     await status_msg.edit(content=None, embed=embed)
                     self.logger.info(f"Watch Party ready for: {query}")
