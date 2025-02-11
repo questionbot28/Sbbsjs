@@ -42,15 +42,15 @@ class SongSelectionView(discord.ui.View):
             # Apply audio effects if specified
             FFMPEG_OPTIONS = {
                 "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 192k -af volume=3.0,acrossover=150:order=2,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "options": "-vn -b:a 192k -af volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             # Add effect filters if specified
             filters = {
-                "bassboost": "bass=g=1.5,volume=3.0,acrossover=150:order=2,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=2.5,acrossover=150:order=2,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,volume=2.5,acrossover=150:order=2,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,volume=2.5,acrossover=150:order=2,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "bassboost": "bass=g=1.5,volume=3.0,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=2.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "reverb": "aecho=0.8:0.9:1000:0.3,volume=2.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "8d": "apulsator=hz=0.09,volume=2.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             if self.effect in filters:
