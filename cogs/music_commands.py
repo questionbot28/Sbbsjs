@@ -13,14 +13,14 @@ from discord import ButtonStyle
 
 class SongSelectionView(discord.ui.View):
     def __init__(self, bot, ctx, songs):
-        super().__init__(timeout=30)
+        super().__init__(timeout=15)  # Reduced timeout
         self.ctx = ctx
         self.songs = songs
         self.bot = bot
 
         select = discord.ui.Select(placeholder="Choose a song...", min_values=1, max_values=1)
 
-        for i, song in enumerate(songs[:5]):
+        for i, song in enumerate(songs[:5]):  # Only show top 5 results
             title = song["title"][:100]
             select.add_option(label=title, value=str(i))
 
@@ -29,6 +29,8 @@ class SongSelectionView(discord.ui.View):
 
     async def song_selected(self, interaction: discord.Interaction):
         try:
+            await interaction.response.defer()  # Acknowledge interaction immediately
+
             selected_index = int(interaction.data["values"][0])
             song = self.songs[selected_index]
 
@@ -39,18 +41,16 @@ class SongSelectionView(discord.ui.View):
             FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
             vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
 
-            await interaction.response.edit_message(content=f"🎶 Now playing: {song['title']}", view=None)
+            await interaction.followup.send(f"🎶 Now playing: {song['title']}")
         except Exception as e:
-            await interaction.response.send_message(f"❌ Error playing song: {str(e)}", ephemeral=True)
-
+            await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
-        self.youtube_together_id = "880218394199220334"  # YouTube Together App ID
+        self.youtube_together_id = "880218394199220334"
 
-        # Configure yt-dlp options
         self.ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
@@ -61,19 +61,7 @@ class MusicCommands(commands.Cog):
             'source_address': '0.0.0.0'
         }
 
-    def get_youtube_video_url(self, query: str) -> Optional[str]:
-        """Searches YouTube and returns the first video link."""
-        try:
-            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch:{query}", download=False)
-                if "entries" in info and len(info["entries"]) > 0:
-                    return info["entries"][0]["webpage_url"]
-                return None
-        except Exception as e:
-            self.logger.error(f"Error searching YouTube video: {e}")
-            return None
-
-        # Configure Spotify client if credentials are available
+        # Configure Spotify if credentials exist
         spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID')
         spotify_client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
         if spotify_client_id and spotify_client_secret:
@@ -85,29 +73,23 @@ class MusicCommands(commands.Cog):
             self.sp = None
             self.logger.warning("Spotify credentials not found. Spotify features will be disabled.")
 
-        # YouTube DL options
-        self.ydl_opts = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'logtostderr': False,
-            'quiet': True,
-            'no_warnings': True,
-            'source_address': '0.0.0.0',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
+    async def get_youtube_results(self, query: str) -> Optional[list]:
+        """Search YouTube and return multiple results faster."""
+        def search():
+            try:
+                with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                    info = ydl.extract_info(f"ytsearch5:{query}", download=False)
+                    if not info or 'entries' not in info:
+                        return None
+                    return [
+                        {"title": entry["title"], "url": entry["url"]}
+                        for entry in info["entries"][:5]
+                    ]
+            except Exception as e:
+                self.logger.error(f"Error searching YouTube: {e}")
+                return None
 
-        # FFmpeg options
-        self.ffmpeg_options = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
-        }
-        self.SongSelectionView = SongSelectionView
+        return await asyncio.get_event_loop().run_in_executor(None, search)
 
     def get_spotify_track(self, spotify_url: str) -> Optional[str]:
         """Extract track information from Spotify URL"""
@@ -123,41 +105,37 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error getting Spotify track: {e}")
             return None
 
-    def get_youtube_results(self, query: str) -> Optional[list]:
-        try:
-            ydl_opts = {"format": "bestaudio"}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch10:{query}", download=False)  # Get top 10 results
-                results = [
-                    {"title": entry["title"], "url": entry["url"]}
-                    for entry in info["entries"][:5]  # Show only top 5 results in dropdown
-                ]
-                return results
-        except Exception as e:
-            print(f"❌ Error searching YouTube: {e}")
-            return None
 
-    def get_youtube_audio(self, query: str) -> Optional[str]:
-        """Search YouTube for audio URL"""
-        try:
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'noplaylist': True,
-                'nocheckcertificate': True,
-                'ignoreerrors': False,
-                'quiet': True,
-                'no_warnings': True,
-                'source_address': '0.0.0.0'
-            }
+    @commands.command(name='play')
+    async def play(self, ctx, *, query: str):
+        """Play audio from a song name, YouTube URL, or Spotify URL"""
+        if not ctx.author.voice:
+            await ctx.send("❌ You must be in a voice channel!")
+            return
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch:{query}", download=False)
-                if "entries" in info and len(info["entries"]) > 0:
-                    return info["entries"][0]["url"]  # Return first search result
-                return None  # No results found
+        status_msg = await ctx.send("🔍 Searching for songs...")
+
+        try:
+            # Handle Spotify URLs
+            if "spotify.com/track/" in query and self.sp:
+                query = self.get_spotify_track(query)
+                if not query:
+                    await status_msg.edit(content="❌ Invalid Spotify URL or song not found.")
+                    return
+
+            # Get YouTube results asynchronously
+            songs = await self.get_youtube_results(query)
+            if not songs:
+                await status_msg.edit(content=f"❌ No songs found matching '{query}'!")
+                return
+
+            # Show song selection dropdown
+            view = SongSelectionView(self.bot, ctx, songs)
+            await status_msg.edit(content="🎵 Select a song to play:", view=view)
+
         except Exception as e:
-            self.logger.error(f"Error searching YouTube: {e}")
-            return None
+            self.logger.error(f"Error in play command: {e}")
+            await status_msg.edit(content=f"❌ An error occurred: {str(e)}")
 
     @commands.command(name='join')
     async def join(self, ctx):
@@ -195,76 +173,6 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error leaving voice channel: {e}")
             await ctx.send("❌ An error occurred while leaving the voice channel.")
-
-    @commands.command(name='play')
-    async def play(self, ctx, *, query: str):
-        """Play audio from a song name, YouTube URL, or Spotify URL"""
-        if not ctx.author.voice:
-            await ctx.send("❌ You must be in a voice channel!")
-            return
-
-        async with ctx.typing():
-            try:
-                # Handle Spotify URLs
-                if "spotify.com/track/" in query:
-                    query = self.get_spotify_track(query)
-                    if not query:
-                        await ctx.send("❌ Invalid Spotify URL or song not found.")
-                        return
-
-                # Get YouTube results
-                songs = await asyncio.get_event_loop().run_in_executor(None, self.get_youtube_results, query)
-                if not songs:
-                    await ctx.send(f"❌ No songs found matching '{query}'!")
-                    return
-
-                # Show song selection dropdown
-                view = SongSelectionView(self.bot, ctx, songs)
-                await ctx.send("🎵 Select a song to play:", view=view)
-                self.logger.info(f"Showing song selection for: {query}")
-
-            except Exception as e:
-                self.logger.error(f"Error playing audio: {e}")
-                await ctx.send("❌ An error occurred while trying to play the audio.")
-
-        # Connect to voice if not already connected
-        if not ctx.voice_client:
-            try:
-                await ctx.author.voice.channel.connect()
-            except Exception as e:
-                self.logger.error(f"Error connecting to voice: {e}")
-                await ctx.send("❌ Could not join your voice channel!")
-                return
-
-        # Stop current playback if any
-        if ctx.voice_client.is_playing():
-            ctx.voice_client.stop()
-
-        async with ctx.typing():
-            try:
-                # Handle Spotify URLs
-                if "spotify.com/track/" in query:
-                    query = self.get_spotify_track(query)
-                    if not query:
-                        await ctx.send("❌ Invalid Spotify URL or song not found.")
-                        return
-
-                # Run yt-dlp in executor to avoid async issues
-                loop = asyncio.get_event_loop()
-                songs = await loop.run_in_executor(None, self.get_youtube_results, query)
-
-                if not songs:
-                    await ctx.send(f"❌ No songs found matching '{query}'!")
-                    return
-
-                # Show song selection dropdown
-                view = SongSelectionView(self.bot, ctx, songs)
-                await ctx.send("🎵 Select a song to play:", view=view)
-                self.logger.info(f"Showing song selection for: {query}")
-
-            except Exception as e:
-                self.logger.error(f"Error playing audio: {e}")
-                await ctx.send("❌ An error occurred while trying to play the audio.")
 
     @commands.command(name='pause')
     async def pause(self, ctx):
@@ -384,6 +292,18 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in vplay command: {e}")
             await ctx.send(f"❌ Error creating Watch Party: `{str(e)}`")
+
+    def get_youtube_video_url(self, query: str) -> Optional[str]:
+        """Searches YouTube and returns the first video link."""
+        try:
+            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch:{query}", download=False)
+                if "entries" in info and len(info["entries"]) > 0:
+                    return info["entries"][0]["webpage_url"]
+                return None
+        except Exception as e:
+            self.logger.error(f"Error searching YouTube video: {e}")
+            return None
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
