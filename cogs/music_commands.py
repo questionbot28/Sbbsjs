@@ -11,14 +11,14 @@ import os
 from discord.ui import View, Select, Button
 from discord import ButtonStyle
 
-class SongSelectionView(View):
+class SongSelectionView(discord.ui.View):
     def __init__(self, bot, ctx, songs):
         super().__init__(timeout=30)
         self.ctx = ctx
         self.songs = songs
         self.bot = bot
 
-        select = Select(placeholder="Choose a song...", min_values=1, max_values=1)
+        select = discord.ui.Select(placeholder="Choose a song...", min_values=1, max_values=1)
 
         for i, song in enumerate(songs[:5]):
             title = song["title"][:100]
