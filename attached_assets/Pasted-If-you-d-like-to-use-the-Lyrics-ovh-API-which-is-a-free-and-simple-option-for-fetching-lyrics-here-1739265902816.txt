@@ -1,0 +1,95 @@
+If you'd like to use the Lyrics.ovh API, which is a free and simple option for fetching lyrics, here’s a guide to integrate it into your bot.
+
+Step 1: No API Key Needed
+
+The great thing about Lyrics.ovh is that you don’t need an API key to use it. You can directly make requests to the API.
+
+Step 2: Install requests Library
+
+You’ll need the requests library to make HTTP requests to Lyrics.ovh. If you haven’t already, install it:
+
+pip install requests
+
+Step 3: Create a Command to Fetch Lyrics
+
+Now, let's create a simple command where your bot will fetch lyrics for a given song.
+
+Code Example:
+
+import requests
+import discord
+from discord.ext import commands
+
+bot = commands.Bot(command_prefix="!")
+
+@bot.command()
+async def lyrics(ctx, *, song_name):
+    await ctx.send("🔍 Searching for lyrics...")
+
+    # URL for Lyrics.ovh API
+    url = f"https://lyricsovh.xyz/v1/{song_name}"
+
+    try:
+        # Send request to Lyrics.ovh
+        response = requests.get(url)
+
+        # Check if the response is successful
+        if response.status_code == 200:
+            data = response.json()
+
+            if 'lyrics' in data:
+                lyrics = data['lyrics']
+                lyrics = lyrics[:2000]  # Limit to 2000 characters (Discord limit)
+                embed = discord.Embed(title=f"🎤 Lyrics for {song_name}", description=lyrics, color=discord.Color.blue())
+                embed.set_footer(text="Powered by Lyrics.ovh")
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("❌ Lyrics not found.")
+        else:
+            await ctx.send("❌ Error fetching lyrics.")
+
+    except Exception as e:
+        await ctx.send(f"❌ An error occurred: {e}")
+
+Explanation of Code:
+
+1. Song Name: The user provides a song name (e.g., !lyrics Shape of You).
+
+
+2. Request Lyrics: The bot sends a request to the Lyrics.ovh API with the song name.
+
+
+3. Response Handling: If the response contains the lyrics, the bot will send them to Discord. If the song is not found, it will notify the user.
+
+
+4. Character Limit: The bot will send up to 2000 characters of lyrics to avoid truncation by Discord’s message size limit.
+
+
+
+Step 4: Running the Bot
+
+1. Run the bot and use the !lyrics <song_name> command in your Discord server to search for the lyrics of a song.
+
+Example: !lyrics Shape of You
+
+
+2. The bot will reply with the lyrics if found, or an error message if the song is not available.
+
+
+
+Step 5: Testing
+
+Test with a few songs to check if everything works properly. Keep in mind that Lyrics.ovh may not have every song, as its database is smaller than other services like Musixmatch.
+
+
+---
+
+Optional Enhancements:
+
+Error Handling: Handle any specific errors or edge cases such as songs with special characters or songs that don’t exist in the database.
+
+Search Suggestions: You could also add a feature where the bot suggests songs if no exact match is found.
+
+
+This should be a good start to fetch lyrics using Lyrics.ovh. Let me know if you need more help!
+
