@@ -65,8 +65,19 @@ class MusicCommands(commands.Cog):
     async def get_youtube_audio(self, query: str) -> Optional[str]:
         """Search YouTube for audio URL"""
         try:
-            async with self.bot.loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(self.ydl_opts)) as ydl:
-                info = await self.bot.loop.run_in_executor(
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'noplaylist': True,
+                'nocheckcertificate': True,
+                'ignoreerrors': False,
+                'quiet': True,
+                'no_warnings': True,
+                'source_address': '0.0.0.0'
+            }
+
+            loop = asyncio.get_event_loop()
+            async with self.bot.loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts)) as ydl:
+                info = await loop.run_in_executor(
                     None, 
                     lambda: ydl.extract_info(f"ytsearch:{query}", download=False)
                 )
@@ -143,16 +154,27 @@ class MusicCommands(commands.Cog):
                         await ctx.send("❌ Invalid Spotify URL or song not found.")
                         return
 
-                # Get YouTube audio URL
+                # Search for song on YouTube (now properly async)
                 youtube_url = await self.get_youtube_audio(query)
                 if not youtube_url:
                     await ctx.send(f"❌ No songs found matching '{query}'!")
                     return
 
                 # Create audio source and play
-                source = await discord.FFmpegOpusAudio.from_probe(youtube_url, **self.ffmpeg_options)
-                ctx.voice_client.play(source, after=lambda e: self.logger.error(f'Player error: {e}') if e else None)
+                source = await discord.FFmpegOpusAudio.from_probe(
+                    youtube_url,
+                    **self.ffmpeg_options
+                )
 
+                def after_playing(error):
+                    if error:
+                        self.logger.error(f"Player error: {error}")
+                        asyncio.run_coroutine_threadsafe(
+                            ctx.send("❌ An error occurred while playing the audio."),
+                            self.bot.loop
+                        )
+
+                ctx.voice_client.play(source, after=after_playing)
                 await ctx.send(f"🎵 Now playing: **{query}**")
                 self.logger.info(f"Started playing: {query}")
 
