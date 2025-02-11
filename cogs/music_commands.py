@@ -340,11 +340,16 @@ class MusicCommands(commands.Cog):
                         inline=False
                     )
                     embed.add_field(
+                        name="🔊 Important: Enable Sound",
+                        value="1. Join the Watch Party\n2. Click on the video\n3. Click the speaker icon (bottom-left) to unmute",
+                        inline=False
+                    )
+                    embed.add_field(
                         name="▶️ Auto-Play Video",
                         value=f"[Click to Auto-Play](https://www.youtube.com/watch?v={video_url.split('v=')[-1]}&autoplay=1)",
                         inline=False
                     )
-                    embed.set_footer(text="💡 Tip: After joining, click Auto-Play to start the video!")
+                    embed.set_footer(text="💡 Remember to unmute the video for sound!")
 
                     await status_msg.edit(content=None, embed=embed)
                     self.logger.info(f"Watch Party ready for: {query}")
