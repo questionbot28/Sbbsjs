@@ -3,6 +3,7 @@ from discord.ext import commands
 import logging
 import asyncio
 import aiohttp
+import yt_dlp
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from typing import Dict, Optional
