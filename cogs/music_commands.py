@@ -258,7 +258,7 @@ class MusicCommands(commands.Cog):
                     return
 
                 # Show song selection dropdown
-                view = self.SongSelectionView(self.bot, ctx, songs)
+                view = SongSelectionView(self.bot, ctx, songs)
                 await ctx.send("🎵 Select a song to play:", view=view)
                 self.logger.info(f"Showing song selection for: {query}")
 
