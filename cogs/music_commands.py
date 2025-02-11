@@ -15,6 +15,7 @@ import random
 from discord.ext.commands import cooldown, BucketType
 from datetime import datetime, timedelta
 import time
+import lyricsgenius
 
 class SongSelectionView(discord.ui.View):
     def __init__(self, bot, ctx, songs, effect=None):
@@ -45,83 +46,47 @@ class SongSelectionView(discord.ui.View):
             selected_index = int(interaction.data["values"][0])
             song = self.songs[selected_index]
 
-            vc = self.ctx.voice_client
-            if not vc or not vc.is_connected():
-                try:
-                    vc = await self.ctx.author.voice.channel.connect()
-                except discord.errors.HTTPException as e:
-                    if e.status == 429:
-                        await bot_cog.handle_rate_limit(e, interaction) #call new function
-                        return
-                    raise
-
-            # Apply audio effects if specified
-            FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+            # Add song to queue
+            queue_entry = {
+                'title': song['title'],
+                'url': song['url'],
+                'requester': interaction.user
             }
+            bot_cog.queue.append(queue_entry)
 
-            # Add effect filters if specified
-            filters = {
-                "bassboost": "bass=g=1.5,volume=3.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
-            }
-
-            if self.effect and self.effect in filters:
-                FFMPEG_OPTIONS["options"] = f"-vn -b:a 256k -af {filters[self.effect]}"
-
-            try:
-                # Create audio source with volume transformer
-                source = PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
-                    volume=bot_cog.current_volume
-                )
-
-                if vc.is_playing():
-                    vc.stop()  # Stop current song if playing
-
-                vc.play(source, after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
-                self.ctx.voice_client.current_song_url = song["url"]  # update current song url
-
-            except Exception as e:
-                await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
-                return
-
-            # Create a visual volume bar
-            volume_percentage = int(bot_cog.current_volume * 100)
-            volume_bar = "▮" * (volume_percentage // 10) + "▯" * ((100 - volume_percentage) // 10)
-
-            effect_msg = f" with {self.effect} effect" if self.effect else ""
-            status_msg = f"🎶 Now playing: **{song['title']}**{effect_msg}\n"
-            status_msg += f"Volume: {volume_percentage}% `{volume_bar}`"
-
-            try:
-                await interaction.followup.send(status_msg)
-            except discord.errors.HTTPException as e:
-                if e.status == 429:
-                    await bot_cog.handle_rate_limit(e, interaction)
-                else:
-                    raise
+            # If nothing is playing, start playing
+            if not interaction.guild.voice_client or not interaction.guild.voice_client.is_playing():
+                await bot_cog._play_next(interaction)
+            else:
+                await interaction.followup.send(f"🎵 Added to queue: **{song['title']}**")
 
         except Exception as e:
-            await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
+            self.logger.error(f"Error in song selection: {e}")
+            await interaction.followup.send(f"❌ Error adding song to queue: {str(e)}", ephemeral=True)
+
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
         self.youtube_together_id = "880218394199220334"
-        self.current_volume = 1.0  # Default volume (100%)
-        self.current_song_url = None  # Store current song URL
-        self.retry_count = 0  # Initialize retry counter
-
-        # Rate limit tracking
+        self.current_volume = 1.0
+        self.current_song_url = None
+        self.retry_count = 0
         self.rate_limit_start = None
-        self.rate_limit_resets: Dict[str, datetime] = {}
+        self.rate_limit_resets = {}
         self.command_timestamps = {}
         self.max_retries = 5
+        self.queue = []  # Add queue list for storing songs
+
+        # Initialize Genius API client
+        genius_token = os.getenv('GENIUS_API_KEY')
+        if genius_token:
+            self.genius = lyricsgenius.Genius(genius_token)
+            self.genius.verbose = False  # Disable verbose output
+        else:
+            self.genius = None
+            self.logger.warning("Genius API key not found. Lyrics feature will be disabled.")
 
         self.ydl_opts = {
             'format': 'bestaudio/best',
@@ -151,7 +116,6 @@ class MusicCommands(commands.Cog):
             self.logger.warning("Spotify credentials not found. Spotify features will be disabled.")
 
     async def get_youtube_results(self, query: str) -> Optional[list]:
-        """Search YouTube and return multiple results faster."""
         def search():
             try:
                 with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
@@ -169,7 +133,6 @@ class MusicCommands(commands.Cog):
         return await asyncio.get_event_loop().run_in_executor(None, search)
 
     def get_spotify_track(self, spotify_url: str) -> Optional[str]:
-        """Extract track information from Spotify URL"""
         if not self.sp:
             return None
 
@@ -186,7 +149,6 @@ class MusicCommands(commands.Cog):
     @commands.command(name='play')
     @commands.cooldown(1, 5, BucketType.user)  # 1 command per 5 seconds per user
     async def play(self, ctx, *, query: str):
-        """Play audio from a song name with optional effects"""
         try:
             if not ctx.author.voice:
                 await ctx.send("❌ You must be in a voice channel!")
@@ -241,7 +203,7 @@ class MusicCommands(commands.Cog):
 
             except discord.errors.HTTPException as e:
                 if e.status == 429:  # Rate limit error
-                    await self.handle_rate_limit(e, status_msg, endpoint="play") #call new function
+                    await self.handle_rate_limit(e, status_msg, endpoint="play")
                 else:
                     self.logger.error(f"HTTP error in play command: {e}")
                     embed.title = "❌ Discord API Error"
@@ -264,7 +226,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='join')
     async def join(self, ctx):
-        """Join the user's voice channel"""
         if not ctx.author.voice:
             await ctx.send("❌ You must be in a voice channel!")
             return
@@ -286,7 +247,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='leave')
     async def leave(self, ctx):
-        """Leave the current voice channel"""
         if not ctx.voice_client:
             await ctx.send("❌ I'm not in a voice channel!")
             return
@@ -301,7 +261,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='pause')
     async def pause(self, ctx):
-        """Pause the currently playing audio"""
         if not ctx.voice_client:
             await ctx.send("❌ I'm not in a voice channel!")
             return
@@ -324,7 +283,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='resume')
     async def resume(self, ctx):
-        """Resume the paused audio"""
         if not ctx.voice_client:
             await ctx.send("❌ I'm not in a voice channel!")
             return
@@ -346,7 +304,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='stop')
     async def stop(self, ctx):
-        """Stop the currently playing audio"""
         if not ctx.voice_client:
             await ctx.send("❌ I'm not in a voice channel!")
             return
@@ -375,7 +332,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='vplay')
     async def vplay(self, ctx, *, query: str = None):
-        """Start a YouTube Watch Party with the specified song"""
         try:
             if not ctx.author.voice:
                 await ctx.send("❌ You must be in a voice channel!")
@@ -466,7 +422,6 @@ class MusicCommands(commands.Cog):
             await ctx.send(f"❌ Error creating Watch Party: `{str(e)}`")
 
     def get_youtube_video_url(self, query: str) -> Optional[str]:
-        """Searches YouTube and returns the first video link."""
         try:
             with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch:{query}", download=False)
@@ -479,7 +434,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='function')
     async def function(self, ctx):
-        """Display all music features and commands"""
         embed = discord.Embed(
             title="🎵 EduSphere Bot Music Features",
             description="Here are all the advanced commands your bot supports:",
@@ -510,6 +464,8 @@ class MusicCommands(commands.Cog):
         `!function` - Show all available bot commands
         `!volume <0-100>` - Set volume level
         `!seek forward/back` - Skip 10 seconds forward or backward
+        `!lyrics <song>` - Get song lyrics
+        `!queue` - View the music queue
         """, inline=False)
 
         embed.set_footer(text="🎵 EduSphere Bot - Your Ultimate Music Experience 🚀")
@@ -519,7 +475,6 @@ class MusicCommands(commands.Cog):
     @commands.command(name='volume')
     @commands.cooldown(1, 2, BucketType.user)  # 1 command per 2 seconds per user
     async def volume(self, ctx, level: int):
-        """Change the volume of the currently playing audio (0-100)"""
         try:
             if not ctx.voice_client:
                 await ctx.send("❌ The bot is not connected to a voice channel!")
@@ -559,7 +514,6 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='seek')
     async def seek(self, ctx, direction: str):
-        """Seek forward or backward in the current song"""
         if not ctx.voice_client or not ctx.voice_client.is_playing():
             await ctx.send("❌ The bot is not playing any music!")
             return
@@ -611,14 +565,12 @@ class MusicCommands(commands.Cog):
             await status_msg.edit(embed=embed)
 
     def _update_rate_limit(self, endpoint: str, reset_after: float):
-        """Update rate limit tracking for an endpoint"""
         reset_time = datetime.now() + timedelta(seconds=reset_after)
         self.rate_limit_resets[endpoint] = reset_time
         if not self.rate_limit_start:
             self.rate_limit_start = datetime.now()
 
     def _should_retry(self, endpoint: str) -> bool:
-        """Check if we should retry a rate-limited request"""
         if self.retry_count >= self.max_retries:
             return False
 
@@ -630,7 +582,6 @@ class MusicCommands(commands.Cog):
 
     @property
     def retry_delay(self) -> float:
-        """Calculate retry delay with improved exponential backoff"""
         base_delay = 1.5
         max_delay = 60
         jitter = random.uniform(0, 0.5)  # Increased jitter for better distribution
@@ -646,7 +597,6 @@ class MusicCommands(commands.Cog):
         return delay
 
     async def handle_rate_limit(self, e, interaction=None, endpoint: str = "global"):
-        """Enhanced rate limit handler with better tracking and user feedback"""
         try:
             # Extract rate limit information
             retry_after = getattr(e, 'retry_after', self.retry_delay)
@@ -698,6 +648,147 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in rate limit handler: {e}")
             return False
+
+    @commands.command(name='lyrics')
+    async def lyrics(self, ctx, *, song_name: str):
+        """Fetch lyrics for a song from Genius"""
+        if not self.genius:
+            await ctx.send("❌ Lyrics feature is not available - Genius API key not configured.")
+            return
+
+        try:
+            # Send searching message
+            status_msg = await ctx.send("🔍 Searching for lyrics...")
+
+            # Search for the song
+            song = self.genius.search_song(song_name)
+
+            if song:
+                # Split lyrics into chunks of 4096 characters (Discord embed limit)
+                lyrics_chunks = [song.lyrics[i:i+4096] for i in range(0, len(song.lyrics), 4096)]
+
+                # Create main embed
+                main_embed = discord.Embed(
+                    title=f"🎤 {song.title} by {song.artist}",
+                    color=discord.Color.blue()
+                )
+                main_embed.set_footer(text="Powered by Genius | Page 1 of {}".format(len(lyrics_chunks)))
+
+                # Send first chunk
+                main_embed.description = lyrics_chunks[0]
+                await status_msg.edit(content=None, embed=main_embed)
+
+                # Send additional chunks if needed
+                for i, chunk in enumerate(lyrics_chunks[1:], start=2):
+                    chunk_embed = discord.Embed(
+                        description=chunk,
+                        color=discord.Color.blue()
+                    )
+                    chunk_embed.set_footer(text=f"Page {i} of {len(lyrics_chunks)}")
+                    await ctx.send(embed=chunk_embed)
+            else:
+                await status_msg.edit(content="❌ Lyrics not found.")
+
+        except Exception as e:
+            self.logger.error(f"Error fetching lyrics: {e}")
+            await ctx.send(f"❌ An error occurred while fetching lyrics: {str(e)}")
+
+    @commands.command(name='queue')
+    async def view_queue(self, ctx):
+        """Display the current music queue"""
+        if not self.queue:
+            embed = discord.Embed(
+                title="🎵 Music Queue",
+                description="The queue is currently empty!",
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Create queue embed
+        embed = discord.Embed(
+            title="🎶 Music Queue",
+            color=discord.Color.blue()
+        )
+
+        # Add current song if playing
+        if ctx.voice_client and ctx.voice_client.is_playing():
+            embed.add_field(
+                name="🎵 Now Playing",
+                value=f"**{self.queue[0]['title']}**\nRequested by: {self.queue[0]['requester'].mention}",
+                inline=False
+            )
+
+        # Add upcoming songs (up to 10)
+        queue_start = 1 if ctx.voice_client and ctx.voice_client.is_playing() else 0
+        for i, song in enumerate(self.queue[queue_start:10], start=1):
+            embed.add_field(
+                name=f"{i}. {song['title']}",
+                value=f"Requested by: {song['requester'].mention}",
+                inline=False
+            )
+
+        # Add total songs info
+        remaining = len(self.queue) - 10 if len(self.queue) > 10 else 0
+        if remaining > 0:
+            embed.set_footer(text=f"And {remaining} more songs in queue")
+
+        await ctx.send(embed=embed)
+
+    async def _play_next(self, ctx):
+        """Helper method to play the next song in queue"""
+        if not self.queue:
+            return
+
+        vc = ctx.guild.voice_client
+        if not vc:
+            if ctx.author.voice:
+                vc = await ctx.author.voice.channel.connect()
+            else:
+                await ctx.send("❌ You must be in a voice channel!")
+                return
+
+        # Get the first song in queue
+        song = self.queue[0]
+
+        # Apply audio effects if specified
+        FFMPEG_OPTIONS = {
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
+            "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+        }
+
+        try:
+            source = PCMVolumeTransformer(
+                discord.FFmpegPCMAudio(song['url'], **FFMPEG_OPTIONS),
+                volume=self.current_volume
+            )
+
+            def after_playing(error):
+                if error:
+                    self.logger.error(f"Error playing audio: {error}")
+
+                # Remove the song that just finished
+                if self.queue:
+                    self.queue.pop(0)
+
+                # Schedule playing the next song
+                if self.queue:
+                    coro = self._play_next(ctx)
+                    fut = asyncio.run_coroutine_threadsafe(coro, self.bot.loop)
+                    try:
+                        fut.result()
+                    except Exception as e:
+                        self.logger.error(f"Error in after_playing: {e}")
+
+            vc.play(source, after=after_playing)
+            await ctx.send(f"🎶 Now playing: **{song['title']}**\nRequested by: {song['requester'].mention}")
+
+        except Exception as e:
+            self.logger.error(f"Error playing audio: {e}")
+            await ctx.send(f"❌ Error playing audio: {str(e)}")
+            if self.queue:
+                self.queue.pop(0)
+            await self._play_next(ctx)
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
