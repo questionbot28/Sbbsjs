@@ -812,13 +812,6 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error fetching lyrics: {e}")
             await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
 
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Network error fetching lyrics: {e}")
-            await status_msg.edit(content="❌ Network error while fetching lyrics. Please try again later.")
-        except Exception as e:
-            self.logger.error(f"Error fetching lyrics: {e}")
-            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
-
     @commands.command(name='queue')
     async def view_queue(self, ctx):
         """Display the current music queue"""
