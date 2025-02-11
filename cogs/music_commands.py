@@ -1,12 +1,30 @@
 import discord
 from discord.ext import commands
 import logging
+import yt_dlp
+import asyncio
+from typing import Dict, Optional
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
         self.voice_states = {}
+        self.ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'quiet': True,
+            'no_warnings': True,
+            'extractaudio': True,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
 
     @commands.command(name='join')
     async def join(self, ctx):
@@ -42,6 +60,41 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error leaving voice channel: {e}")
             await ctx.send("❌ An error occurred while leaving the voice channel.")
+
+    @commands.command(name='play')
+    async def play(self, ctx, *, url: str):
+        """Play audio from a YouTube URL"""
+        if not ctx.voice_client:
+            # Try to join the user's channel if not already in one
+            if ctx.author.voice:
+                try:
+                    await ctx.author.voice.channel.connect()
+                except Exception as e:
+                    self.logger.error(f"Error joining voice channel: {e}")
+                    await ctx.send("❌ Could not join your voice channel!")
+                    return
+            else:
+                await ctx.send("❌ You need to be in a voice channel first!")
+                return
+
+        async with ctx.typing():
+            try:
+                with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                    info = await self.bot.loop.run_in_executor(None, lambda: ydl.extract_info(url, download=False))
+                    if not info:
+                        await ctx.send("❌ Could not find the video!")
+                        return
+
+                    url2 = info['url']
+                    source = await discord.FFmpegOpusAudio.from_probe(url2)
+                    ctx.voice_client.play(source)
+
+                    await ctx.send(f"🎵 Now playing: **{info['title']}**")
+                    self.logger.info(f"Started playing: {info['title']}")
+
+            except Exception as e:
+                self.logger.error(f"Error playing audio: {e}")
+                await ctx.send("❌ An error occurred while trying to play the audio.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
