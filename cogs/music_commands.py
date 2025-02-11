@@ -19,6 +19,7 @@ class SongSelectionView(discord.ui.View):
         self.songs = songs
         self.bot = bot
         self.effect = effect
+        self.message = None  # Store message reference
 
         select = discord.ui.Select(placeholder="Choose a song...", min_values=1, max_values=1)
 
@@ -32,6 +33,10 @@ class SongSelectionView(discord.ui.View):
     async def song_selected(self, interaction: discord.Interaction):
         try:
             await interaction.response.defer()  # Acknowledge interaction immediately
+            bot_cog = self.bot.get_cog('MusicCommands')
+            if not bot_cog:
+                await interaction.followup.send("❌ Bot configuration error!", ephemeral=True)
+                return
 
             selected_index = int(interaction.data["values"][0])
             song = self.songs[selected_index]
@@ -61,8 +66,11 @@ class SongSelectionView(discord.ui.View):
                 # Create audio source with volume transformer
                 source = PCMVolumeTransformer(
                     discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
-                    volume=self.bot.get_cog('MusicCommands').current_volume
+                    volume=bot_cog.current_volume
                 )
+
+                if vc.is_playing():
+                    vc.stop()  # Stop current song if playing
 
                 vc.play(source, after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
                 self.ctx.voice_client.current_song_url = song["url"]  # update current song url
@@ -71,8 +79,16 @@ class SongSelectionView(discord.ui.View):
                 await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
                 return
 
+            # Create a visual volume bar
+            volume_percentage = int(bot_cog.current_volume * 100)
+            volume_bar = "▮" * (volume_percentage // 10) + "▯" * ((100 - volume_percentage) // 10)
+
             effect_msg = f" with {self.effect} effect" if self.effect else ""
-            await interaction.followup.send(f"🎶 Now playing: {song['title']}{effect_msg}")
+            status_msg = f"🎶 Now playing: **{song['title']}**{effect_msg}\n"
+            status_msg += f"Volume: {volume_percentage}% `{volume_bar}`"
+
+            await interaction.followup.send(status_msg)
+
         except Exception as e:
             await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
 
@@ -161,6 +177,7 @@ class MusicCommands(commands.Cog):
             song_query = " ".join(args[:-1])
 
         status_msg = await ctx.send("🔍 Searching for songs...")
+        self.logger.info(f"Searching for song: {song_query}")
 
         try:
             # Handle Spotify URLs
@@ -180,6 +197,7 @@ class MusicCommands(commands.Cog):
             view = SongSelectionView(self.bot, ctx, songs, effect)
             effect_msg = f" with {effect} effect" if effect else ""
             await status_msg.edit(content=f"🎵 Select a song to play{effect_msg}:", view=view)
+            self.logger.info(f"Song options presented to user for query: {song_query}")
 
         except Exception as e:
             self.logger.error(f"Error in play command: {e}")
@@ -268,8 +286,17 @@ class MusicCommands(commands.Cog):
             await ctx.send("❌ No music is currently playing!")
             return
 
-        ctx.voice_client.stop()
-        await ctx.send("⏹️ Music stopped.")
+        try:
+            # Stop the audio first
+            ctx.voice_client.stop()
+            # Reset the current song URL
+            self.current_song_url = None
+            # Reset volume to default
+            self.current_volume = 1.0
+            await ctx.send("⏹️ Music stopped and reset!")
+        except Exception as e:
+            self.logger.error(f"Error stopping music: {e}")
+            await ctx.send("❌ An error occurred while stopping the music.")
 
     @commands.command(name='vplay')
     async def vplay(self, ctx, *, query: str = None):
