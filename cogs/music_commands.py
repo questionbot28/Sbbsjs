@@ -13,35 +13,35 @@ from discord import ButtonStyle
 
 class SongSelectionView(View):
     def __init__(self, bot, ctx, songs):
-        super().__init__(timeout=30)  # Timeout after 30 seconds
+        super().__init__(timeout=30)
         self.ctx = ctx
         self.songs = songs
         self.bot = bot
 
         select = Select(placeholder="Choose a song...", min_values=1, max_values=1)
         
-        # Only show first 5 songs to avoid Discord's 25-option limit
         for i, song in enumerate(songs[:5]):
-            title = song["title"][:100]  # Truncate title to avoid Discord's length limit
+            title = song["title"][:100]
             select.add_option(label=title, value=str(i))
 
-        select.callback = self.song_selected  # Handle selection
+        select.callback = self.song_selected
         self.add_item(select)
 
     async def song_selected(self, interaction: discord.Interaction):
-        selected_index = int(interaction.data["values"][0])  # Get selected song index
-        song = self.songs[selected_index]
+        try:
+            selected_index = int(interaction.data["values"][0])
+            song = self.songs[selected_index]
 
-        # Connect to voice channel
-        vc = self.ctx.voice_client
-        if not vc or not vc.is_connected():
-            vc = await self.ctx.author.voice.channel.connect()
+            vc = self.ctx.voice_client
+            if not vc or not vc.is_connected():
+                vc = await self.ctx.author.voice.channel.connect()
 
-        # Play the selected song
-        FFMPEG_OPTIONS = {"options": "-vn"}
-        vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
-
-        await interaction.response.edit_message(content=f"🎶 Now playing: {song['title']}", view=None)
+            FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
+            vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
+            
+            await interaction.response.edit_message(content=f"🎶 Now playing: {song['title']}", view=None)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error playing song: {str(e)}", ephemeral=True)
 
 
 class MusicCommands(commands.Cog):
