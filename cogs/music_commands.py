@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import PCMVolumeTransformer
 import logging
 import asyncio
 import aiohttp
@@ -42,24 +43,29 @@ class SongSelectionView(discord.ui.View):
             # Apply audio effects if specified
             FFMPEG_OPTIONS = {
                 "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             # Add effect filters if specified
             filters = {
-                "bassboost": "bass=g=1.5,volume=3.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "bassboost": "bass=g=1.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "reverb": "aecho=0.8:0.9:1000:0.3,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "8d": "apulsator=hz=0.09,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             if self.effect in filters:
                 FFMPEG_OPTIONS["options"] = f"-vn -b:a 256k -af {filters[self.effect]}"
 
             try:
-                vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
-                       after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
-                self.ctx.voice_client.current_song_url = song["url"] #update current song url
+                # Create audio source with volume transformer
+                source = PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
+                    volume=self.bot.get_cog('MusicCommands').current_volume
+                )
+
+                vc.play(source, after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
+                self.ctx.voice_client.current_song_url = song["url"]  # update current song url
 
             except Exception as e:
                 await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
@@ -398,24 +404,13 @@ class MusicCommands(commands.Cog):
             return
 
         self.current_volume = level / 100  # Convert 0-100 scale to FFmpeg volume
-        vc = ctx.voice_client
 
-        if self.current_song_url:
-            # Stop and restart the audio with the new volume level
-            FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": f"-vn -b:a 256k -af volume={self.current_volume},highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
-            }
-
-            try:
-                vc.stop()
-                vc.play(discord.FFmpegPCMAudio(self.current_song_url, **FFMPEG_OPTIONS))
-                await ctx.send(f"🔊 Volume set to **{level}%**")
-            except Exception as e:
-                self.logger.error(f"Error adjusting volume: {e}")
-                await ctx.send("❌ An error occurred while adjusting the volume.")
+        # Update volume of currently playing audio
+        if isinstance(ctx.voice_client.source, PCMVolumeTransformer):
+            ctx.voice_client.source.volume = self.current_volume
+            await ctx.send(f"🔊 Volume set to **{level}%**")
         else:
-            await ctx.send("❌ No song is currently loaded!")
+            await ctx.send("❌ Cannot adjust volume - incompatible audio source!")
 
     @commands.command(name='seek')
     async def seek(self, ctx, direction: str):
@@ -435,15 +430,20 @@ class MusicCommands(commands.Cog):
         time_offset = 10 if direction == "forward" else -10
         vc = ctx.voice_client
 
-        # Restart the audio with the new timestamp and current volume
+        # Create new audio source with seek offset
         FFMPEG_OPTIONS = {
             "before_options": f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M -ss {abs(time_offset)}",
-            "options": f"-vn -b:a 256k -af volume={self.current_volume},highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+            "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
         }
 
         try:
+            source = PCMVolumeTransformer(
+                discord.FFmpegPCMAudio(self.current_song_url, **FFMPEG_OPTIONS),
+                volume=self.current_volume
+            )
+
             vc.stop()
-            vc.play(discord.FFmpegPCMAudio(self.current_song_url, **FFMPEG_OPTIONS))
+            vc.play(source)
             await ctx.send(f"⏩ Skipped **{abs(time_offset)}s** {direction}!")
         except Exception as e:
             self.logger.error(f"Error seeking: {e}")
@@ -463,24 +463,29 @@ class MusicCommands(commands.Cog):
             # Apply audio effects if specified
             FFMPEG_OPTIONS = {
                 "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             # Add effect filters if specified
             filters = {
-                "bassboost": "bass=g=1.5,volume=3.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,volume=3.0,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "bassboost": "bass=g=1.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "reverb": "aecho=0.8:0.9:1000:0.3,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "8d": "apulsator=hz=0.09,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             if self.effect in filters:
                 FFMPEG_OPTIONS["options"] = f"-vn -b:a 256k -af {filters[self.effect]}"
 
             try:
-                vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
-                       after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
-                self.current_song_url = song["url"] #update current song url
+                # Create audio source with volume transformer
+                source = PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
+                    volume=self.bot.get_cog('MusicCommands').current_volume
+                )
+
+                vc.play(source, after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
+                self.current_song_url = song["url"]  # update current song url
 
             except Exception as e:
                 await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
