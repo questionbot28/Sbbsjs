@@ -15,6 +15,8 @@ import random
 from discord.ext.commands import cooldown, BucketType
 from datetime import datetime, timedelta
 import time
+import trafilatura
+import re
 
 class SongSelectionView(discord.ui.View):
     def __init__(self, bot, ctx, songs, effect=None):
@@ -661,7 +663,7 @@ class MusicCommands(commands.Cog):
                 search_url = f"https://api.genius.com/search?q={song_name}"
 
                 async with session.get(search_url, headers=headers) as response:
-                    if response.status != 200:
+                    if response.status_code != 200:
                         await status_msg.edit(content=f"❌ API Error: {response.status}")
                         return
 
@@ -677,21 +679,50 @@ class MusicCommands(commands.Cog):
                     artist_name = first_hit['result']['primary_artist']['name']
                     song_url = first_hit['result']['url']
 
-                    # Create embed with song info
-                    embed = discord.Embed(
-                        title=f"🎵 {song_title}",
-                        url=song_url,
-                        color=discord.Color.blue()
-                    )
-                    embed.add_field(name="Artist", value=artist_name, inline=False)
-                    embed.add_field(
-                        name="Links",
-                        value=f"[View lyrics on Genius]({song_url})",
-                        inline=False
-                    )
-                    embed.set_footer(text="Powered by Genius")
+                    # Update status message
+                    await status_msg.edit(content=f"📥 Found song! Fetching lyrics for **{song_title}** by **{artist_name}**...")
 
-                    await status_msg.edit(content=None, embed=embed)
+                    # Download and extract lyrics using trafilatura
+                    downloaded = await asyncio.get_event_loop().run_in_executor(
+                        None, trafilatura.fetch_url, song_url
+                    )
+
+                    if downloaded:
+                        lyrics = await asyncio.get_event_loop().run_in_executor(
+                            None, trafilatura.extract, downloaded
+                        )
+
+                        if lyrics:
+                            # Clean up lyrics
+                            lyrics = re.sub(r'\[.*?\]', '', lyrics)  # Remove [Verse], [Chorus] etc.
+                            lyrics = lyrics.strip()
+
+                            # Split lyrics into chunks (Discord has 4096 char limit for embed description)
+                            chunks = [lyrics[i:i + 4000] for i in range(0, len(lyrics), 4000)]
+
+                            # Send first chunk with song info
+                            first_embed = discord.Embed(
+                                title=f"🎵 {song_title}",
+                                description=chunks[0],
+                                color=discord.Color.blue(),
+                                url=song_url
+                            )
+                            first_embed.add_field(name="Artist", value=artist_name, inline=False)
+                            first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
+                            await status_msg.edit(content=None, embed=first_embed)
+
+                            # Send remaining chunks if any
+                            for i, chunk in enumerate(chunks[1:], 2):
+                                embed = discord.Embed(
+                                    description=chunk,
+                                    color=discord.Color.blue()
+                                )
+                                embed.set_footer(text=f"Page {i} of {len(chunks)}")
+                                await ctx.send(embed=embed)
+                        else:
+                            await status_msg.edit(content="❌ Could not extract lyrics from the page.")
+                    else:
+                        await status_msg.edit(content="❌ Failed to fetch the lyrics page.")
 
         except Exception as e:
             self.logger.error(f"Error fetching lyrics: {e}")
