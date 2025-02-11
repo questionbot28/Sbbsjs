@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 import logging
-import yt_dlp
 import asyncio
+import aiohttp
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from typing import Dict, Optional
@@ -45,7 +45,7 @@ class MusicCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
         self.youtube_together_id = "880218394199220334"  # YouTube Together App ID
-        
+
     def get_youtube_video_url(self, query: str) -> Optional[str]:
         """Searches YouTube and returns the first video link."""
         try:
@@ -271,7 +271,7 @@ class MusicCommands(commands.Cog):
             permissions = ctx.guild.me.guild_permissions
             required_perms = ['create_instant_invite', 'connect', 'speak']
             missing_perms = [perm for perm in required_perms if not getattr(permissions, perm)]
-            
+
             if missing_perms:
                 await ctx.send(f"❌ Missing required permissions: {', '.join(missing_perms)}")
                 return
@@ -292,9 +292,9 @@ class MusicCommands(commands.Cog):
                     "temporary": False,
                     "validate": None,
                 }
-                
+
                 self.logger.info(f"Sending request to create Watch Party with data: {json_data}")
-                
+
                 async with session.post(
                     f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
                     json=json_data,
