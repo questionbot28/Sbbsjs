@@ -7,6 +7,38 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from typing import Dict, Optional
 import os
+from discord.ui import View, Select
+
+class SongSelectionView(View):
+    def __init__(self, bot, ctx, songs):
+        super().__init__(timeout=30)  # Timeout after 30 seconds
+        self.ctx = ctx
+        self.songs = songs
+        self.bot = bot
+
+        select = Select(placeholder="Choose a song...", min_values=1, max_values=1)
+
+        for i, song in enumerate(songs):
+            select.add_option(label=song["title"], value=str(i))
+
+        select.callback = self.song_selected  # Handle selection
+        self.add_item(select)
+
+    async def song_selected(self, interaction: discord.Interaction):
+        selected_index = int(interaction.data["values"][0])  # Get selected song index
+        song = self.songs[selected_index]
+
+        # Connect to voice channel
+        vc = self.ctx.voice_client
+        if not vc or not vc.is_connected():
+            vc = await self.ctx.author.voice.channel.connect()
+
+        # Play the selected song
+        FFMPEG_OPTIONS = {"options": "-vn"}
+        vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
+
+        await interaction.response.edit_message(content=f"🎶 Now playing: {song['title']}", view=None)
+
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
@@ -47,6 +79,7 @@ class MusicCommands(commands.Cog):
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
             'options': '-vn'
         }
+        self.SongSelectionView = SongSelectionView
 
     def get_spotify_track(self, spotify_url: str) -> Optional[str]:
         """Extract track information from Spotify URL"""
@@ -60,6 +93,20 @@ class MusicCommands(commands.Cog):
             return f"{song_name} by {artist_name}"
         except Exception as e:
             self.logger.error(f"Error getting Spotify track: {e}")
+            return None
+
+    def get_youtube_results(self, query: str) -> Optional[list]:
+        try:
+            ydl_opts = {"format": "bestaudio"}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch10:{query}", download=False)  # Get top 10 results
+                results = [
+                    {"title": entry["title"], "url": entry["url"]}
+                    for entry in info["entries"][:5]  # Show only top 5 results in dropdown
+                ]
+                return results
+        except Exception as e:
+            print(f"❌ Error searching YouTube: {e}")
             return None
 
     def get_youtube_audio(self, query: str) -> Optional[str]:
@@ -152,29 +199,16 @@ class MusicCommands(commands.Cog):
 
                 # Run yt-dlp in executor to avoid async issues
                 loop = asyncio.get_event_loop()
-                youtube_url = await loop.run_in_executor(None, self.get_youtube_audio, query)
+                songs = await loop.run_in_executor(None, self.get_youtube_results, query)
 
-                if not youtube_url:
+                if not songs:
                     await ctx.send(f"❌ No songs found matching '{query}'!")
                     return
 
-                # Create audio source and play
-                source = await discord.FFmpegOpusAudio.from_probe(
-                    youtube_url,
-                    **self.ffmpeg_options
-                )
-
-                def after_playing(error):
-                    if error:
-                        self.logger.error(f"Player error: {error}")
-                        asyncio.run_coroutine_threadsafe(
-                            ctx.send("❌ An error occurred while playing the audio."),
-                            self.bot.loop
-                        )
-
-                ctx.voice_client.play(source, after=after_playing)
-                await ctx.send(f"🎵 Now playing: **{query}**")
-                self.logger.info(f"Started playing: {query}")
+                # Show song selection dropdown
+                view = self.SongSelectionView(self.bot, ctx, songs)
+                await ctx.send("🎵 Select a song to play:", view=view)
+                self.logger.info(f"Showing song selection for: {query}")
 
             except Exception as e:
                 self.logger.error(f"Error playing audio: {e}")
