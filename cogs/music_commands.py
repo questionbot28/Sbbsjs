@@ -25,7 +25,8 @@ class SongSelectionView(discord.ui.View):
         self.songs = songs
         self.bot = bot
         self.effect = effect
-        self.message = None  # Store message reference
+        self.message = None
+        self.logger = logging.getLogger('discord_bot')
 
         select = discord.ui.Select(placeholder="Choose a song...", min_values=1, max_values=1)
 
@@ -38,7 +39,7 @@ class SongSelectionView(discord.ui.View):
 
     async def song_selected(self, interaction: discord.Interaction):
         try:
-            await interaction.response.defer()  # Acknowledge interaction immediately
+            await interaction.response.defer()
             bot_cog = self.bot.get_cog('MusicCommands')
             if not bot_cog:
                 await interaction.followup.send("❌ Bot configuration error!", ephemeral=True)
@@ -47,19 +48,43 @@ class SongSelectionView(discord.ui.View):
             selected_index = int(interaction.data["values"][0])
             song = self.songs[selected_index]
 
-            # Add song to queue
-            queue_entry = {
+            # Extract additional song metadata
+            song_info = {
                 'title': song['title'],
                 'url': song['url'],
-                'requester': interaction.user
+                'artist': song.get('artist', 'Unknown Artist'),
+                'thumbnail': song.get('thumbnail', None),
+                'duration_ms': song.get('duration', 0),
+                'requester': interaction.user  # Changed from interaction.author to interaction.user
             }
-            bot_cog.queue.append(queue_entry)
 
-            # If nothing is playing, start playing
+            # Add song to queue
+            bot_cog.queue.append(song_info)
+
+            # If nothing is playing, start playing and update progress
             if not interaction.guild.voice_client or not interaction.guild.voice_client.is_playing():
+                start_time = time.time()
+                # Start progress tracking task
+                self.bot.loop.create_task(
+                    bot_cog.update_song_progress(
+                        self.ctx, 
+                        self.message,
+                        start_time,
+                        song_info['duration_ms'],
+                        song_info
+                    )
+                )
                 await bot_cog._play_next(interaction)
             else:
-                await interaction.followup.send(f"🎵 Added to queue: **{song['title']}**")
+                # Show queued message
+                embed = discord.Embed(
+                    title="🎵 Added to Queue",
+                    description=f"**{song['title']}**\nPosition in queue: {len(bot_cog.queue)}",
+                    color=discord.Color.green()
+                )
+                if song_info.get('thumbnail'):
+                    embed.set_thumbnail(url=song_info['thumbnail'])
+                await interaction.followup.send(embed=embed)
 
         except Exception as e:
             self.logger.error(f"Error in song selection: {e}")
@@ -160,14 +185,20 @@ class MusicCommands(commands.Cog):
             else:
                 song_query = " ".join(args[:-1])
 
-            # Create initial embed
+            # Create initial searching embed with animation
+            loading_frames = ["⬛⬜⬜⬜⬜", "⬛⬛⬜⬜⬜", "⬛⬛⬛⬜⬜", "⬛⬛⬛⬛⬜", "⬛⬛⬛⬛⬛"]
             embed = discord.Embed(
-                title="🎵 Searching for Song...",
-                description=f"🔍 Finding **{song_query}** on YouTube...",
+                title="🔍 Searching...",
+                description=f"Looking for: **{song_query}**\n\n`{loading_frames[0]}`",
                 color=discord.Color.blue()
             )
             status_msg = await ctx.send(embed=embed)
-            self.logger.info(f"Searching for song: {song_query}")
+
+            # Animate the search progress
+            for frame in loading_frames:
+                embed.description = f"Looking for: **{song_query}**\n\n`{frame}`"
+                await status_msg.edit(embed=embed)
+                await asyncio.sleep(0.5)
 
             try:
                 # Handle Spotify URLs
@@ -180,8 +211,27 @@ class MusicCommands(commands.Cog):
                         await status_msg.edit(embed=embed)
                         return
 
-                # Get YouTube results asynchronously
-                songs = await self.get_youtube_results(song_query)
+                # Get YouTube results with enhanced metadata
+                songs = []
+                with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+                    info = ydl.extract_info(f"ytsearch5:{song_query}", download=False)
+                    if not info or 'entries' not in info:
+                        embed.title = "❌ No Songs Found!"
+                        embed.description = f"Could not find any songs matching '{song_query}'"
+                        embed.color = discord.Color.red()
+                        await status_msg.edit(embed=embed)
+                        return
+
+                    for entry in info["entries"][:5]:
+                        song_info = {
+                            "title": entry["title"],
+                            "url": entry["url"],
+                            "artist": entry.get("artist", entry.get("uploader", "Unknown Artist")),
+                            "thumbnail": entry.get("thumbnail"),
+                            "duration": int(float(entry["duration"]) * 1000)  # Convert to milliseconds
+                        }
+                        songs.append(song_info)
+
                 if not songs:
                     embed.title = "❌ No Songs Found!"
                     embed.description = f"Could not find any songs matching '{song_query}'"
@@ -189,14 +239,23 @@ class MusicCommands(commands.Cog):
                     await status_msg.edit(embed=embed)
                     return
 
+                # Create an enhanced embed for song selection
+                notes = ["♫", "♪", "♬", "♩", "♭"]
+                random_note = random.choice(notes)
+                embed = discord.Embed(
+                    title=f"{random_note} Choose Your Song {random_note}",
+                    description=f"Select a song to play{' with ' + effect + ' effect' if effect else ''}:",
+                    color=discord.Color.green()
+                )
+
+                # Add thumbnail if available
+                if songs[0].get('thumbnail'):
+                    embed.set_thumbnail(url=songs[0]['thumbnail'])
+
                 # Show song selection dropdown with effect
                 view = SongSelectionView(self.bot, ctx, songs, effect)
-                effect_msg = f" with {effect} effect" if effect else ""
-                embed.title = "🎵 Select a Song"
-                embed.description = f"Choose a song to play{effect_msg}:"
-                embed.color = discord.Color.green()
+                view.message = status_msg  # Store message reference for progress updates
                 await status_msg.edit(embed=embed, view=view)
-                self.logger.info(f"Song options presented to user for query: {song_query}")
 
             except discord.errors.HTTPException as e:
                 if e.status == 429:  # Rate limit error
@@ -207,19 +266,55 @@ class MusicCommands(commands.Cog):
                     embed.description = "Please try again in a few moments."
                     embed.color = discord.Color.red()
                     await status_msg.edit(embed=embed)
-            except Exception as e:
-                self.logger.error(f"Error in play command: {e}")
-                embed.title = "❌ Error Occurred"
-                embed.description = f"An error occurred while searching: {str(e)}"
-                embed.color = discord.Color.red()
-                await status_msg.edit(embed=embed)
 
         except commands.CommandOnCooldown as e:
             await ctx.send(f"⏳ Please wait {e.retry_after:.1f}s before using this command again.")
-            return
         except Exception as e:
             self.logger.error(f"Error in play command: {e}")
             await ctx.send(f"❌ An error occurred: {str(e)}")
+
+    async def update_song_progress(self, ctx, message, start_time, duration_ms, song_info):
+        """Updates the song progress embed in real-time with enhanced visuals"""
+        try:
+            while True:
+                if not ctx.voice_client or not ctx.voice_client.is_playing():
+                    return
+
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                if elapsed_ms >= duration_ms:
+                    return
+
+                # Calculate progress bar (20 segments)
+                progress = int((elapsed_ms / duration_ms) * 20)
+                bar = f"{'▰' * progress}{'▱' * (20 - progress)}"
+
+                # Format times
+                elapsed = f"{int(elapsed_ms/60000):02d}:{int((elapsed_ms/1000)%60):02d}"
+                total = f"{int(duration_ms/60000):02d}:{int((duration_ms/1000)%60):02d}"
+
+                # Create embed with enhanced visuals
+                notes = ["♫", "♪", "♬", "♩", "♭"]
+                random_note = random.choice(notes)
+                embed = discord.Embed(
+                    title=f"{random_note} Now Playing: {song_info['title']}",
+                    description=f"Artist: **{song_info['artist']}**\n\n`{elapsed} {bar} {total}`",
+                    color=discord.Color.blue()
+                )
+
+                # Set thumbnail to album art
+                if song_info.get('thumbnail'):
+                    embed.set_thumbnail(url=song_info['thumbnail'])
+
+                # Add song metadata
+                embed.add_field(name="Duration", value=f"`{total}`", inline=True)
+                embed.add_field(name="Requested by", value=song_info['requester'].mention, inline=True)
+
+                # Update message with new embed
+                await message.edit(embed=embed)
+                await asyncio.sleep(1)  # Update every second
+
+        except Exception as e:
+            self.logger.error(f"Error updating song progress: {e}")
 
     @commands.command(name='join')
     async def join(self, ctx):
@@ -328,13 +423,13 @@ class MusicCommands(commands.Cog):
             await ctx.send("❌ An error occurred while stopping the music.")
 
     @commands.command(name='vplay')
-    async def vplay(self, ctx, *, query: str = None):
+    async def vplay(self, ctx, *, query: str = ""):  # Changed from None to empty string
         try:
             if not ctx.author.voice:
                 await ctx.send("❌ You must be in a voice channel!")
                 return
 
-            if not query:
+            if not query:  # Changed condition to check empty string
                 await ctx.send("❌ Please provide a song name!")
                 return
 
@@ -347,72 +442,80 @@ class MusicCommands(commands.Cog):
                 await ctx.send(f"❌ Missing required permissions: {', '.join(missing_perms)}")
                 return
 
-            # Send searching message
+            # Initialize status_msg at the start
             status_msg = await ctx.send("🔍 Searching for your song...")
 
-            video_url = self.get_youtube_video_url(query)
-            if not video_url:
-                await status_msg.edit(content=f"❌ No videos found for '{query}'!")
-                return
+            try:
+                video_url = self.get_youtube_video_url(query)
+                if not video_url:
+                    await status_msg.edit(content=f"❌ No videos found for '{query}'!")
+                    return
 
-            voice_channel_id = ctx.author.voice.channel.id
+                voice_channel_id = ctx.author.voice.channel.id
 
-            async with aiohttp.ClientSession() as session:
-                json_data = {
-                    "max_age": 86400,
-                    "max_uses": 0,
-                    "target_application_id": self.youtube_together_id,
-                    "target_type": 2,
-                    "temporary": False,
-                    "validate": None,
-                }
+                async with aiohttp.ClientSession() as session:
+                    json_data = {
+                        "max_age": 86400,
+                        "max_uses": 0,
+                        "target_application_id": self.youtube_together_id,
+                        "target_type": 2,
+                        "temporary": False,
+                        "validate": None,
+                    }
 
-                self.logger.info(f"Creating Watch Party for: {query}")
-                await status_msg.edit(content="⚡ Creating Watch Party...")
+                    self.logger.info(f"Creating Watch Party for: {query}")
+                    await status_msg.edit(content="⚡ Creating Watch Party...")
 
-                async with session.post(
-                    f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
-                    json=json_data,
-                    headers={"Authorization": f"Bot {self.bot.http.token}", "Content-Type": "application/json"}
-                ) as resp:
-                    data = await resp.json()
-                    self.logger.info(f"Watch Party created: {data}")
+                    async with session.post(
+                        f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
+                        json=json_data,
+                        headers={"Authorization": f"Bot {self.bot.http.token}", "Content-Type": "application/json"}
+                    ) as resp:
+                        data = await resp.json()
+                        self.logger.info(f"Watch Party created: {data}")
 
-                    if resp.status != 200:
-                        await status_msg.edit(content=f"❌ API Error: Status {resp.status}, Response: {data}")
-                        return
+                        if resp.status != 200:
+                            await status_msg.edit(content=f"❌ API Error: Status {resp.status}, Response: {data}")
+                            return
 
-                    if "code" not in data:
-                        error_msg = data.get('message', 'Unknown error')
-                        await status_msg.edit(content=f"❌ Failed to create Watch Party: {error_msg}")
-                        return
+                        if "code" not in data:
+                            error_msg = data.get('message', 'Unknown error')
+                            await status_msg.edit(content=f"❌ Failed to create Watch Party: {error_msg}")
+                            return
 
-                    invite_link = f"https://discord.com/invite/{data['code']}?video={video_url.split('v=')[-1]}"
+                        invite_link = f"https://discord.com/invite/{data['code']}?video={video_url.split('v=')[-1]}"
 
-                    embed = discord.Embed(
-                        title="📽️ YouTube Watch Party Started!",
-                        description=f"**Playing:** {query}",
-                        color=0x00ff00
-                    )
-                    embed.add_field(
-                        name="🎬 Join Watch Party",
-                        value=f"[Click to Join]({invite_link})",
-                        inline=False
-                    )
-                    embed.add_field(
-                        name="🔊 Important: Enable Sound",
-                        value="1. Join the Watch Party\n2. Click on the video\n3. Click the speaker icon (bottom-left) to unmute",
-                        inline=False
-                    )
-                    embed.add_field(
-                        name="▶️ Auto-Play Video",
-                        value=f"[Click to Auto-Play](https://www.youtube.com/watch?v={video_url.split('v=')[-1]}&autoplay=1)",
-                        inline=False
-                    )
-                    embed.set_footer(text="💡 Remember to unmute the video for sound!")
+                        embed = discord.Embed(
+                            title="📽️ YouTube Watch Party Started!",
+                            description=f"**Playing:** {query}",
+                            color=0x00ff00
+                        )
+                        embed.add_field(
+                            name="🎬 Join Watch Party",
+                            value=f"[Click to Join]({invite_link})",
+                            inline=False
+                        )
+                        embed.add_field(
+                            name="🔊 Important: Enable Sound",
+                            value="1. Join the Watch Party\n2. Click on the video\n3. Click the speaker icon (bottom-left) to unmute",
+                            inline=False
+                        )
+                        embed.add_field(
+                            name="▶️ Auto-Play Video",
+                            value=f"[Click to Auto-Play](https://www.youtube.com/watch?v={video_url.split('v=')[-1]}&autoplay=1)",
+                            inline=False
+                        )
+                        embed.set_footer(text="💡 Remember to unmute the video for sound!")
 
-                    await status_msg.edit(content=None, embed=embed)
-                    self.logger.info(f"Watch Party ready for: {query}")
+                        await status_msg.edit(content=None, embed=embed)
+                        self.logger.info(f"Watch Party ready for: {query}")
+
+            except Exception as e:
+                self.logger.error(f"Error in watch party creation: {e}")
+                if status_msg:
+                    await status_msg.edit(content=f"❌ Error creating Watch Party: `{str(e)}`")
+                else:
+                    await ctx.send(f"❌ Error creating Watch Party: `{str(e)}`")
 
         except Exception as e:
             self.logger.error(f"Error in vplay command: {e}")
@@ -650,7 +753,7 @@ class MusicCommands(commands.Cog):
     async def lyrics(self, ctx, *, song_name: str):
         """Fetch lyrics for a song from Lyrics.ovh"""
         try:
-            # Send searching message with embed
+            # Initialize status_msg at the start
             embed = discord.Embed(
                 title="🔍 Searching for Lyrics",
                 description=f"Searching for: **{song_name}**",
@@ -658,224 +761,74 @@ class MusicCommands(commands.Cog):
             )
             status_msg = await ctx.send(embed=embed)
 
-            # Format URL for Lyrics.ovh API
-            formatted_song = song_name.replace(' ', '%20')
-            url = f"https://lyricsovh.xyz/v1/{formatted_song}"
+            try:
+                # Format URL for Lyrics.ovh API
+                formatted_song = song_name.replace(' ', '%20')
+                url = f"https://lyricsovh.xyz/v1/{formatted_song}"
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        embed.title = "❌ Not Found"
-                        embed.description = "Could not find lyrics for this song."
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
-
-                    data = await response.json()
-                    if 'lyrics' not in data:
-                        embed.title = "❌ No Lyrics"
-                        embed.description = "No lyrics found for this song."
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
-
-                    lyrics = data['lyrics']
-                    # Split lyrics into chunks (Discord has 4000 char limit)
-                    chunks = []
-                    chunk_size = 4000
-                    current_chunk = ""
-                    
-                    for line in lyrics.split('\n'):
-                        if len(current_chunk) + len(line) + 1 > chunk_size:
-                            chunks.append(current_chunk.strip())
-                            current_chunk = line
-                        else:
-                            current_chunk += '\n' + line if current_chunk else line
-                    
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-
-                    # Send lyrics in chunks
-                    first_embed = discord.Embed(
-                        title=f"🎵 {song_name}",
-                        description=chunks[0],
-                        color=discord.Color.blue()
-                    )
-                    first_embed.set_footer(text=f"Powered by Lyrics.ovh | Page 1 of {len(chunks)}")
-                    await status_msg.edit(embed=first_embed)
-
-                    # Send remaining chunks
-                    for i, chunk in enumerate(chunks[1:], 2):
-                        embed = discord.Embed(
-                            title=f"🎵 {song_name} (Continued)",
-                            description=chunk,
-                            color=discord.Color.blue()
-                        )
-                        embed.set_footer(text=f"Page {i} of {len(chunks)}")
-                        await ctx.send(embed=embed)
-
-        except Exception as e:
-            self.logger.error(f"Error fetching lyrics: {e}")
-            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
-
-        try:
-            # Send searching message with embed
-            embed = discord.Embed(
-                title="🔍 Searching for Lyrics",
-                description=f"Searching for: **{song_name}**",
-                color=discord.Color.blue()
-            )
-            status_msg = await ctx.send(embed=embed)
-
-            # Search for the song using Genius API directly
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    "Authorization": f"Bearer {self.genius_token}",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "application/json"
-                }
-                search_url = f"https://api.genius.com/search?q={song_name}"
-
-                self.logger.info(f"Searching Genius for: {song_name}")
-                async with session.get(search_url, headers=headers) as response:
-                    if response.status != 200:
-                        error_msg = await response.text()
-                        self.logger.error(f"Genius API error: {error_msg}")
-                        embed.title = "❌ API Error"
-                        embed.description = f"Failed to search for lyrics (Status: {response.status})"
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
-
-                    data = await response.json()
-
-                    if not data['response']['hits']:
-                        embed.title = "❌ No Results"
-                        embed.description = f"No lyrics found for: **{song_name}**"
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
-
-                    # Get the first result
-                    first_hit = data['response']['hits'][0]
-                    song_title = first_hit['result']['title']
-                    artist_name = first_hit['result']['primary_artist']['name']
-                    song_url = first_hit['result']['url']
-
-                    # Log the found song details and URL
-                    self.logger.info(f"Found song: {song_title} by {artist_name}")
-                    self.logger.info(f"Original URL: {song_url}")
-
-                    # Update status message
-                    embed.title = "📥 Found Song!"
-                    embed.description = f"Fetching lyrics for **{song_title}** by **{artist_name}**"
-                    embed.color = discord.Color.gold()
-                    await status_msg.edit(embed=embed)
-
-                    # First, get the final URL after redirects
-                    async with session.get(song_url, headers=headers, allow_redirects=True) as redirect_check:
-                        final_url = str(redirect_check.url)
-                        self.logger.info(f"Final URL after redirects: {final_url}")
-                        
-                        if redirect_check.status != 200:
-                            self.logger.error(f"Failed to access page: Status {redirect_check.status}")
-                            embed.title = "❌ Access Error"
-                            embed.description = "Failed to access the lyrics page. The song might be restricted."
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        if response.status != 200:                            embed.title = "❌ Not Found"
+                            embed.description = "Could not find lyrics for this song."
                             embed.color = discord.Color.red()
                             await status_msg.edit(embed=embed)
                             return
 
-                        # Download and extract lyrics using trafilatura with improved settings
-                        downloaded = await asyncio.get_event_loop().run_in_executor(
-                            None,
-                            lambda: trafilatura.fetch_url(
-                                final_url,
-                                config={
-                                    'USER_AGENT': headers['User-Agent'],
-                                    'TIMEOUT': 30,
-                                    'MAX_REDIRECTS': 5
-                                }
-                            )
-                        )
-
-                        if not downloaded:
-                            self.logger.error(f"Failed to fetch lyrics page: {final_url}")
-                            # Try alternative download method
-                            page_content = await redirect_check.text()
-                            downloaded = page_content
-
-                        # Extract lyrics with fallback options
-                        lyrics = await asyncio.get_event_loop().run_in_executor(
-                            None,
-                            lambda: trafilatura.extract(
-                                downloaded,
-                                include_comments=False,
-                                include_tables=False,
-                                no_fallback=False,
-                                target_language='en'
-                            )
-                        )
-
-                        if not lyrics:
-                            self.logger.error(f"Failed to extract lyrics from page content")
-                            embed.title = "❌ Extraction Error"
-                            embed.description = "Could not extract lyrics from the page."
+                        data = await response.json()
+                        if 'lyrics' not in data:
+                            embed.title = "❌ No Lyrics"
+                            embed.description = "No lyrics found for this song."
                             embed.color = discord.Color.red()
                             await status_msg.edit(embed=embed)
                             return
 
-                        # Clean up lyrics with improved regex
-                        lyrics = re.sub(r'\[.*?\]|\(.*?\)', '', lyrics)  # Remove [...] and (...) annotations
-                        lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Normalize line breaks
-                        lyrics = re.sub(r'\s+', ' ', lyrics)  # Normalize whitespace
-                        lyrics = lyrics.strip()
-
-                        # Split lyrics into chunks with smarter splitting
-                        chunk_size = 4000
+                        lyrics = data['lyrics']
+                        # Split lyrics into chunks (Discord has 4000 char limit)
                         chunks = []
+                        chunk_size = 4000
                         current_chunk = ""
-                        
+
                         for line in lyrics.split('\n'):
                             if len(current_chunk) + len(line) + 1 > chunk_size:
                                 chunks.append(current_chunk.strip())
                                 current_chunk = line
                             else:
                                 current_chunk += '\n' + line if current_chunk else line
-                        
+
                         if current_chunk:
                             chunks.append(current_chunk.strip())
 
-                        # Create rich embed for first chunk
+                        # Send lyrics in chunks
                         first_embed = discord.Embed(
-                            title=f"🎵 {song_title}",
-                            description=chunks[0],
-                            color=discord.Color.blue(),
-                            url=final_url
+                            title=f"🎵 {song_name}",
+                            description=chunks[0],                            color=discord.Color.blue()
                         )
-                        first_embed.add_field(name="👤 Artist", value=artist_name, inline=True)
-                        first_embed.add_field(name="📄 Pages", value=f"{len(chunks)}", inline=True)
-                        first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
+                        first_embed.set_footer(text=f"Powered by Lyrics.ovh | Page 1 of {len(chunks)}")
                         await status_msg.edit(embed=first_embed)
 
-                        # Send remaining chunks with consistent formatting
-                        for i, chunk in enumerate(chunks[1:], 2):
+                        # Send remaining chunks
+                        for i, chunk in enumerate(chunks[1:],2):
                             embed = discord.Embed(
-                                title=f"🎵 {song_title} (Continued)",
+                                title=f"🎵 {song_name} (Continued)",
                                 description=chunk,
-                                color=discord.Color.blue(),
-                                url=final_url
+                                color=discord.Color.blue()
                             )
                             embed.set_footer(text=f"Page {i} of {len(chunks)}")
                             await ctx.send(embed=embed)
 
-                        self.logger.info(f"Successfully fetched and displayed lyrics for: {song_title}")
+            except Exception as e:
+                self.logger.error(f"Error fetching lyrics: {e}")
+                if status_msg:
+                    embed.title = "❌ Error"
+                    embed.description = f"An error occurred while fetching lyrics: {str(e)}"
+                    embed.color = discord.Color.red()
+                    await status_msg.edit(embed=embed)
+                else:
+                    await ctx.send(f"❌ Error fetching lyrics: {str(e)}")
 
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Network error fetching lyrics: {e}")
-            await status_msg.edit(content="❌ Network error while fetching lyrics. Please try again later.")
         except Exception as e:
-            self.logger.error(f"Error fetching lyrics: {e}")
-            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
+            self.logger.error(f"Error in lyrics command: {e}")
+            await ctx.send(f"❌ An error occurred: {str(e)}")
 
     @commands.command(name='queue')
     async def view_queue(self, ctx):
