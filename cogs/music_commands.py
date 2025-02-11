@@ -62,7 +62,7 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error getting Spotify track: {e}")
             return None
 
-    async def get_youtube_audio(self, query: str) -> Optional[str]:
+    def get_youtube_audio(self, query: str) -> Optional[str]:
         """Search YouTube for audio URL"""
         try:
             ydl_opts = {
@@ -75,15 +75,11 @@ class MusicCommands(commands.Cog):
                 'source_address': '0.0.0.0'
             }
 
-            loop = asyncio.get_event_loop()
-            async with self.bot.loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts)) as ydl:
-                info = await loop.run_in_executor(
-                    None, 
-                    lambda: ydl.extract_info(f"ytsearch:{query}", download=False)
-                )
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch:{query}", download=False)
                 if "entries" in info and len(info["entries"]) > 0:
-                    return info["entries"][0]["url"]
-            return None
+                    return info["entries"][0]["url"]  # Return first search result
+                return None  # No results found
         except Exception as e:
             self.logger.error(f"Error searching YouTube: {e}")
             return None
@@ -154,8 +150,10 @@ class MusicCommands(commands.Cog):
                         await ctx.send("❌ Invalid Spotify URL or song not found.")
                         return
 
-                # Search for song on YouTube (now properly async)
-                youtube_url = await self.get_youtube_audio(query)
+                # Run yt-dlp in executor to avoid async issues
+                loop = asyncio.get_event_loop()
+                youtube_url = await loop.run_in_executor(None, self.get_youtube_audio, query)
+
                 if not youtube_url:
                     await ctx.send(f"❌ No songs found matching '{query}'!")
                     return
