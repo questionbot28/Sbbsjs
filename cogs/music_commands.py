@@ -46,12 +46,22 @@ class MusicCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
         self.youtube_together_id = "880218394199220334"  # YouTube Together App ID
+        
+        # Configure yt-dlp options
+        self.ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'quiet': True,
+            'no_warnings': True,
+            'source_address': '0.0.0.0'
+        }
 
     def get_youtube_video_url(self, query: str) -> Optional[str]:
         """Searches YouTube and returns the first video link."""
         try:
-            ydl_opts = {"format": "best"}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch:{query}", download=False)
                 if "entries" in info and len(info["entries"]) > 0:
                     return info["entries"][0]["webpage_url"]
