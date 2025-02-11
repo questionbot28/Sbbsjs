@@ -36,7 +36,6 @@ class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
-        self.voice_states = {}
         self.ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
