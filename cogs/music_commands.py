@@ -267,6 +267,15 @@ class MusicCommands(commands.Cog):
                 await ctx.send("❌ Please provide a song name!")
                 return
 
+            # Log permission check
+            permissions = ctx.guild.me.guild_permissions
+            required_perms = ['create_instant_invite', 'connect', 'speak']
+            missing_perms = [perm for perm in required_perms if not getattr(permissions, perm)]
+            
+            if missing_perms:
+                await ctx.send(f"❌ Missing required permissions: {', '.join(missing_perms)}")
+                return
+
             video_url = self.get_youtube_video_url(query)
             if not video_url:
                 await ctx.send(f"❌ No videos found for '{query}'!")
@@ -275,22 +284,32 @@ class MusicCommands(commands.Cog):
             voice_channel_id = ctx.author.voice.channel.id
 
             async with aiohttp.ClientSession() as session:
+                json_data = {
+                    "max_age": 86400,
+                    "max_uses": 0,
+                    "target_application_id": self.youtube_together_id,
+                    "target_type": 2,
+                    "temporary": False,
+                    "validate": None,
+                }
+                
+                self.logger.info(f"Sending request to create Watch Party with data: {json_data}")
+                
                 async with session.post(
                     f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
-                    json={
-                        "max_age": 86400,
-                        "max_uses": 0,
-                        "target_application_id": self.youtube_together_id,
-                        "target_type": 2,
-                        "temporary": False,
-                        "validate": None,
-                    },
+                    json=json_data,
                     headers={"Authorization": f"Bot {self.bot.http.token}", "Content-Type": "application/json"}
                 ) as resp:
                     data = await resp.json()
+                    self.logger.info(f"Watch Party API Response: {data}")
+
+                    if resp.status != 200:
+                        await ctx.send(f"❌ API Error: Status {resp.status}, Response: {data}")
+                        return
 
                     if "code" not in data:
-                        await ctx.send("❌ Failed to create a YouTube Watch Party!")
+                        error_msg = data.get('message', 'Unknown error')
+                        await ctx.send(f"❌ Failed to create Watch Party: {error_msg}")
                         return
 
                     invite_link = f"https://discord.com/invite/{data['code']}"
@@ -301,7 +320,7 @@ class MusicCommands(commands.Cog):
 
         except Exception as e:
             self.logger.error(f"Error in vplay command: {e}")
-            await ctx.send(f"❌ An error occurred while creating the Watch Party.")
+            await ctx.send(f"❌ Error creating Watch Party: `{str(e)}`")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
