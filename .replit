@@ -4,6 +4,7 @@ modules = ["python-3.11", "nodejs-20", "python3"]
 channel = "stable-24_05"
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -22,8 +23,12 @@ author = "agent"
 agentRequireRestartOnSave = false
 
 [[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
+waitForPort = 8080
 
 [deployment]
 run = ["sh", "-c", "python main.py"]

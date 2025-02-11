@@ -46,15 +46,20 @@ class SongSelectionView(discord.ui.View):
                 "reverb": "aecho=0.8:0.9:1000:0.3",
                 "8d": "apulsator=hz=0.09"
             }
-            
+
             filter_options = f"-af {filters[self.effect]}" if self.effect in filters else ""
-            
+
             FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-                "options": f"{filter_options} -vn -b:a 192k -bufsize 512k"
+                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
+                "options": f"{filter_options} -vn -b:a 320k -bufsize 2M"
             }
-            
-            vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
+
+            try:
+                vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS), 
+                       after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
+            except Exception as e:
+                await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
+                return
 
             effect_msg = f" with {self.effect} effect" if self.effect else ""
             await interaction.followup.send(f"🎶 Now playing: {song['title']}{effect_msg}")
