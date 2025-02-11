@@ -19,7 +19,7 @@ class SongSelectionView(View):
         self.bot = bot
 
         select = Select(placeholder="Choose a song...", min_values=1, max_values=1)
-        
+
         for i, song in enumerate(songs[:5]):
             title = song["title"][:100]
             select.add_option(label=title, value=str(i))
@@ -38,7 +38,7 @@ class SongSelectionView(View):
 
             FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
             vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
-            
+
             await interaction.response.edit_message(content=f"🎶 Now playing: {song['title']}", view=None)
         except Exception as e:
             await interaction.response.send_message(f"❌ Error playing song: {str(e)}", ephemeral=True)
@@ -355,7 +355,7 @@ class MusicCommands(commands.Cog):
                         return
 
                     invite_link = f"https://discord.com/invite/{data['code']}?video={video_url.split('v=')[-1]}"
-                    
+
                     embed = discord.Embed(
                         title="📽️ YouTube Watch Party Started!",
                         description=f"**Playing:** {query}",
