@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 import logging
-from typing import Optional, Union
 import asyncio
+from typing import Optional, Union
 
 class StaffCommands(commands.Cog):
     def __init__(self, bot):
@@ -62,7 +62,6 @@ class StaffCommands(commands.Cog):
     @commands.command(name='staffhelp')
     async def staff_help(self, ctx):
         """Show enhanced staff-only help menu"""
-        # Check if command is used in staff command channel
         if ctx.channel.id != self.staff_cmd_channel_id:
             await ctx.send("❌ This command can only be used in the staff commands channel!")
             return
@@ -73,10 +72,7 @@ class StaffCommands(commands.Cog):
 
         help_embed = discord.Embed(
             title="🎓 EduSphere Staff Panel",
-            description=(
-                "✨ Welcome to the Administrative Control Panel ✨\n"
-                "Your gateway to managing EduSphere with excellence!\n"
-            ),
+            description="✨ Welcome to the Administrative Control Panel ✨\nYour gateway to managing EduSphere with excellence!",
             color=discord.Color.blue()
         )
 
@@ -105,18 +101,6 @@ class StaffCommands(commands.Cog):
         help_embed.add_field(
             name="💬 Channel Management",
             value=channel_commands,
-            inline=False
-        )
-
-        # System Management Section
-        system_commands = (
-            "**⚙️ System Management**\n\n"
-            "• **!refresh** - Reload all bot extensions\n"
-            "• **!ping** - Check bot's connection status\n"
-        )
-        help_embed.add_field(
-            name="🔧 System Controls",
-            value=system_commands,
             inline=False
         )
 
@@ -182,11 +166,6 @@ class StaffCommands(commands.Cog):
                 icon_url=ctx.author.avatar.url if ctx.author.avatar else None
             )
 
-            current_time = ctx.message.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            announcement_embed.set_footer(
-                text=f"Announced by {ctx.author.name} • {current_time}"
-            )
-
             # Send announcement
             sent_message = None
             if ping:
@@ -237,37 +216,6 @@ class StaffCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error clearing messages: {e}")
             await ctx.send("❌ An error occurred while clearing messages.")
-
-    @commands.command(name='ping')
-    @commands.has_permissions(administrator=True)
-    async def ping(self, ctx):
-        """Check bot's latency"""
-        latency = round(self.bot.latency * 1000)
-
-        if latency < 100:
-            color = discord.Color.green()
-            status = "🟢 Excellent"
-        elif latency < 200:
-            color = discord.Color.gold()
-            status = "🟡 Good"
-        else:
-            color = discord.Color.red()
-            status = "🔴 Poor"
-
-        embed = discord.Embed(
-            title="🏓 Pong!",
-            description=f"Bot Latency: {latency}ms",
-            color=color
-        )
-        embed.add_field(name="Connection Status", value=status)
-        await ctx.send(embed=embed)
-
-        # Log the ping check
-        await self.log_staff_action(
-            ctx.author,
-            "Checked bot latency",
-            f"Latency: {latency}ms | Status: {status}"
-        )
 
 async def setup(bot):
     await bot.add_cog(StaffCommands(bot))

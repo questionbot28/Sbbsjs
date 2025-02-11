@@ -366,6 +366,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/23/10/3c44e9331a5ec3bae8b2919d51f611a5b94e179563b1b89eb6423a8f43eb/discord.py-2.4.0-py3-none-any.whl", hash = "sha256:b8af6711c70f7e62160bfbecb55be699b5cb69d007426759ab8ab06b1bd77d1d", size = 1125988 },
 ]
 
+[package.optional-dependencies]
+voice = [
+    { name = "pynacl" },
+]
+
 [[package]]
 name = "distro"
 version = "1.9.0"
@@ -1297,7 +1302,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },
-    { name = "discord-py" },
+    { name = "discord-py", extra = ["voice"] },
     { name = "flask" },
     { name = "google-generativeai" },
     { name = "lyricsgenius" },
@@ -1318,7 +1323,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.11.12" },
     { name = "anthropic", specifier = ">=0.45.2" },
-    { name = "discord-py", specifier = ">=2.4.0" },
+    { name = "discord-py", extras = ["voice"], specifier = ">=2.4.0" },
     { name = "flask", specifier = ">=3.1.0" },
     { name = "google-generativeai", specifier = ">=0.8.4" },
     { name = "lyricsgenius", specifier = ">=3.2.0" },
