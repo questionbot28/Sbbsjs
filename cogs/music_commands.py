@@ -44,6 +44,20 @@ class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
+        self.youtube_together_id = "880218394199220334"  # YouTube Together App ID
+        
+    def get_youtube_video_url(self, query: str) -> Optional[str]:
+        """Searches YouTube and returns the first video link."""
+        try:
+            ydl_opts = {"format": "best"}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch:{query}", download=False)
+                if "entries" in info and len(info["entries"]) > 0:
+                    return info["entries"][0]["webpage_url"]
+                return None
+        except Exception as e:
+            self.logger.error(f"Error searching YouTube video: {e}")
+            return None
 
         # Configure Spotify client if credentials are available
         spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID')
@@ -240,6 +254,54 @@ class MusicCommands(commands.Cog):
             await ctx.send("⏹️ Music stopped.")
         else:
             await ctx.send("❌ No music is playing.")
+
+    @commands.command(name='vplay')
+    async def vplay(self, ctx, *, query: str = None):
+        """Start a YouTube Watch Party with the specified song"""
+        try:
+            if not ctx.author.voice:
+                await ctx.send("❌ You must be in a voice channel!")
+                return
+
+            if not query:
+                await ctx.send("❌ Please provide a song name!")
+                return
+
+            video_url = self.get_youtube_video_url(query)
+            if not video_url:
+                await ctx.send(f"❌ No videos found for '{query}'!")
+                return
+
+            voice_channel_id = ctx.author.voice.channel.id
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"https://discord.com/api/v9/channels/{voice_channel_id}/invites",
+                    json={
+                        "max_age": 86400,
+                        "max_uses": 0,
+                        "target_application_id": self.youtube_together_id,
+                        "target_type": 2,
+                        "temporary": False,
+                        "validate": None,
+                    },
+                    headers={"Authorization": f"Bot {self.bot.http.token}", "Content-Type": "application/json"}
+                ) as resp:
+                    data = await resp.json()
+
+                    if "code" not in data:
+                        await ctx.send("❌ Failed to create a YouTube Watch Party!")
+                        return
+
+                    invite_link = f"https://discord.com/invite/{data['code']}"
+                    await ctx.send(f"📽️ **Click below to watch '{query}' together!**\n"
+                                 f"🎬 **YouTube Party:** {invite_link}\n"
+                                 f"▶️ **Song Video:** {video_url}")
+                    self.logger.info(f"Created YouTube Watch Party for: {query}")
+
+        except Exception as e:
+            self.logger.error(f"Error in vplay command: {e}")
+            await ctx.send(f"❌ An error occurred while creating the Watch Party.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
