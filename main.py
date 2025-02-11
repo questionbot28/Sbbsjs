@@ -180,7 +180,6 @@ async def load_extensions():
             'cogs.admin_commands',  # Admin commands
             'cogs.ticket_manager',  # Ticket system
             'cogs.music_commands',  # Music commands with improved audio quality
-            'cogs.staff_commands',  # Staff management commands
             'cogs.subject_curriculum_new'  # Subject curriculum management
         ]
 
