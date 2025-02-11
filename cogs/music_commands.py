@@ -38,6 +38,22 @@ class MusicCommands(commands.Cog):
 
     def _initialize_clients(self):
         """Initialize Genius and Spotify clients with proper error handling"""
+        # Initialize YouTube-DL options
+        self.ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'quiet': True,
+            'no_warnings': True,
+            'source_address': '0.0.0.0',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'opus',
+                'preferredquality': '192'
+            }]
+        }
+
         # Initialize Genius API client
         self.genius_token = os.getenv('GENIUS_API_KEY')
         if not self.genius_token:
@@ -80,14 +96,14 @@ class MusicCommands(commands.Cog):
     @commands.command(name='play')
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def play(self, ctx, *, query: str):
-        """Play a song in your voice channel"""
+        """Play a song in your voice channel with smooth progress updates"""
         self.logger.info(f"Play command invoked by {ctx.author} with query: {query}")
 
         try:
             if not await self._ensure_voice_client(ctx):
                 return
 
-            # Create initial searching embed with 0% progress
+            # Create initial searching embed
             embed = discord.Embed(
                 title="🔍 Searching...",
                 description=f"Looking for: **{query}**\nProgress: 0%",
@@ -95,14 +111,13 @@ class MusicCommands(commands.Cog):
             )
             status_msg = await ctx.send(embed=embed)
 
-            try:
-                # Simulate search progress
-                for i in range(1, 5):  # 4 progress updates
-                    progress = i * 25  # 25%, 50%, 75%
-                    embed.description = f"Looking for: **{query}**\nProgress: {progress}%"
-                    await status_msg.edit(embed=embed)
-                    await asyncio.sleep(0.5)  # Small delay between updates
+            # Simulate gradual search progress
+            for progress in range(0, 101, 5):
+                embed.description = f"Looking for: **{query}**\nProgress: {progress}%"
+                await status_msg.edit(embed=embed)
+                await asyncio.sleep(0.2)  # Short delay between updates
 
+            try:
                 # Get YouTube results with enhanced metadata
                 songs = []
                 with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
@@ -120,7 +135,8 @@ class MusicCommands(commands.Cog):
                             "url": entry["url"],
                             "artist": entry.get("artist", entry.get("uploader", "Unknown Artist")),
                             "thumbnail": entry.get("thumbnail"),
-                            "duration": int(float(entry["duration"]) * 1000)  # Convert to milliseconds
+                            "duration_ms": int(float(entry["duration"]) * 1000),  # Convert to milliseconds
+                            "requester": ctx.author
                         }
                         songs.append(song_info)
 
@@ -131,26 +147,35 @@ class MusicCommands(commands.Cog):
                     await status_msg.edit(embed=embed)
                     return
 
-                # Show 100% progress before displaying results
-                embed.description = f"Looking for: **{query}**\nProgress: 100%"
-                await status_msg.edit(embed=embed)
-                await asyncio.sleep(0.5)
-
-                # Create song selection embed
+                # Show song selection embed
                 embed = discord.Embed(
                     title="🎵 Choose Your Song",
                     description="Select a song to play:",
                     color=discord.Color.green()
                 )
 
-                # Add thumbnail if available
+                # Add song options to embed
+                for i, song in enumerate(songs, 1):
+                    duration = f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}"
+                    embed.add_field(
+                        name=f"{i}. {song['title']}",
+                        value=f"By: {song['artist']}\nDuration: {duration}",
+                        inline=False
+                    )
+
                 if songs[0].get('thumbnail'):
                     embed.set_thumbnail(url=songs[0]['thumbnail'])
 
-                # Show song selection dropdown
-                view = SongSelectionView(self.bot, ctx, songs)
-                view.message = status_msg  # Store message reference for progress updates
-                await status_msg.edit(embed=embed, view=view)
+                # Add song to queue
+                self.queue.append(songs[0])
+                embed.set_footer(text="✅ Added to queue!")
+
+                # Update status message
+                await status_msg.edit(embed=embed)
+
+                # Start playing if not already playing
+                if not ctx.voice_client.is_playing():
+                    await self._play_next(ctx)
 
             except Exception as e:
                 self.logger.error(f"Error in play command: {e}")
@@ -757,110 +782,135 @@ class MusicCommands(commands.Cog):
                 title="🎵 Music Queue",
                 description="The queue is currently empty!",
                 color=discord.Color.blue()
-            )
+                        )
             await ctx.send(embed=embed)
             return
 
-        # Create queue embed
-        embed =discord.Embed(
-            title="🎶 Music Queue",
+        embed = discord.Embed(
+            title="🎵 Music Queue",
+            description=f"Currently {len(self.queue)} songs in queue",
             color=discord.Color.blue()
         )
 
-        # Add current song if playing
-        if ctx.voice_client and ctx.voice_client.is_playing():
-            embed.add_field(
-                name="🎵 Now Playing",
-                value=f"**{self.queue[0]['title']}**\nRequested by: {self.queue[0]['requester'].mention}",
-                inline=False
-            )
-
-        # Add upcoming songs (up to 10)
-        queue_start = 1 if ctx.voice_client and ctx.voice_client.is_playing() else 0
-        for i, song in enumerate(self.queue[queue_start:10], start=1):
+        for i, song in enumerate(self.queue, 1):
+            duration = f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}"
             embed.add_field(
                 name=f"{i}. {song['title']}",
-                value=f"Requested by: {song['requester'].mention}",
+                value=f"By: {song['artist']}\nDuration: {duration}\nRequested by: {song['requester'].mention}",
                 inline=False
             )
-
-        # Add total songs info
-        remaining = len(self.queue) - 10 if len(self.queue) > 10 else 0
-        if remaining > 0:
-            embed.set_footer(text=f"And {remaining} more songs in queue")
 
         await ctx.send(embed=embed)
 
-    async def _play_next(self, interaction: discord.Interaction):
-        """Plays the next song in the queue"""
+    async def _play_next(self, ctx):
+        """Play the next song in queue"""
         if not self.queue:
             return
 
         try:
             # Get next song from queue
-            song_info = self.queue.pop(0)
+            song = self.queue.pop(0)
 
-            # Create FFmpeg options with proper audio settings
+            if not ctx.guild.voice_client:
+                # Get the voice channel of the user who requested the song
+                member = ctx.author if hasattr(ctx, 'author') else ctx.user
+                if not member or not member.voice:
+                    await self._send_message(ctx, "❌ You must be in a voice channel!", ephemeral=True)
+                    return
+
+                try:
+                    await member.voice.channel.connect()
+                except Exception as e:
+                    self.logger.error(f"Error connecting to voice channel: {e}")
+                    await self._send_message(ctx, "❌ Failed to connect to voice channel!", ephemeral=True)
+                    return
+
+            # Create FFmpeg audio source with enhanced options
             FFMPEG_OPTIONS = {
-                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': '-vn -b:a 192k'
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M',
+                'options': '-vn -b:a 192k -af volume=1.0'
             }
 
-            # Create audio source
-            source = await discord.FFmpegOpusAudio.from_probe(
-                song_info['url'],
-                **FFMPEG_OPTIONS
-            )
+            try:
+                source = discord.PCMVolumeTransformer(
+                    discord.FFmpegPCMAudio(song['url'], **FFMPEG_OPTIONS),
+                    volume=self.current_volume
+                )
+            except Exception as e:
+                self.logger.error(f"Error creating audio source: {e}")
+                await self._send_message(ctx, "❌ Error creating audio source. Please try again.", ephemeral=True)
+                return
 
             # Store current song URL for seeking
-            self.current_song_url = song_info['url']
+            self.current_song_url = song['url']
 
-            # Create initial playing embed
+            # Create now playing embed
             embed = discord.Embed(
-                title=f"🎵 Now Playing: {song_info['title']}",
-                description=f"Artist: **{song_info['artist']}**",
+                title="🎵 Now Playing",
+                description=f"**{song['title']}**\nBy: {song['artist']}",
                 color=discord.Color.blue()
             )
 
-            if song_info.get('thumbnail'):
-                embed.set_thumbnail(url=song_info['thumbnail'])
+            if song.get('thumbnail'):
+                embed.set_thumbnail(url=song['thumbnail'])
 
-            # Send initial embed
-            progress_msg = await interaction.channel.send(embed=embed)
-
-            # Start playing
-            interaction.guild.voice_client.play(
-                source,
-                after=lambda e: asyncio.create_task(self._handle_song_end(e, interaction))
+            embed.add_field(
+                name="Duration",
+                value=f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}",
+                inline=True
+            )
+            embed.add_field(
+                name="Requested by",
+                value=song['requester'].mention,
+                inline=True
             )
 
-            # Start progress updates
-            start_time = time.time()
-            await self.update_song_progress(
-                interaction.guild.voice_client,
-                progress_msg,
-                start_time,
-                song_info['duration_ms'],
-                song_info
+            # Send the embed
+            message = await ctx.send(embed=embed)
+
+            # Define after playing callback
+            def after_playing(error):
+                if error:
+                    self.logger.error(f"Error in playback: {error}")
+                # Schedule next song if queue is not empty
+                if len(self.queue) > 0:
+                    asyncio.create_task(self._play_next(ctx))
+
+            # Start playback
+            ctx.guild.voice_client.play(source, after=after_playing)
+
+            # Start progress tracking
+            asyncio.create_task(
+                self.update_song_progress(
+                    ctx.guild.voice_client,
+                    message,
+                    time.time(),
+                    song['duration_ms'],
+                    song
+                )
             )
 
         except Exception as e:
-            self.logger.error(f"Error playing next song: {e}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ An error occurred while playing the song.",
-                    ephemeral=True
-                )
-            else:
-                await interaction.followup.send(
-                    "❌ An error occurred while playing the song.",
-                    ephemeral=True
-                )
-    async def _handle_song_end(self, error, interaction):
+            self.logger.error(f"Error in _play_next: {e}")
+            await self._send_message(ctx, "❌ An error occurred while playing the song.", ephemeral=True)
+
+    async def _send_message(self, ctx, content, ephemeral=False):
+        """Helper method to handle both Context and Interaction message sending"""
+        try:
+            if hasattr(ctx, 'send'):  # Context object
+                await ctx.send(content)
+            elif hasattr(ctx, 'response') and not ctx.response.is_done():  # Interaction not responded
+                await ctx.response.send_message(content, ephemeral=ephemeral)
+            else:  # Interaction already responded
+                await ctx.followup.send(content, ephemeral=ephemeral)
+        except Exception as e:
+            self.logger.error(f"Error sending message: {e}")
+
+    async def _handle_song_end(self, error, ctx):
         if error:
             self.logger.error(f"Error during song playback: {error}")
 
-        await self._play_next(interaction)
+        await self._play_next(ctx)
 
     @commands.command(name='ydl_opts')
     async def ydl_opts(self, ctx):
