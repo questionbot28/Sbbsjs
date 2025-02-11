@@ -10,6 +10,8 @@ import asyncio
 import time
 from keep_alive import keep_alive
 import glob
+import random
+from datetime import datetime, timedelta
 
 keep_alive()
 
@@ -72,6 +74,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 
+INITIAL_RETRY_DELAY = 5.0  # Initial retry delay in seconds
+MAX_RETRY_DELAY = 600.0   # Maximum retry delay (10 minutes)
+RATE_LIMIT_RESET_TIME = 1800.0  # Time to wait after max retries (30 minutes)
+
 class EducationalBot(commands.Bot):
     def __init__(self):
         super().__init__(
@@ -85,6 +91,96 @@ class EducationalBot(commands.Bot):
         self._command_lock = asyncio.Lock()
         self._processing_commands = set()
 
+        # Enhanced rate limit tracking
+        self._rate_limit_start = None
+        self._rate_limit_resets = {}
+        self._connection_retries = 0
+        self._max_retries = 3  # Reduced max retries
+        self._last_retry = None
+        self._global_rate_limit = False
+        self._last_attempt = None
+
+    @property
+    def _retry_delay(self) -> float:
+        """Calculate retry delay with more conservative backoff"""
+        if not self._last_retry:
+            return INITIAL_RETRY_DELAY
+
+        # Calculate time since first retry
+        time_since_first = (datetime.now() - self._last_retry).total_seconds()
+
+        # More conservative base delay and multiplier
+        base_delay = INITIAL_RETRY_DELAY
+        multiplier = 3  # Triple the delay each time
+
+        # Add jitter to prevent thundering herd
+        jitter = random.uniform(0, 2.0)  # Increased jitter range
+
+        # Progressive backoff based on global rate limit state
+        if self._global_rate_limit:
+            additional_delay = min(time_since_first / 5, 30)  # Cap at 30 seconds
+        else:
+            additional_delay = 0
+
+        # Calculate final delay
+        delay = min(
+            base_delay * (multiplier ** self._connection_retries) + additional_delay,
+            MAX_RETRY_DELAY
+        ) + jitter
+
+        return delay
+
+    async def _handle_connection_error(self):
+        """Enhanced connection error handler with more conservative retry strategy"""
+        try:
+            current_time = time.time()
+
+            # If this is our first retry in this session
+            if self._connection_retries == 0:
+                self._last_retry = datetime.now()
+                self._last_attempt = current_time
+
+            # Check if we're in global rate limit
+            if self._global_rate_limit:
+                if current_time - self._last_attempt < RATE_LIMIT_RESET_TIME:
+                    logger.warning(f"In global rate limit cooldown. Waiting {RATE_LIMIT_RESET_TIME/60:.1f} minutes.")
+                    return
+                self._global_rate_limit = False
+                self._connection_retries = 0
+
+            self._connection_retries += 1
+
+            if self._connection_retries > self._max_retries:
+                logger.error("Max connection retries reached - Entering global rate limit cooldown")
+                self._global_rate_limit = True
+                self._last_attempt = current_time
+                await asyncio.sleep(RATE_LIMIT_RESET_TIME)  # Wait 30 minutes
+                self._connection_retries = 0
+                self._last_retry = None
+                return
+
+            delay = self._retry_delay
+            logger.warning(
+                f"Connection retry {self._connection_retries}/{self._max_retries} - "
+                f"Waiting {delay:.1f}s before next attempt"
+            )
+
+            await self.close()
+            await asyncio.sleep(delay)
+
+            token = os.getenv('DISCORD_TOKEN')
+            if token:
+                self._last_attempt = time.time()
+                await self.start(token)
+            else:
+                logger.error("Discord token not found - Cannot restart bot")
+
+        except Exception as e:
+            logger.error(f"Error during connection retry: {e}")
+            if "Cannot connect to host discord.com:443" in str(e):
+                logger.warning("Network connectivity issues detected - Increasing delay")
+                await asyncio.sleep(MAX_RETRY_DELAY)
+
     async def setup_hook(self):
         """Setup hook to initialize tasks"""
         self.check_connection.start()
@@ -95,6 +191,7 @@ class EducationalBot(commands.Bot):
             self.check_connection.cancel()
             self._command_cooldowns.clear()
             self._processing_commands.clear()
+            self._rate_limit_resets.clear()
         finally:
             await super().close()
 
@@ -124,14 +221,15 @@ class EducationalBot(commands.Bot):
             # Reset command cooldowns every check
             self._reset_command_cooldowns()
 
+            # Reset connection retries on successful check
+            if self._connection_retries > 0:
+                logger.info("Connection stabilized - Resetting retry counter")
+                self._connection_retries = 0
+                self._last_retry = None
+
         except Exception as e:
             logger.error(f"Connection check failed: {e}")
-            try:
-                await self.close()
-                await asyncio.sleep(5)  # Wait before reconnecting
-                await self.start(os.getenv('DISCORD_TOKEN'))
-            except Exception as reconnect_error:
-                logger.error(f"Reconnection attempt failed: {reconnect_error}")
+            await self._handle_connection_error()
 
     async def process_commands(self, message):
         """Override to add command execution tracking"""
@@ -221,6 +319,9 @@ async def on_command_error(ctx, error):
 
 async def main():
     try:
+        # Add initial delay before first connection attempt
+        await asyncio.sleep(5)  # Initial 5-second delay
+
         async with bot:
             await load_extensions()
             token = os.getenv('DISCORD_TOKEN')
