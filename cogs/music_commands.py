@@ -697,8 +697,9 @@ class MusicCommands(commands.Cog):
                     artist_name = first_hit['result']['primary_artist']['name']
                     song_url = first_hit['result']['url']
 
-                    # Log the found song details
-                    self.logger.info(f"Found song: {song_title} by {artist_name} at {song_url}")
+                    # Log the found song details and URL
+                    self.logger.info(f"Found song: {song_title} by {artist_name}")
+                    self.logger.info(f"Original URL: {song_url}")
 
                     # Update status message
                     embed.title = "📥 Found Song!"
@@ -706,91 +707,110 @@ class MusicCommands(commands.Cog):
                     embed.color = discord.Color.gold()
                     await status_msg.edit(embed=embed)
 
-                    # Download and extract lyrics using trafilatura with improved settings
-                    downloaded = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: trafilatura.fetch_url(
-                            song_url,
-                            config={
-                                'USER_AGENT': headers['User-Agent'],
-                                'TIMEOUT': 30,
-                                'MAX_REDIRECTS': 5
-                            }
+                    # First, get the final URL after redirects
+                    async with session.get(song_url, headers=headers, allow_redirects=True) as redirect_check:
+                        final_url = str(redirect_check.url)
+                        self.logger.info(f"Final URL after redirects: {final_url}")
+                        
+                        if redirect_check.status != 200:
+                            self.logger.error(f"Failed to access page: Status {redirect_check.status}")
+                            embed.title = "❌ Access Error"
+                            embed.description = "Failed to access the lyrics page. The song might be restricted."
+                            embed.color = discord.Color.red()
+                            await status_msg.edit(embed=embed)
+                            return
+
+                        # Download and extract lyrics using trafilatura with improved settings
+                        downloaded = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: trafilatura.fetch_url(
+                                final_url,
+                                config={
+                                    'USER_AGENT': headers['User-Agent'],
+                                    'TIMEOUT': 30,
+                                    'MAX_REDIRECTS': 5
+                                }
+                            )
                         )
-                    )
 
-                    if not downloaded:
-                        self.logger.error(f"Failed to fetch lyrics page: {song_url}")
-                        embed.title = "❌ Access Error"
-                        embed.description = "Failed to access the lyrics page. The song might be restricted."
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
+                        if not downloaded:
+                            self.logger.error(f"Failed to fetch lyrics page: {final_url}")
+                            # Try alternative download method
+                            page_content = await redirect_check.text()
+                            downloaded = page_content
 
-                    lyrics = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: trafilatura.extract(
-                            downloaded,
-                            include_comments=False,
-                            include_tables=False,
-                            no_fallback=False,
-                            target_language='en'
+                        # Extract lyrics with fallback options
+                        lyrics = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: trafilatura.extract(
+                                downloaded,
+                                include_comments=False,
+                                include_tables=False,
+                                no_fallback=False,
+                                target_language='en'
+                            )
                         )
-                    )
 
-                    if not lyrics:
-                        self.logger.error(f"Failed to extract lyrics from page content")
-                        embed.title = "❌ Extraction Error"
-                        embed.description = "Could not extract lyrics from the page."
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
-                        return
+                        if not lyrics:
+                            self.logger.error(f"Failed to extract lyrics from page content")
+                            embed.title = "❌ Extraction Error"
+                            embed.description = "Could not extract lyrics from the page."
+                            embed.color = discord.Color.red()
+                            await status_msg.edit(embed=embed)
+                            return
 
-                    # Clean up lyrics with improved regex
-                    lyrics = re.sub(r'\[.*?\]|\(.*?\)', '', lyrics)  # Remove [...] and (...) annotations
-                    lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Normalize line breaks
-                    lyrics = re.sub(r'\s+', ' ', lyrics)  # Normalize whitespace
-                    lyrics = lyrics.strip()
+                        # Clean up lyrics with improved regex
+                        lyrics = re.sub(r'\[.*?\]|\(.*?\)', '', lyrics)  # Remove [...] and (...) annotations
+                        lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Normalize line breaks
+                        lyrics = re.sub(r'\s+', ' ', lyrics)  # Normalize whitespace
+                        lyrics = lyrics.strip()
 
-                    # Split lyrics into chunks with smarter splitting
-                    chunk_size = 4000
-                    chunks = []
-                    current_chunk = ""
-                    
-                    for line in lyrics.split('\n'):
-                        if len(current_chunk) + len(line) + 1 > chunk_size:
+                        # Split lyrics into chunks with smarter splitting
+                        chunk_size = 4000
+                        chunks = []
+                        current_chunk = ""
+                        
+                        for line in lyrics.split('\n'):
+                            if len(current_chunk) + len(line) + 1 > chunk_size:
+                                chunks.append(current_chunk.strip())
+                                current_chunk = line
+                            else:
+                                current_chunk += '\n' + line if current_chunk else line
+                        
+                        if current_chunk:
                             chunks.append(current_chunk.strip())
-                            current_chunk = line
-                        else:
-                            current_chunk += '\n' + line if current_chunk else line
-                    
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
 
-                    # Create rich embed for first chunk
-                    first_embed = discord.Embed(
-                        title=f"🎵 {song_title}",
-                        description=chunks[0],
-                        color=discord.Color.blue(),
-                        url=song_url
-                    )
-                    first_embed.add_field(name="👤 Artist", value=artist_name, inline=True)
-                    first_embed.add_field(name="📄 Pages", value=f"{len(chunks)}", inline=True)
-                    first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
-                    await status_msg.edit(embed=first_embed)
-
-                    # Send remaining chunks with consistent formatting
-                    for i, chunk in enumerate(chunks[1:], 2):
-                        embed = discord.Embed(
-                            title=f"🎵 {song_title} (Continued)",
-                            description=chunk,
+                        # Create rich embed for first chunk
+                        first_embed = discord.Embed(
+                            title=f"🎵 {song_title}",
+                            description=chunks[0],
                             color=discord.Color.blue(),
-                            url=song_url
+                            url=final_url
                         )
-                        embed.set_footer(text=f"Page {i} of {len(chunks)}")
-                        await ctx.send(embed=embed)
+                        first_embed.add_field(name="👤 Artist", value=artist_name, inline=True)
+                        first_embed.add_field(name="📄 Pages", value=f"{len(chunks)}", inline=True)
+                        first_embed.set_footer(text=f"Powered by Genius | Page 1 of {len(chunks)}")
+                        await status_msg.edit(embed=first_embed)
 
-                    self.logger.info(f"Successfully fetched and displayed lyrics for: {song_title}")
+                        # Send remaining chunks with consistent formatting
+                        for i, chunk in enumerate(chunks[1:], 2):
+                            embed = discord.Embed(
+                                title=f"🎵 {song_title} (Continued)",
+                                description=chunk,
+                                color=discord.Color.blue(),
+                                url=final_url
+                            )
+                            embed.set_footer(text=f"Page {i} of {len(chunks)}")
+                            await ctx.send(embed=embed)
+
+                        self.logger.info(f"Successfully fetched and displayed lyrics for: {song_title}")
+
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error fetching lyrics: {e}")
+            await status_msg.edit(content="❌ Network error while fetching lyrics. Please try again later.")
+        except Exception as e:
+            self.logger.error(f"Error fetching lyrics: {e}")
+            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
 
         except aiohttp.ClientError as e:
             self.logger.error(f"Network error fetching lyrics: {e}")
