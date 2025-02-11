@@ -663,7 +663,7 @@ class MusicCommands(commands.Cog):
                 search_url = f"https://api.genius.com/search?q={song_name}"
 
                 async with session.get(search_url, headers=headers) as response:
-                    if response.status_code != 200:
+                    if response.status != 200:  # Changed from status_code to status
                         await status_msg.edit(content=f"❌ API Error: {response.status}")
                         return
 
