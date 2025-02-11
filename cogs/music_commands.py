@@ -50,8 +50,8 @@ class SongSelectionView(discord.ui.View):
             filter_options = f"-af {filters[self.effect]}" if self.effect in filters else ""
             
             FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -bufsize 64k",
-                "options": f"{filter_options} -vn -b:a 128k"
+                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "options": f"{filter_options} -vn -b:a 192k -bufsize 512k"
             }
             
             vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
