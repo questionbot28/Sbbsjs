@@ -15,7 +15,6 @@ import random
 from discord.ext.commands import cooldown, BucketType
 from datetime import datetime, timedelta
 import time
-import lyricsgenius
 
 class SongSelectionView(discord.ui.View):
     def __init__(self, bot, ctx, songs, effect=None):
@@ -80,12 +79,8 @@ class MusicCommands(commands.Cog):
         self.queue = []  # Add queue list for storing songs
 
         # Initialize Genius API client
-        genius_token = os.getenv('GENIUS_API_KEY')
-        if genius_token:
-            self.genius = lyricsgenius.Genius(genius_token)
-            self.genius.verbose = False  # Disable verbose output
-        else:
-            self.genius = None
+        self.genius_token = os.getenv('GENIUS_API_KEY')
+        if not self.genius_token:
             self.logger.warning("Genius API key not found. Lyrics feature will be disabled.")
 
         self.ydl_opts = {
@@ -652,7 +647,7 @@ class MusicCommands(commands.Cog):
     @commands.command(name='lyrics')
     async def lyrics(self, ctx, *, song_name: str):
         """Fetch lyrics for a song from Genius"""
-        if not self.genius:
+        if not self.genius_token:
             await ctx.send("❌ Lyrics feature is not available - Genius API key not configured.")
             return
 
@@ -660,34 +655,43 @@ class MusicCommands(commands.Cog):
             # Send searching message
             status_msg = await ctx.send("🔍 Searching for lyrics...")
 
-            # Search for the song
-            song = self.genius.search_song(song_name)
+            # Search for the song using Genius API directly
+            async with aiohttp.ClientSession() as session:
+                headers = {"Authorization": f"Bearer {self.genius_token}"}
+                search_url = f"https://api.genius.com/search?q={song_name}"
 
-            if song:
-                # Split lyrics into chunks of 4096 characters (Discord embed limit)
-                lyrics_chunks = [song.lyrics[i:i+4096] for i in range(0, len(song.lyrics), 4096)]
+                async with session.get(search_url, headers=headers) as response:
+                    if response.status != 200:
+                        await status_msg.edit(content=f"❌ API Error: {response.status}")
+                        return
 
-                # Create main embed
-                main_embed = discord.Embed(
-                    title=f"🎤 {song.title} by {song.artist}",
-                    color=discord.Color.blue()
-                )
-                main_embed.set_footer(text="Powered by Genius | Page 1 of {}".format(len(lyrics_chunks)))
+                    data = await response.json()
 
-                # Send first chunk
-                main_embed.description = lyrics_chunks[0]
-                await status_msg.edit(content=None, embed=main_embed)
+                    if not data['response']['hits']:
+                        await status_msg.edit(content="❌ No results found.")
+                        return
 
-                # Send additional chunks if needed
-                for i, chunk in enumerate(lyrics_chunks[1:], start=2):
-                    chunk_embed = discord.Embed(
-                        description=chunk,
+                    # Get the first result
+                    first_hit = data['response']['hits'][0]
+                    song_title = first_hit['result']['title']
+                    artist_name = first_hit['result']['primary_artist']['name']
+                    song_url = first_hit['result']['url']
+
+                    # Create embed with song info
+                    embed = discord.Embed(
+                        title=f"🎵 {song_title}",
+                        url=song_url,
                         color=discord.Color.blue()
                     )
-                    chunk_embed.set_footer(text=f"Page {i} of {len(lyrics_chunks)}")
-                    await ctx.send(embed=chunk_embed)
-            else:
-                await status_msg.edit(content="❌ Lyrics not found.")
+                    embed.add_field(name="Artist", value=artist_name, inline=False)
+                    embed.add_field(
+                        name="Links",
+                        value=f"[View lyrics on Genius]({song_url})",
+                        inline=False
+                    )
+                    embed.set_footer(text="Powered by Genius")
+
+                    await status_msg.edit(content=None, embed=embed)
 
         except Exception as e:
             self.logger.error(f"Error fetching lyrics: {e}")
