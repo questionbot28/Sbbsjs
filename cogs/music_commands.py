@@ -62,7 +62,10 @@ class MusicCommands(commands.Cog):
         search_opts = {
             **self.ydl_opts,
             'default_search': 'ytsearch5',  # Get top 5 results
-            'extract_flat': True
+            'extract_flat': True,
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': 'in_playlist'
         }
 
         try:
@@ -70,29 +73,45 @@ class MusicCommands(commands.Cog):
                 self.logger.info(f"Searching for: {query}")
                 results = await self.bot.loop.run_in_executor(
                     None, 
-                    lambda: ydl.extract_info(query, download=False)
+                    lambda: ydl.extract_info(f"ytsearch5:{query}", download=False)
                 )
 
-                if not results or 'entries' not in results:
+                if not results:
+                    self.logger.error("No results found")
+                    return []
+
+                if 'entries' not in results:
+                    self.logger.error("No entries in results")
                     return []
 
                 songs = []
                 for entry in results['entries']:
                     if not entry:
                         continue
+
                     duration_secs = entry.get('duration', 0)
-                    minutes = duration_secs // 60
-                    seconds = duration_secs % 60
+                    minutes = duration_secs // 60 if duration_secs else 0
+                    seconds = duration_secs % 60 if duration_secs else 0
+
+                    # Use video ID to construct proper URL
+                    video_id = entry.get('id', '')
+                    url = f"https://www.youtube.com/watch?v={video_id}" if video_id else None
+
+                    if not url:
+                        continue
+
                     songs.append({
                         'title': entry.get('title', 'Unknown Title'),
-                        'url': entry.get('url', ''),
+                        'url': url,
                         'duration_string': f"{minutes}:{seconds:02d}",
-                        'channel': entry.get('channel', 'Unknown Channel')
+                        'channel': entry.get('uploader', 'Unknown Channel')
                     })
+
+                self.logger.info(f"Found {len(songs)} songs")
                 return songs
 
         except Exception as e:
-            self.logger.error(f"Error searching songs: {e}")
+            self.logger.error(f"Error searching songs: {str(e)}")
             return []
 
     @commands.command(name='join')
