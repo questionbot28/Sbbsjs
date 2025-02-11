@@ -676,7 +676,8 @@ class MusicCommands(commands.Cog):
                     data = await response.json()
 
                     if not data['response']['hits']:
-                        await status_msg.edit(content="❌ No results found.")
+                        suggestions = "Try searching for a different song or check the spelling."
+                        await status_msg.edit(content=f"❌ No results found. {suggestions}")
                         return
 
                     # Get the first result
@@ -689,33 +690,41 @@ class MusicCommands(commands.Cog):
                     await status_msg.edit(content=f"📥 Found song! Fetching lyrics for **{song_title}** by **{artist_name}**...")
 
                     # Download and extract lyrics using trafilatura with custom settings
-                    downloaded = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: trafilatura.fetch_url(
-                            song_url,
-                            config={'USER_AGENT': headers['User-Agent']}
+                    try:
+                        downloaded = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: trafilatura.fetch_url(
+                                song_url,
+                                config={'USER_AGENT': headers['User-Agent']}
+                            )
                         )
-                    )
 
-                    if not downloaded:
-                        self.logger.error(f"Failed to fetch lyrics page: {song_url}")
-                        await status_msg.edit(content="❌ Failed to access the lyrics page. The song might be restricted.")
-                        return
+                        if not downloaded:
+                            error_msg = (
+                                "❌ This song's lyrics are currently restricted.\n"
+                                "This can happen due to:\n"
+                                "• Licensing restrictions\n"
+                                "• Premium-only content\n"
+                                "• Regional availability\n\n"
+                                "Try searching for a different song!"
+                            )
+                            await status_msg.edit(content=error_msg)
+                            return
 
-                    lyrics = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: trafilatura.extract(
-                            downloaded,
-                            include_comments=False,
-                            include_tables=False,
-                            no_fallback=False
+                        lyrics = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: trafilatura.extract(
+                                downloaded,
+                                include_comments=False,
+                                include_tables=False,
+                                no_fallback=False
+                            )
                         )
-                    )
 
-                    if not lyrics:
-                        self.logger.error(f"Failed to extract lyrics from page content")
-                        await status_msg.edit(content="❌ Could not extract lyrics from the page.")
-                        return
+                        if not lyrics:
+                            self.logger.error(f"Failed to extract lyrics from page content")
+                            await status_msg.edit(content="❌ Could not extract lyrics. The song might be unavailable.")
+                            return
 
                     # Clean up lyrics
                     lyrics = re.sub(r'\[.*?\]', '', lyrics)  # Remove [Verse], [Chorus] etc.
