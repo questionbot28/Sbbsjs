@@ -43,15 +43,15 @@ class SongSelectionView(discord.ui.View):
             # Apply audio effects if specified
             FFMPEG_OPTIONS = {
                 "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             # Add effect filters if specified
             filters = {
-                "bassboost": "bass=g=1.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+                "bassboost": "bass=g=1.5,volume=3.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "nightcore": "asetrate=44100*1.25,atempo=1.25,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "reverb": "aecho=0.8:0.9:1000:0.3,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
+                "8d": "apulsator=hz=0.09,volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
             }
 
             if self.effect in filters:
@@ -225,20 +225,37 @@ class MusicCommands(commands.Cog):
     @commands.command(name='pause')
     async def pause(self, ctx):
         """Pause the currently playing audio"""
-        if ctx.voice_client and ctx.voice_client.is_playing():
-            ctx.voice_client.pause()
-            await ctx.send("⏸️ Music paused.")
-        else:
-            await ctx.send("❌ No music is playing.")
+        if not ctx.voice_client:
+            await ctx.send("❌ I'm not in a voice channel!")
+            return
+
+        if not ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
+            await ctx.send("❌ No music is currently playing!")
+            return
+
+        if ctx.voice_client.is_paused():
+            await ctx.send("❌ Music is already paused! Use `!resume` to continue playing.")
+            return
+
+        ctx.voice_client.pause()
+        await ctx.send("⏸️ Music paused.")
 
     @commands.command(name='resume')
     async def resume(self, ctx):
         """Resume the paused audio"""
-        if ctx.voice_client and ctx.voice_client.is_paused():
-            ctx.voice_client.resume()
-            await ctx.send("▶️ Music resumed.")
-        else:
-            await ctx.send("❌ Music is not paused.")
+        if not ctx.voice_client:
+            await ctx.send("❌ I'm not in a voice channel!")
+            return
+
+        if not ctx.voice_client.is_paused():
+            if ctx.voice_client.is_playing():
+                await ctx.send("❌ Music is already playing!")
+            else:
+                await ctx.send("❌ No music is currently paused!")
+            return
+
+        ctx.voice_client.resume()
+        await ctx.send("▶️ Music resumed.")
 
     @commands.command(name='stop')
     async def stop(self, ctx):
@@ -433,7 +450,7 @@ class MusicCommands(commands.Cog):
         # Create new audio source with seek offset
         FFMPEG_OPTIONS = {
             "before_options": f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M -ss {abs(time_offset)}",
-            "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
+            "options": "-vn -b:a 256k -af volume=3.5,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
         }
 
         try:
@@ -448,54 +465,6 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error seeking: {e}")
             await ctx.send("❌ An error occurred while seeking.")
-
-    async def song_selected(self, interaction: discord.Interaction):
-        try:
-            await interaction.response.defer()  # Acknowledge interaction immediately
-
-            selected_index = int(interaction.data["values"][0])
-            song = self.songs[selected_index]
-
-            vc = self.ctx.voice_client
-            if not vc or not vc.is_connected():
-                vc = await self.ctx.author.voice.channel.connect()
-
-            # Apply audio effects if specified
-            FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 100M -analyzeduration 100M",
-                "options": "-vn -b:a 256k -af highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
-            }
-
-            # Add effect filters if specified
-            filters = {
-                "bassboost": "bass=g=1.5,highpass=f=100,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "nightcore": "asetrate=44100*1.25,atempo=1.25,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "reverb": "aecho=0.8:0.9:1000:0.3,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3",
-                "8d": "apulsator=hz=0.09,highpass=f=120,acompressor=threshold=-20dB:ratio=3:attack=0.2:release=0.3"
-            }
-
-            if self.effect in filters:
-                FFMPEG_OPTIONS["options"] = f"-vn -b:a 256k -af {filters[self.effect]}"
-
-            try:
-                # Create audio source with volume transformer
-                source = PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS),
-                    volume=self.bot.get_cog('MusicCommands').current_volume
-                )
-
-                vc.play(source, after=lambda e: print(f"Finished playing: {e}" if e else "Song finished successfully"))
-                self.current_song_url = song["url"]  # update current song url
-
-            except Exception as e:
-                await interaction.followup.send(f"❌ Error playing audio: {str(e)}", ephemeral=True)
-                return
-
-            effect_msg = f" with {self.effect} effect" if self.effect else ""
-            await interaction.followup.send(f"🎶 Now playing: {song['title']}{effect_msg}")
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error playing song: {str(e)}", ephemeral=True)
-
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
