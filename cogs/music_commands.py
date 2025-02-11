@@ -648,10 +648,75 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='lyrics')
     async def lyrics(self, ctx, *, song_name: str):
-        """Fetch lyrics for a song from Genius"""
-        if not self.genius_token:
-            await ctx.send("❌ Lyrics feature is not available - Genius API key not configured.")
-            return
+        """Fetch lyrics for a song from Lyrics.ovh"""
+        try:
+            # Send searching message with embed
+            embed = discord.Embed(
+                title="🔍 Searching for Lyrics",
+                description=f"Searching for: **{song_name}**",
+                color=discord.Color.blue()
+            )
+            status_msg = await ctx.send(embed=embed)
+
+            # Format URL for Lyrics.ovh API
+            formatted_song = song_name.replace(' ', '%20')
+            url = f"https://lyricsovh.xyz/v1/{formatted_song}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        embed.title = "❌ Not Found"
+                        embed.description = "Could not find lyrics for this song."
+                        embed.color = discord.Color.red()
+                        await status_msg.edit(embed=embed)
+                        return
+
+                    data = await response.json()
+                    if 'lyrics' not in data:
+                        embed.title = "❌ No Lyrics"
+                        embed.description = "No lyrics found for this song."
+                        embed.color = discord.Color.red()
+                        await status_msg.edit(embed=embed)
+                        return
+
+                    lyrics = data['lyrics']
+                    # Split lyrics into chunks (Discord has 4000 char limit)
+                    chunks = []
+                    chunk_size = 4000
+                    current_chunk = ""
+                    
+                    for line in lyrics.split('\n'):
+                        if len(current_chunk) + len(line) + 1 > chunk_size:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = line
+                        else:
+                            current_chunk += '\n' + line if current_chunk else line
+                    
+                    if current_chunk:
+                        chunks.append(current_chunk.strip())
+
+                    # Send lyrics in chunks
+                    first_embed = discord.Embed(
+                        title=f"🎵 {song_name}",
+                        description=chunks[0],
+                        color=discord.Color.blue()
+                    )
+                    first_embed.set_footer(text=f"Powered by Lyrics.ovh | Page 1 of {len(chunks)}")
+                    await status_msg.edit(embed=first_embed)
+
+                    # Send remaining chunks
+                    for i, chunk in enumerate(chunks[1:], 2):
+                        embed = discord.Embed(
+                            title=f"🎵 {song_name} (Continued)",
+                            description=chunk,
+                            color=discord.Color.blue()
+                        )
+                        embed.set_footer(text=f"Page {i} of {len(chunks)}")
+                        await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error fetching lyrics: {e}")
+            await status_msg.edit(content=f"❌ An error occurred while fetching lyrics: {str(e)}")
 
         try:
             # Send searching message with embed
