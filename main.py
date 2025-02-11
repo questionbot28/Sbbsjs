@@ -29,25 +29,32 @@ class EducationalBot(commands.Bot):
         )
         # Only include actively used cogs
         self.initial_extensions = [
-            'cogs.education_manager_new',
+            'cogs.education_commands_new',
             'cogs.admin_commands',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands',
-            'cogs.staff_commands'  # Added staff commands cog
+            'cogs.music_commands',  # Ensure music commands is listed
+            'cogs.staff_commands'
         ]
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
         logger.info("Starting bot initialization...")
-        logger.info("Loading extensions...")
 
+        # Log intents configuration
+        logger.info("Bot intents configuration:")
+        logger.info(f"Message Content: {intents.message_content}")
+        logger.info(f"Guilds: {intents.guilds}")
+        logger.info(f"Voice States: {intents.voice_states}")
+
+        logger.info("Loading extensions...")
         for extension in self.initial_extensions:
             try:
                 logger.info(f"Attempting to load extension: {extension}")
                 await self.load_extension(extension)
                 logger.info(f"Successfully loaded extension: {extension}")
             except Exception as e:
-                logger.error(f"Failed to load extension {extension}: {e}")
+                logger.error(f"Failed to load extension {extension}")
+                logger.error(f"Error details: {str(e)}")
                 logger.exception(e)
 
     async def on_ready(self):

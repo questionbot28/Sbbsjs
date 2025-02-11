@@ -16,112 +16,7 @@ from discord.ext.commands import cooldown, BucketType
 from datetime import datetime, timedelta
 import time
 import trafilatura
-import re
 import json
-
-class SongSelectionView(discord.ui.View):
-    def __init__(self, bot, ctx, songs, effect=None):
-        super().__init__(timeout=30)
-        self.ctx = ctx
-        self.songs = songs
-        self.bot = bot
-        self.effect = effect
-        self.message = None
-        self.logger = logging.getLogger('discord_bot')
-
-        # Create song selection dropdown
-        select = discord.ui.Select(
-            placeholder="Choose a song...",
-            min_values=1,
-            max_values=1,
-            options=[
-                discord.SelectOption(
-                    label=song["title"][:100],
-                    value=str(i),
-                    description=f"Duration: {int(song.get('duration', 0)/1000)}s"
-                ) for i, song in enumerate(songs[:5])
-            ]
-        )
-        select.callback = self.song_selected
-        self.add_item(select)
-
-    async def song_selected(self, interaction: discord.Interaction):
-        """Handle song selection and queue management"""
-        try:
-            # Defer the response to prevent timeout
-            await interaction.response.defer(ephemeral=True)
-
-            # Get the MusicCommands cog
-            bot_cog = self.bot.get_cog('MusicCommands')
-            if not bot_cog:
-                await interaction.followup.send("❌ Bot configuration error!", ephemeral=True)
-                self.logger.error("MusicCommands cog not found")
-                return
-
-            # Get selected song
-            selected_index = int(interaction.data["values"][0])
-            song = self.songs[selected_index]
-
-            # Check voice state
-            member = interaction.guild.get_member(interaction.user.id)
-            if not member or not member.voice:
-                await interaction.followup.send("❌ You must be in a voice channel!", ephemeral=True)
-                return
-
-            voice_channel = member.voice.channel
-            try:
-                if not interaction.guild.voice_client:
-                    await voice_channel.connect()
-            except Exception as e:
-                self.logger.error(f"Error connecting to voice channel: {e}")
-                await interaction.followup.send("❌ Failed to join voice channel. Please try again.", ephemeral=True)
-                return
-
-            # Extract song metadata
-            try:
-                song_info = {
-                    'title': song['title'],
-                    'url': song['url'],
-                    'artist': song.get('artist', 'Unknown Artist'),
-                    'thumbnail': song.get('thumbnail', None),
-                    'duration_ms': song.get('duration', 0),
-                    'requester': member
-                }
-            except KeyError as ke:
-                self.logger.error(f"Missing key in song data: {ke}")
-                await interaction.followup.send("❌ Error processing song metadata", ephemeral=True)
-                return
-
-            # Add song to queue
-            bot_cog.queue.append(song_info)
-
-            # Handle playback
-            if not interaction.guild.voice_client.is_playing():
-                try:
-                    await bot_cog._play_next(interaction)
-                except Exception as e:
-                    self.logger.error(f"Error starting playback: {e}")
-                    await interaction.followup.send("❌ Error starting playback", ephemeral=True)
-                    return
-            else:
-                # Show queued message
-                embed = discord.Embed(
-                    title="🎵 Added to Queue",
-                    description=f"**{song_info['title']}**\nPosition in queue: {len(bot_cog.queue)}",
-                    color=discord.Color.green()
-                )
-                if song_info.get('thumbnail'):
-                    embed.set_thumbnail(url=song_info['thumbnail'])
-                embed.set_footer(text=f"Requested by {member.display_name}")
-                await interaction.followup.send(embed=embed)
-
-        except Exception as e:
-            self.logger.error(f"Error in song selection: {str(e)}", exc_info=True)
-            error_message = "❌ Error processing song selection. Please try again."
-            if not interaction.response.is_done():
-                await interaction.response.send_message(error_message, ephemeral=True)
-            else:
-                await interaction.followup.send(error_message, ephemeral=True)
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
@@ -138,100 +33,76 @@ class MusicCommands(commands.Cog):
         self.queue = []  # Add queue list for storing songs
         self.logger.info("MusicCommands cog initialized")
 
+        # Initialize required clients
+        self._initialize_clients()
+
+    def _initialize_clients(self):
+        """Initialize Genius and Spotify clients with proper error handling"""
         # Initialize Genius API client
         self.genius_token = os.getenv('GENIUS_API_KEY')
         if not self.genius_token:
             self.logger.warning("Genius API key not found. Lyrics feature will be disabled.")
 
-        self.ydl_opts = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'quiet': True,
-            'no_warnings': True,
-            'source_address': '0.0.0.0',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'opus',
-                'preferredquality': '128'
-            }]
-        }
-
-        # Configure Spotify if credentials exist
+        # Initialize Spotify client
         spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID')
         spotify_client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
         if spotify_client_id and spotify_client_secret:
-            self.sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-                client_id=spotify_client_id,
-                client_secret=spotify_client_secret
-            ))
-            self.logger.info("Spotify client initialized successfully")
+            try:
+                self.sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+                    client_id=spotify_client_id,
+                    client_secret=spotify_client_secret
+                ))
+                self.logger.info("Spotify client initialized successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Spotify client: {e}")
+                self.sp = None
         else:
             self.sp = None
             self.logger.warning("Spotify credentials not found. Spotify features will be disabled.")
 
-    async def cog_load(self):
-        """Called when the cog is loaded"""
-        self.logger.info("Music commands cog loaded successfully")
-
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
-        """Handle music-related command errors"""
-        if isinstance(error, commands.CommandInvokeError):
-            self.logger.error(f"Command error in music cog: {str(error)}")
-            await ctx.send(f"❌ An error occurred: {str(error)}")
-
-
-    async def get_youtube_results(self, query: str) -> Optional[list]:
-        def search():
-            try:
-                with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-                    info = ydl.extract_info(f"ytsearch5:{query}", download=False)
-                    if not info or 'entries' not in info:
-                        return None
-                    return [
-                        {"title": entry["title"], "url": entry["url"]}
-                        for entry in info["entries"][:5]
-                    ]
-            except Exception as e:
-                self.logger.error(f"Error searching YouTube: {e}")
-                return None
-
-        return await asyncio.get_event_loop().run_in_executor(None, search)
-
-    def get_spotify_track(self, spotify_url: str) -> Optional[str]:
-        if not self.sp:
-            return None
-
-        try:
-            track = self.sp.track(spotify_url)
-            song_name = track["name"]
-            artist_name = track["artists"][0]["name"]
-            return f"{song_name} by {artist_name}"
-        except Exception as e:
-            self.logger.error(f"Error getting Spotify track: {e}")
-            return None
-
-
-    @commands.command(name='play')
-    @commands.cooldown(1, 5, BucketType.user)
-    async def play(self, ctx, *, query: str):
-        """Play a song in your voice channel"""
-        try:
+    async def _ensure_voice_client(self, ctx):
+        """Ensure bot is connected to voice channel"""
+        if not ctx.voice_client:
             if not ctx.author.voice:
                 await ctx.send("❌ You must be in a voice channel!")
+                return False
+            try:
+                self.logger.info(f"Attempting to join voice channel: {ctx.author.voice.channel}")
+                await ctx.author.voice.channel.connect()
+                self.logger.info("Successfully joined voice channel")
+                return True
+            except Exception as e:
+                self.logger.error(f"Error joining voice channel: {e}")
+                await ctx.send("❌ Could not join your voice channel!")
+                return False
+        return True
+
+    @commands.command(name='play')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def play(self, ctx, *, query: str):
+        """Play a song in your voice channel"""
+        self.logger.info(f"Play command invoked by {ctx.author} with query: {query}")
+
+        try:
+            if not await self._ensure_voice_client(ctx):
                 return
 
-            # Create initial searching embed
+            # Create initial searching embed with 0% progress
             embed = discord.Embed(
                 title="🔍 Searching...",
-                description=f"Looking for: **{query}**",
+                description=f"Looking for: **{query}**\nProgress: 0%",
                 color=discord.Color.blue()
             )
             status_msg = await ctx.send(embed=embed)
 
             try:
+                # Simulate search progress
+                for i in range(1, 5):  # 4 progress updates
+                    progress = i * 25  # 25%, 50%, 75%
+                    embed.description = f"Looking for: **{query}**\nProgress: {progress}%"
+                    await status_msg.edit(embed=embed)
+                    await asyncio.sleep(0.5)  # Small delay between updates
+
                 # Get YouTube results with enhanced metadata
                 songs = []
                 with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
@@ -259,6 +130,11 @@ class MusicCommands(commands.Cog):
                     embed.color = discord.Color.red()
                     await status_msg.edit(embed=embed)
                     return
+
+                # Show 100% progress before displaying results
+                embed.description = f"Looking for: **{query}**\nProgress: 100%"
+                await status_msg.edit(embed=embed)
+                await asyncio.sleep(0.5)
 
                 # Create song selection embed
                 embed = discord.Embed(
@@ -769,11 +645,10 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in rate limit handler: {e}")
             return False
 
-    @commands.command(name='lyrics')
     async def lyrics(self, ctx, *, song_name: str):
         """Get lyrics for a song"""
         try:
-            # Initialize status_msg at the start
+            # Initialize status message
             embed = discord.Embed(
                 title="🔍 Searching for Lyrics",
                 description=f"Searching for: **{song_name}**",
@@ -781,52 +656,98 @@ class MusicCommands(commands.Cog):
             )
             status_msg = await ctx.send(embed=embed)
 
-            try:
-                # Format URL for Lyrics.ovh API
-                formatted_song = song_name.replace(' ', '%20')
-                url = f"https://lyricsovh.xyz/v1/{formatted_song}"
+            # Check if Genius token exists
+            if not self.genius_token:
+                embed.title = "❌ Error"
+                embed.description = "Lyrics feature is not available. Please contact the bot administrator."
+                embed.color = discord.Color.red()
+                await status_msg.edit(embed=embed)
+                return
 
+            try:
+                # Search for lyrics
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as response:
+                    async with session.get(
+                        f"https://api.genius.com/search?q={song_name}",
+                        headers={'Authorization': f'Bearer {self.genius_token}'}
+                    ) as response:
                         if response.status != 200:
-                            embed.title = "❌ Not Found"
-                            embed.description = "Could not find lyrics for this song."
+                            embed.title = "❌ Error"
+                            embed.description = "Could not connect to lyrics service."
                             embed.color = discord.Color.red()
                             await status_msg.edit(embed=embed)
                             return
 
-                        data = await response.json()
-                        lyrics = data.get('lyrics', 'No lyrics found.')
-                        # Split lyrics into chunks of 4096 characters (Discord embed limit)
-                        chunks = [lyrics[i:i + 4096] for i in range(0, len(lyrics), 4096)]
+                        try:
+                            data = await response.json()
+                            hits = data.get('response', {}).get('hits', [])
 
-                        # Send first chunk in original embed
-                        embed.title = f"🎵 Lyrics for {song_name}"
-                        embed.description = chunks[0]
-                        embed.color = discord.Color.blue()
-                        await status_msg.edit(embed=embed)
+                            if not hits:
+                                embed.title = "❌ No Results"
+                                embed.description = f"Could not find lyrics for '{song_name}'"
+                                embed.color = discord.Color.red()
+                                await status_msg.edit(embed=embed)
+                                return
 
-                        # Send additional chunks if any
-                        if len(chunks) > 1:
-                            for chunk in chunks[1:]:
-                                await ctx.send(embed=discord.Embed(description=chunk, color=discord.Color.blue()))
+                            # Get first hit
+                            song_url = hits[0]['result']['url']
 
-                    except json.JSONDecodeError:
-                        embed.title = "❌ Error"
-                        embed.description = "Could not decode lyrics data."
-                        embed.color = discord.Color.red()
-                        await status_msg.edit(embed=embed)
+                            # Extract lyrics using trafilatura
+                            downloaded = await self.bot.loop.run_in_executor(
+                                None, trafilatura.fetch_url, song_url
+                            )
+
+                            if downloaded:
+                                lyrics = await self.bot.loop.run_in_executor(
+                                    None, trafilatura.extract, downloaded
+                                )
+
+                                if lyrics:
+                                    # Split lyrics into chunks of 4096 characters (Discord embed limit)
+                                    chunks = [lyrics[i:i + 4096] for i in range(0, len(lyrics), 4096)]
+
+                                    # Send first chunk in original embed
+                                    embed.title = f"🎵 Lyrics for {song_name}"
+                                    embed.description = chunks[0]
+                                    embed.color = discord.Color.blue()
+                                    await status_msg.edit(embed=embed)
+
+                                    # Send additional chunks if any
+                                    if len(chunks) > 1:
+                                        for chunk in chunks[1:]:
+                                            await ctx.send(
+                                                embed=discord.Embed(
+                                                    description=chunk,
+                                                    color=discord.Color.blue()
+                                                )
+                                            )
+                                else:
+                                    embed.title = "❌ Error"
+                                    embed.description = "Could not extract lyrics from the page."
+                                    embed.color = discord.Color.red()
+                                    await status_msg.edit(embed=embed)
+                            else:
+                                embed.title = "❌ Error"
+                                embed.description = "Could not download lyrics page."
+                                embed.color = discord.Color.red()
+                                await status_msg.edit(embed=embed)
+
+                        except json.JSONDecodeError:
+                            embed.title = "❌ Error"
+                            embed.description = "Could not decode lyrics data."
+                            embed.color = discord.Color.red()
+                            await status_msg.edit(embed=embed)
 
             except Exception as e:
                 self.logger.error(f"Error fetching lyrics: {e}")
                 embed.title = "❌ Error"
-                embed.description = "Failed to fetch lyrics. Please try again later."
+                embed.description = f"An error occurred while fetching lyrics: {str(e)}"
                 embed.color = discord.Color.red()
                 await status_msg.edit(embed=embed)
 
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {e}")
-            await ctx.send("❌ An error occurred while fetching lyrics.")
+            await ctx.send(f"❌ An error occurred while processing your request: {str(e)}")
 
     @commands.command(name='queue')
     async def view_queue(self, ctx):
@@ -841,7 +762,7 @@ class MusicCommands(commands.Cog):
             return
 
         # Create queue embed
-        embed = discord.Embed(
+        embed =discord.Embed(
             title="🎶 Music Queue",
             color=discord.Color.blue()
         )
@@ -870,181 +791,190 @@ class MusicCommands(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    async def _play_next(self, interaction):
-        """Play the next song in queue"""
+    async def _play_next(self, interaction: discord.Interaction):
+        """Plays the next song in the queue"""
+        if not self.queue:
+            return
+
         try:
-            if not self.queue:
+            # Get next song from queue
+            song_info = self.queue.pop(0)
+
+            # Create FFmpeg options with proper audio settings
+            FFMPEG_OPTIONS = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn -b:a 192k'
+            }
+
+            # Create audio source
+            source = await discord.FFmpegOpusAudio.from_probe(
+                song_info['url'],
+                **FFMPEG_OPTIONS
+            )
+
+            # Store current song URL for seeking
+            self.current_song_url = song_info['url']
+
+            # Create initial playing embed
+            embed = discord.Embed(
+                title=f"🎵 Now Playing: {song_info['title']}",
+                description=f"Artist: **{song_info['artist']}**",
+                color=discord.Color.blue()
+            )
+
+            if song_info.get('thumbnail'):
+                embed.set_thumbnail(url=song_info['thumbnail'])
+
+            # Send initial embed
+            progress_msg = await interaction.channel.send(embed=embed)
+
+            # Start playing
+            interaction.guild.voice_client.play(
+                source,
+                after=lambda e: asyncio.create_task(self._handle_song_end(e, interaction))
+            )
+
+            # Start progress updates
+            start_time = time.time()
+            await self.update_song_progress(
+                interaction.guild.voice_client,
+                progress_msg,
+                start_time,
+                song_info['duration_ms'],
+                song_info
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error playing next song: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ An error occurred while playing the song.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "❌ An error occurred while playing the song.",
+                    ephemeral=True
+                )
+    async def _handle_song_end(self, error, interaction):
+        if error:
+            self.logger.error(f"Error during song playback: {error}")
+
+        await self._play_next(interaction)
+
+    @commands.command(name='ydl_opts')
+    async def ydl_opts(self, ctx):
+        await ctx.send(f"ydl_opts: {self.ydl_opts}")
+
+class SongSelectionView(discord.ui.View):
+    def __init__(self, bot, ctx, songs, effect=None):
+        super().__init__(timeout=30)
+        self.ctx = ctx
+        self.songs = songs
+        self.bot = bot
+        self.effect = effect
+        self.message = None
+        self.logger = logging.getLogger('discord_bot')
+
+        # Create song selection dropdown
+        select = discord.ui.Select(
+            placeholder="Choose a song...",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label=song["title"][:100],
+                    value=str(i),
+                    description=f"Duration: {int(song.get('duration', 0)/1000)}s"
+                ) for i, song in enumerate(songs[:5])
+            ]
+        )
+        select.callback = self.song_selected
+        self.add_item(select)
+
+    async def song_selected(self, interaction: discord.Interaction):
+        """Handle song selection and queue management"""
+        try:
+            # Defer the response to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+
+            # Get the MusicCommands cog
+            bot_cog = self.bot.get_cog('MusicCommands')
+            if not bot_cog:
+                await interaction.followup.send("❌ Bot configuration error!", ephemeral=True)
+                self.logger.error("MusicCommands cog not found")
                 return
 
-            song = self.queue.pop(0)
+            # Get selected song
+            selected_index = int(interaction.data["values"][0])
+            song = self.songs[selected_index]
 
-            # Ensure we're connected to voice
-            if not interaction.guild.voice_client:
-                # Get the voice channel of the user who requested the song
-                member = interaction.guild.get_member(interaction.user.id)
-                if not member or not member.voice:
-                    if not interaction.response.is_done():
-                        await interaction.response.send_message("❌ You must be in a voice channel!", ephemeral=True)
-                    else:
-                        await interaction.followup.send("❌ You must be in a voice channel!", ephemeral=True)
-                    return
+            # Check voice state
+            member = interaction.guild.get_member(interaction.user.id)
+            if not member or not member.voice:
+                await interaction.followup.send("❌ You must be in a voice channel!", ephemeral=True)
+                return
 
-                voice_channel = member.voice.channel
-                try:
+            voice_channel = member.voice.channel
+            try:
+                if not interaction.guild.voice_client:
                     await voice_channel.connect()
-                except Exception as e:
-                    self.logger.error(f"Error connecting to voice channel: {e}")
-                    await interaction.followup.send("❌ Failed to connect to voice channel!", ephemeral=True)
-                    return
-
-            if not interaction.guild.voice_client.is_connected():
-                self.logger.error("Voice client disconnected unexpectedly")
-                await interaction.followup.send("❌ Voice connection lost! Please try again.", ephemeral=True)
-                return
-
-            try:
-                # Create FFmpeg audio source with proper options
-                FFMPEG_OPTIONS = {
-                    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                    'options': '-vn -b:a 256k'
-                }
-
-                source = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(song['url'], **FFMPEG_OPTIONS),
-                    volume=self.current_volume
-                )
-
-                # Store current song URL for seeking
-                self.current_song_url = song['url']
-
-                def after_playing(error):
-                    if error:
-                        self.logger.error(f"Error in playback: {error}")
-
-                    # Schedule next song using the bot's event loop
-                    if len(self.queue) > 0:  # Only schedule if there are more songs
-                        self.bot.loop.create_task(self._play_next(interaction))
-
-                # Start playback
-                if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
-                    interaction.guild.voice_client.play(source, after=after_playing)
-                else:
-                    self.logger.error("Voice client not available for playback")
-                    await interaction.followup.send("❌ Voice connection lost during playback setup!", ephemeral=True)
-                    return
-
-                # Create now playing embed
-                embed = discord.Embed(
-                    title="🎵 Now Playing",
-                    description=f"**{song['title']}**\nBy: {song['artist']}",
-                    color=discord.Color.blue()
-                )
-
-                if song.get('thumbnail'):
-                    embed.set_thumbnail(url=song['thumbnail'])
-
-                duration = int(song['duration_ms']/1000)
-                minutes = duration // 60
-                seconds = duration % 60
-                duration_str = f"{minutes:02d}:{seconds:02d}"
-
-                embed.add_field(
-                    name="Duration",
-                    value=duration_str,
-                    inline=True
-                )
-                embed.add_field(
-                    name="Requested by",
-                    value=song['requester'].mention,
-                    inline=True
-                )
-
-                # Send the embed and store the message for progress updates
-                try:
-                    if not interaction.response.is_done():
-                        message = await interaction.response.send_message(embed=embed)
-                    else:
-                        message = await interaction.followup.send(embed=embed)
-                except discord.errors.HTTPException as e:
-                    self.logger.error(f"Error sending now playing message: {e}")
-                    return
-
-                # Start progress tracking
-                self.bot.loop.create_task(
-                    self.update_song_progress(
-                        interaction.guild.voice_client,
-                        message,
-                        time.time(),
-                        song['duration_ms'],
-                        song
-                    )
-                )
-
             except Exception as e:
-                self.logger.error(f"Error creating audio source: {e}")
-                await interaction.followup.send("❌ Error creating audio source. Please try again.", ephemeral=True)
+                self.logger.error(f"Error connecting to voice channel: {e}")
+                await interaction.followup.send("❌ Failed to join voice channel. Please try again.", ephemeral=True)
                 return
 
-        except Exception as e:
-            self.logger.error(f"Error in _play_next: {e}")
+            # Extract song metadata
             try:
-                await interaction.followup.send("❌ An error occurred while playing the next song.", ephemeral=True)
-            except discord.errors.HTTPException:
-                self.logger.error("Could not send error message to user")
+                song_info = {
+                    'title': song['title'],
+                    'url': song['url'],
+                    'artist': song.get('artist', 'Unknown Artist'),
+                    'thumbnail': song.get('thumbnail', None),
+                    'duration_ms': song.get('duration', 0),
+                    'requester': member
+                }
+            except KeyError as ke:
+                self.logger.error(f"Missing key in song data: {ke}")
+                await interaction.followup.send("❌ Error processing song metadata", ephemeral=True)
+                return
 
-    async def handle_rate_limit(self, e, interaction=None, endpoint: str = "global"):
-        try:
-            # Extract rate limit information
-            retry_after = getattr(e, 'retry_after', self.retry_delay)
-            self._update_rate_limit(endpoint, retry_after)
+            # Add song to queue
+            bot_cog.queue.append(song_info)
 
-            # Prepare user-friendly message
-            if self.retry_count >= self.max_retries:
-                message = "⚠️ Too many retries. Please try again in a few minutes."
-                self.logger.warning(f"Rate limit max retries reached for {endpoint}")
-                self.retry_count = 0  # Reset counter
-                self.rate_limit_start = None
-                return False
-
-            delay = self.retry_delay
-            warning_msg = (
-                f"🕒 Rate limited! Retrying in {delay:.1f}s...\n"
-                f"Retry {self.retry_count + 1}/{self.max_retries}"
-            )
-
-            # Log the rate limit
-            self.logger.warning(
-                f"Rate limit hit: endpoint={endpoint}, "
-                f"retry={self.retry_count + 1}/{self.max_retries}, "
-                f"delay={delay:.1f}s"
-            )
-
-            # Send feedback to user
-            if interaction:
+            # Handle playback
+            if not interaction.guild.voice_client.is_playing():
                 try:
-                    if isinstance(interaction, discord.Interaction):
-                        if not interaction.response.is_done():
-                            await interaction.response.defer(ephemeral=True)
-                        await interaction.followup.send(warning_msg, ephemeral=True)
-                    else:
-                        # Assume it's a Context or Message
-                        await interaction.edit(content=warning_msg)
-                except discord.errors.HTTPException:
-                    # If we can't send/edit message, log and continue
-                    self.logger.warning("Could not send rate limit message to user")
-                    pass
-
-            # Wait with backoff
-            await asyncio.sleep(delay)
-            self.retry_count += 1
-
-            # Check if we should continue retrying
-            return self._should_retry(endpoint)
+                    await bot_cog._play_next(interaction)
+                except Exception as e:
+                    self.logger.error(f"Error starting playback: {e}")
+                    await interaction.followup.send("❌ Error starting playback", ephemeral=True)
+                    return
+            else:
+                # Show queued message
+                embed = discord.Embed(
+                    title="🎵 Added to Queue",
+                    description=f"**{song_info['title']}**\nPosition in queue: {len(bot_cog.queue)}",
+                    color=discord.Color.green()
+                )
+                if song_info.get('thumbnail'):
+                    embed.set_thumbnail(url=song_info['thumbnail'])
+                embed.set_footer(text=f"Requested by {member.display_name}")
+                await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            self.logger.error(f"Error in rate limit handler: {e}")
-            return False
+            self.logger.error(f"Error in song selection: {str(e)}", exc_info=True)
+            error_message = "❌ Error processing song selection. Please try again."
+            if not interaction.response.is_done():
+                await interaction.response.send_message(error_message, ephemeral=True)
+            else:
+                await interaction.followup.send(error_message, ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(MusicCommands(bot))
-    logging.getLogger('discord_bot').info("Music commands cog loaded successfully")
+    try:
+        cog = MusicCommands(bot)
+        await bot.add_cog(cog)
+        logging.getLogger('discord_bot').info("MusicCommands cog added successfully")
+    except Exception as e:
+        logging.getLogger('discord_bot').error(f"Error adding MusicCommands cog: {e}")
+        raise
