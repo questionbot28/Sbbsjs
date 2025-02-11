@@ -50,8 +50,8 @@ class SongSelectionView(discord.ui.View):
             filter_options = f"-af {filters[self.effect]}" if self.effect in filters else ""
             
             FFMPEG_OPTIONS = {
-                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-                "options": f"{filter_options} -vn"
+                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -bufsize 64k",
+                "options": f"{filter_options} -vn -b:a 128k"
             }
             
             vc.play(discord.FFmpegPCMAudio(song["url"], **FFMPEG_OPTIONS))
@@ -74,7 +74,12 @@ class MusicCommands(commands.Cog):
             'ignoreerrors': False,
             'quiet': True,
             'no_warnings': True,
-            'source_address': '0.0.0.0'
+            'source_address': '0.0.0.0',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'opus',
+                'preferredquality': '128'
+            }]
         }
 
         # Configure Spotify if credentials exist
