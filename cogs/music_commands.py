@@ -8,7 +8,8 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from typing import Dict, Optional
 import os
-from discord.ui import View, Select
+from discord.ui import View, Select, Button
+from discord import ButtonStyle
 
 class SongSelectionView(View):
     def __init__(self, bot, ctx, songs):
@@ -18,9 +19,11 @@ class SongSelectionView(View):
         self.bot = bot
 
         select = Select(placeholder="Choose a song...", min_values=1, max_values=1)
-
-        for i, song in enumerate(songs):
-            select.add_option(label=song["title"], value=str(i))
+        
+        # Only show first 5 songs to avoid Discord's 25-option limit
+        for i, song in enumerate(songs[:5]):
+            title = song["title"][:100]  # Truncate title to avoid Discord's length limit
+            select.add_option(label=title, value=str(i))
 
         select.callback = self.song_selected  # Handle selection
         self.add_item(select)
@@ -199,6 +202,30 @@ class MusicCommands(commands.Cog):
         if not ctx.author.voice:
             await ctx.send("❌ You must be in a voice channel!")
             return
+
+        async with ctx.typing():
+            try:
+                # Handle Spotify URLs
+                if "spotify.com/track/" in query:
+                    query = self.get_spotify_track(query)
+                    if not query:
+                        await ctx.send("❌ Invalid Spotify URL or song not found.")
+                        return
+
+                # Get YouTube results
+                songs = await asyncio.get_event_loop().run_in_executor(None, self.get_youtube_results, query)
+                if not songs:
+                    await ctx.send(f"❌ No songs found matching '{query}'!")
+                    return
+
+                # Show song selection dropdown
+                view = SongSelectionView(self.bot, ctx, songs)
+                await ctx.send("🎵 Select a song to play:", view=view)
+                self.logger.info(f"Showing song selection for: {query}")
+
+            except Exception as e:
+                self.logger.error(f"Error playing audio: {e}")
+                await ctx.send("❌ An error occurred while trying to play the audio.")
 
         # Connect to voice if not already connected
         if not ctx.voice_client:
