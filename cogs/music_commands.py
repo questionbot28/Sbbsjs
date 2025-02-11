@@ -331,5 +331,42 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error searching YouTube video: {e}")
             return None
 
+    @commands.command(name='function')
+    async def function(self, ctx):
+        """Display all music features and commands"""
+        embed = discord.Embed(
+            title="🎵 EduSphere Bot Music Features",
+            description="Here are all the advanced commands your bot supports:",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(name="🎶 Basic Commands", value="""
+        `!play <song>` - Play a song from YouTube  
+        `!pause` - Pause the current song  
+        `!resume` - Resume the paused song  
+        `!stop` - Stop playing music  
+        `!leave` - Disconnect the bot from the voice channel  
+        """, inline=False)
+
+        embed.add_field(name="🔥 Advanced Music Effects", value="""
+        `!play <song> bassboost` - Play song with **Bass Boost**  
+        `!play <song> nightcore` - Play song with **Nightcore Effect**  
+        `!play <song> reverb` - Play song with **Slow + Reverb Effect**  
+        `!play <song> 8d` - Play song with **8D Surround Sound**  
+        """, inline=False)
+
+        embed.add_field(name="🎬 YouTube Watch Party", value="""
+        `!vplay <song>` - Start a **YouTube Watch Party** and load the song automatically  
+        """, inline=False)
+
+        embed.add_field(name="🔧 Utility Commands", value="""
+        `!join` - Make the bot join your voice channel  
+        `!function` - Show all available bot commands  
+        """, inline=False)
+
+        embed.set_footer(text="🎵 EduSphere Bot - Your Ultimate Music Experience 🚀")
+
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
