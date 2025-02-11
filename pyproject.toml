@@ -13,4 +13,5 @@ dependencies = [
     "sendgrid>=6.11.0",
     "twilio>=9.4.4",
     "supervisor>=4.2.5",
+    "pynacl>=1.5.0",
 ]
