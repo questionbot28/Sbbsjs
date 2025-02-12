@@ -31,7 +31,7 @@ class EducationalBot(commands.Bot):
             'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands_enhanced',  # Updated music commands cog
+            'cogs.music_commands_enhanced',  # Music commands cog
             'cogs.staff_commands',
             'cogs.ticket_manager'
         ]
@@ -50,7 +50,6 @@ class EducationalBot(commands.Bot):
             except Exception as e:
                 logger.error(f"Failed to load extension {extension}: {str(e)}")
                 logger.exception(e)
-                # Don't raise the exception - continue loading other extensions
 
     async def on_ready(self):
         """Called when the bot is ready and connected"""

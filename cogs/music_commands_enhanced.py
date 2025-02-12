@@ -7,7 +7,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 import yt_dlp
 import re
-import random  # Added for random search time
+import random
 from discord import SelectOption
 from discord.ui import Select, View
 
@@ -19,7 +19,7 @@ class SongSelect(discord.ui.Select):
             max_values=1,
             options=[
                 SelectOption(
-                    label=f"{song['title'][:80]}",  # Truncate long titles
+                    label=f"{song['title'][:80]}", 
                     description=f"Duration: {song['duration_string']}",
                     value=str(i)
                 ) for i, song in enumerate(options)
@@ -37,7 +37,6 @@ class MusicCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
-        self.search_url = "https://search.azlyrics.com/search.php"
         self.voice_clients = {}
         self.current_tracks = {}
         self.volume = 1.0
@@ -45,7 +44,7 @@ class MusicCommands(commands.Cog):
             'bassboost': 'bass=g=20:f=110:w=0.3',
             '8d': 'apulsator=hz=0.09',
             'nightcore': 'aresample=48000,asetrate=48000*1.25',
-            'slowand_reverb': 'aecho=0.8:0.9:1000:0.3,atempo=0.8'  # Combined slow and reverb effect
+            'slowand_reverb': 'asetrate=44100*0.75,aresample=44100,atempo=0.8,aecho=0.8:0.88:60:0.4:0.4,lowpass=f=174,rubberband=pitch=-2:pitchq=quality',  # Updated with proper filter parameters
         }
         self.progress_update_tasks = {}
 
@@ -625,7 +624,6 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error joining voice channel: {e}")
             await ctx.send("❌ Could not join the voice channel.")
 
-
     @commands.command(name='volume')
     async def volume(self, ctx, volume: float):
         """Change the volume of the currently playing song (0-200%)"""
@@ -661,52 +659,79 @@ class MusicCommands(commands.Cog):
             return
 
         try:
-            # Get current track info
             if ctx.guild.id not in self.current_tracks:
                 await ctx.send("❌ No track information available!")
                 return
 
             track_info = self.current_tracks[ctx.guild.id]
-
-            # Verify URL exists
             if 'url' not in track_info:
                 await ctx.send("❌ Track URL not available!")
                 return
 
-            # Calculate current position in seconds
+            # Calculate current position
             current_time = int(asyncio.get_event_loop().time() - track_info['start_time'])
 
             # Stop current playback
             ctx.voice_client.stop()
 
-            # Setup FFmpeg options with the new filter and start position
+            # Setup FFmpeg options with effect
             ffmpeg_options = {
                 'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {current_time}',
                 'options': f'-vn -af {self.audio_filters[effect]}'
             }
 
             self.logger.info(f"Applying {effect} effect with filter: {self.audio_filters[effect]} at position {current_time}s")
+            self.logger.debug(f"Full FFmpeg options: {ffmpeg_options}")
 
-            # Create new audio source with effect
-            audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
-            transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
+            # Create placeholder message
+            status_msg = await ctx.send(f"🎵 Applying {effect} effect...")
 
-            # Update start time to maintain progress bar accuracy
-            track_info['start_time'] = asyncio.get_event_loop().time() - current_time
+            try:
+                # Create new audio source with effect
+                audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
+                transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
 
-            ctx.voice_client.play(
-                transformed_source,
-                after=lambda e: asyncio.run_coroutine_threadsafe(
-                    self.song_finished(ctx.guild.id, e), self.bot.loop
-                ) if e else None
-            )
+                # Update start time for progress tracking
+                track_info['start_time'] = asyncio.get_event_loop().time() - current_time
 
-            await ctx.send(f"✨ Applied {effect} effect to the current song!")
-            self.logger.info(f"Successfully applied {effect} effect for guild {ctx.guild.id}")
+                # Play with effect
+                ctx.voice_client.play(
+                    transformed_source,
+                    after=lambda e: asyncio.run_coroutine_threadsafe(
+                        self.song_finished(ctx.guild.id, e), self.bot.loop
+                    ) if e else None
+                )
+
+                # Update status message
+                await status_msg.edit(content=f"✨ Applied {effect} effect to the current song!")
+                self.logger.info(f"Successfully applied {effect} effect for guild {ctx.guild.id}")
+
+            except Exception as audio_error:
+                error_msg = str(audio_error)
+                self.logger.error(f"FFmpeg error while applying effect: {error_msg}")
+
+                if "No such filter" in error_msg:
+                    await status_msg.edit(content="❌ Invalid audio filter configuration.")
+                elif "Invalid data found" in error_msg:
+                    await status_msg.edit(content="❌ Error processing audio stream.")
+                else:
+                    await status_msg.edit(content="❌ Failed to apply audio effect. Please try again.")
+
+                # Try to restore normal playback
+                try:
+                    audio_source = discord.FFmpegPCMAudio(track_info['url'],
+                                                          before_options=f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {current_time}',
+                                                          options='-vn'
+                                                          )
+                    ctx.voice_client.play(discord.PCMVolumeTransformer(audio_source, volume=self.volume))
+                except Exception as restore_error:
+                    self.logger.error(f"Error restoring playback: {restore_error}")
+
+                return
 
         except Exception as e:
             self.logger.error(f"Error applying audio effect: {str(e)}")
-            await ctx.send("❌ An error occurred while applying the audio effect. Please try again.")
+            await ctx.send("❌ An error occurred while applying the audio effect.")
 
     @commands.command(name='bassboost')
     async def bassboost(self, ctx):
@@ -768,7 +793,7 @@ class MusicCommands(commands.Cog):
             audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
             transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
 
-            # Update start time to maintain progress bar accuracy
+            # Update start time
             track_info['start_time'] = asyncio.get_event_loop().time() - new_time
 
             ctx.voice_client.play(
@@ -778,12 +803,11 @@ class MusicCommands(commands.Cog):
                 ) if e else None
             )
 
-            # Send confirmation
-            seek_type = "forward" if direction.lower() in ['forward', 'f'] else "back"
+            # Send confirmation with fixed variable name
+            seek_type = "forward" if direction.lower() in ['forward','f'] else "back"
             await ctx.send(f"⏩ Seeked {seek_type} {seconds} seconds")
 
-        except Exception as e:
-            self.logger.error(f"Error seeking: {str(e)}")
+        except Exception as e:            self.logger.error(f"Error seeking: {str(e)}")
             await ctx.send("❌ An error occurred while seeking.")
 
     @commands.command(name='normal')
@@ -816,7 +840,7 @@ class MusicCommands(commands.Cog):
             audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
             transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
 
-            # Update start time to maintain progress bar accuracy
+            # Update start time
             track_info['start_time'] = asyncio.get_event_loop().time() - current_time
 
             ctx.voice_client.play(
@@ -826,11 +850,12 @@ class MusicCommands(commands.Cog):
                 ) if e else None
             )
 
-            await ctx.send("✨ Removed all audio effects")
+            await ctx.send("✨ Removed all audio effects!")
+            self.logger.info(f"Successfully removed effects for guild {ctx.guild.id}")
 
         except Exception as e:
-            self.logger.error(f"Error removing effects: {str(e)}")
-            await ctx.send("❌ An error occurred while removing effects.")
+            self.logger.error(f"Error removing audio effects: {str(e)}")
+            await ctx.send("❌ An error occurred while removing the audio effects.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
