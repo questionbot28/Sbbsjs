@@ -677,8 +677,10 @@ class MusicCommands(commands.Cog):
                                 self.logger.warning(f"Access restricted for {url}")
                                 continue
 
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
+                            soup = BeautifulSoup(html, 'html.parser')
+                    except Exception as e:
+                        self.logger.error(f"Error accessing URL {url}: {e}")
+                        continue
 
                     # Search for song results
                     results = soup.find_all('td', class_='text-left visitedlyr')
