@@ -11,10 +11,11 @@ import random
 from discord import SelectOption
 from discord.ui import Select, View
 import os
-from typing import Optional, Dict, Any, Union, List
-import aiohttp
-from bs4 import BeautifulSoup
 import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class SongSelect(discord.ui.Select):
     def __init__(self, options: List[Dict[str, Any]], callback_func):
@@ -87,9 +88,13 @@ class MusicCommands(commands.Cog):
                 "Clocks - Coldplay"
             ]
         }
+
+        # Load and verify Musixmatch API key
         self.musixmatch_api_key = os.getenv('MUSIXMATCH_API_KEY')
         if not self.musixmatch_api_key:
-            self.logger.warning("Musixmatch API key not found - lyrics features will be limited")
+            self.logger.error("MUSIXMATCH_API_KEY not found in environment variables")
+        else:
+            self.logger.info(f"Musixmatch API key loaded successfully (length: {len(self.musixmatch_api_key)})")
 
     async def get_lyrics(self, song_title: str, artist: str) -> Optional[Dict[str, Any]]:
         """Get lyrics using Spotify and Musixmatch APIs"""
@@ -172,10 +177,6 @@ class MusicCommands(commands.Cog):
         self.logger.info(f"Searching lyrics - Title: {song_title}, Artist: {artist}")
 
         try:
-            if not self.genius:
-                await loading_msg.edit(content="❌ Genius API client not initialized. Please check API key.")
-                return
-
             lyrics = await self.get_lyrics(song_title, artist)
             self.logger.info(f"Lyrics search result: {'Found' if lyrics else 'Not found'}")
 
@@ -784,14 +785,74 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in song search: {str(e)}")
             return None
 
+    async def test_api_connection(self) -> bool:
+        """Test the Musixmatch API connection and key validity"""
+        try:
+            # Test endpoint that requires less permissions
+            test_url = "https://api.musixmatch.com/ws/1.1/chart.tracks.get"
+            params = {
+                'apikey': self.musixmatch_api_key,
+                'page': 1,
+                'page_size': 1,
+                'country': 'us',
+                'format': 'json'
+            }
+            headers = {
+                'User-Agent': 'EducationalBot/1.0',
+                'Accept': 'application/json'
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(test_url, params=params, headers=headers, timeout=10) as response:
+                    response_text = await response.text()
+                    self.logger.info(f"API Test Response: {response_text[:200]}...")  # Log first 200 chars
+
+                    if response.status != 200:
+                        self.logger.error(f"API test failed with status {response.status}")
+                        return False
+
+                    try:
+                        data = json.loads(response_text)
+                        status_code = data['message']['header']['status_code']
+
+                        if status_code != 200:
+                            self.logger.error(f"API test failed with code {status_code}")
+                            return False
+
+                        self.logger.info("API test successful!")
+                        return True
+
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Failed to parse API response: {str(e)}")
+                        return False
+                    except KeyError as e:
+                        self.logger.error(f"Unexpected API response format: {str(e)}")
+                        return False
+
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error during API test: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error during API test: {str(e)}")
+            return False
+
     @commands.command(name='lyrics')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def get_lyrics_musixmatch(self, ctx, *, query: str):
         """Get lyrics for a song using Musixmatch API"""
-        if not self.musixmatch_api_key:
-            await ctx.send("❌ Lyrics feature is not available - API key not configured")
-            return
-
         try:
+            # Create loading message
+            loading_msg = await ctx.send("🔄 Testing API connection...")
+
+            # Test API connection first
+            is_api_working = await self.test_api_connection()
+            if not is_api_working:
+                await loading_msg.edit(content="❌ Musixmatch API is currently unavailable. Please try again later.")
+                return
+
+            # Update message to show searching status
+            await loading_msg.edit(content=f"🔍 Searching lyrics for: {query}")
+
             # Parse song and artist from query
             if " - " in query:
                 song, artist = query.split(" - ", 1)
@@ -799,56 +860,82 @@ class MusicCommands(commands.Cog):
                 song = query
                 artist = ""
 
-            # Create loading message
-            loading_msg = await ctx.send(f"🔍 Searching lyrics for: {query}")
+            # Verify API key
+            if not self.musixmatch_api_key:
+                await loading_msg.edit(content="❌ Musixmatch API key not configured.")
+                return
 
-            # Call Musixmatch API
-            url = "https://api.musixmatch.com/ws/1.1/matcher`.lyrics.get"
+            # URL encode parameters properly
             params = {
                 'apikey': self.musixmatch_api_key,
-                'q_track': song,
-                'q_artist': artist
+                'q_track': song.strip(),
+                'q_artist': artist.strip() if artist else '',
+                'format': 'json'
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
-                    data = await response.json()
+            headers = {
+                'User-Agent': 'EducationalBot/1.0',
+                'Accept': 'application/json'
+            }
 
-                    if not response.ok or data['message']['header']['status_code'] != 200:
-                        await loading_msg.edit(content="❌ No lyrics found. Please check the song name and artist.")
-                        return
+            base_url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(base_url, params=params, headers=headers) as response:
+                    self.logger.info(f"Musixmatch API Response Status: {response.status}")
 
                     try:
+                        data = await response.json()
+                        self.logger.info(f"API Response Header: {json.dumps(data.get('message', {}).get('header', {}), indent=2)}")
+
+                        status_code = data['message']['header']['status_code']
+                        if status_code != 200:
+                            error_msg = {
+                                401: "API key is invalid or expired. Please contact the bot administrator.",
+                                404: f"No lyrics found for '{song}'{f' by {artist}' if artist else ''}",
+                                100: "Invalid API key format",
+                                500: "Musixmatch service error",
+                            }.get(status_code, f"API Error {status_code}")
+
+                            await loading_msg.edit(content=f"❌ {error_msg}")
+                            return
+
+                        # Extract lyrics
                         lyrics = data['message']['body']['lyrics']['lyrics_body']
-                        # Remove Musixmatch disclaimer
                         lyrics = lyrics.split("******* This Lyrics is NOT")[0].strip()
 
-                        # Create embed for lyrics
+                        # Create embed
                         embed = discord.Embed(
-                            title=f"🎵 Lyrics for {song}",
-                            description=lyrics[:2000],  # Discord has a 2000 char limit
+                            title=f"🎵 {song}",
                             color=discord.Color.blue()
                         )
 
                         if artist:
                             embed.add_field(name="Artist", value=artist, inline=False)
 
+                        # Split lyrics into chunks (Discord's embed description limit is 4096 characters)
+                        chunks = [lyrics[i:i+4000] for i in range(0, len(lyrics), 4000)]
+
+                        # Send first chunk
+                        embed.description = chunks[0]
                         embed.set_footer(text="Powered by Musixmatch")
                         await loading_msg.edit(content=None, embed=embed)
 
-                        # If lyrics are longer than 2000 chars, send remaining parts
-                        if len(lyrics) > 2000:
-                            remaining_chunks = [lyrics[i:i+2000] for i in range(2000, len(lyrics), 2000)]
-                            for chunk in remaining_chunks:
-                                chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
-                                await ctx.send(embed=chunk_embed)
+                        # Send remaining chunks if any
+                        for chunk in chunks[1:]:
+                            chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
+                            await ctx.send(embed=chunk_embed)
 
-                    except KeyError:
-                        await loading_msg.edit(content="❌ Could not parse lyrics from the response.")
+                    except KeyError as e:
+                        self.logger.error(f"KeyError in response parsing: {str(e)}")
+                        await loading_msg.edit(content="❌ Could not find lyrics in the response")
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"JSON decode error: {str(e)}")
+                        await loading_msg.edit(content="❌ Invalid response from lyrics service")
 
         except Exception as e:
-            self.logger.error(f"Error fetching lyrics: {str(e)}")
-            await ctx.send(f"❌ An error occurred while fetching lyrics: {str(e)}")
+            self.logger.error(f"Error in lyrics command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while fetching lyrics")
 
     @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
