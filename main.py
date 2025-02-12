@@ -27,25 +27,22 @@ class EducationalBot(commands.Bot):
             intents=intents,
             help_command=None  # Disable default help command
         )
-        # Only include actively used cogs
+        # Use working cogs
         self.initial_extensions = [
-            'cogs.education_commands_new',
-            'cogs.admin_commands',
+            'cogs.education_manager_new',  # Switch to working manager cog
+            'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands',  # Ensure music commands is listed
-            'cogs.staff_commands'
+            'cogs.music_commands',
+            'cogs.staff_commands',
+            'cogs.ticket_manager'  # Add ticket manager for support
         ]
+        self.logger = logger
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
         logger.info("Starting bot initialization...")
 
-        # Log intents configuration
-        logger.info("Bot intents configuration:")
-        logger.info(f"Message Content: {intents.message_content}")
-        logger.info(f"Guilds: {intents.guilds}")
-        logger.info(f"Voice States: {intents.voice_states}")
-
+        # Load extensions with better error handling
         logger.info("Loading extensions...")
         for extension in self.initial_extensions:
             try:
@@ -60,6 +57,7 @@ class EducationalBot(commands.Bot):
     async def on_ready(self):
         """Called when the bot is ready and connected"""
         logger.info(f'Bot is ready! Logged in as {self.user.name}')
+        # Log all registered commands for debugging
         commands_list = [f"{cmd.name}" for cmd in self.commands]
         logger.info(f"Registered commands: {', '.join(commands_list)}")
 
@@ -118,12 +116,6 @@ async def main():
         if not token:
             logger.error("No Discord token found in environment variables!")
             return
-
-        # Verify intents are enabled
-        logger.info("Bot starting with intents:")
-        logger.info(f"Message Content: {intents.message_content}")
-        logger.info(f"Guilds: {intents.guilds}")
-        logger.info(f"Voice States: {intents.voice_states}")
 
         logger.info("Starting bot...")
         await bot.start(token)
