@@ -81,24 +81,19 @@ class MusicCommands(commands.Cog):
             return f"❌ An error occurred while fetching lyrics: {str(e)}"
 
     @commands.command(name='lyrics')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def lyrics(self, ctx, *, query: str):
-        """Get lyrics for a song"""
-        loading_msg = await ctx.send("🔍 Searching for lyrics...")
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def lyrics(self, ctx, *, song_name: str):
+        """Get lyrics for a song using ChartLyrics"""
+        # Send initial searching message
+        loading_embed = discord.Embed(
+            title="🔍 Searching for Lyrics",
+            description=f"Looking for: **{song_name}**",
+            color=discord.Color.blue()
+        )
+        status_msg = await ctx.send(embed=loading_embed)
 
         try:
-            # Log the search attempt
-            self.logger.info(f"Searching lyrics for query: {query}")
-
-            # Try to split artist and title if provided in format "title - artist"
-            parts = query.split('-')
-            if len(parts) == 2:
-                song_title = parts[0].strip()
-                artist = parts[1].strip()
-                result = await self.get_lyrics(song_title) #This line was changed from self.search_song_info(song_title)
-            else:
-                result = await self.get_lyrics(query) #This line was changed from self.search_song_info(query)
-
+            result = await self.get_lyrics(song_name)
 
             if isinstance(result, str):  # Error message
                 error_embed = discord.Embed(
@@ -106,13 +101,13 @@ class MusicCommands(commands.Cog):
                     description=result,
                     color=discord.Color.red()
                 )
-                await loading_msg.edit(embed=error_embed)
+                await status_msg.edit(embed=error_embed)
                 return
 
-            # Create embed with enhanced information
+            # Create embed for successful result
             embed = discord.Embed(
                 title=f"🎵 {result['title']}",
-                description=f"Search query: **{query}**",
+                description=f"Search query: **{result['query']}**",
                 color=discord.Color.blue()
             )
 
@@ -123,22 +118,24 @@ class MusicCommands(commands.Cog):
             )
 
             embed.add_field(
-                name="Lyrics",
-                value=f"[Click to view lyrics]({result['url']})",
+                name="Lyrics Link",
+                value=f"[Click here to view lyrics]({result['url']})",
                 inline=False
             )
 
-            embed.set_footer(text="Tip: Use 'song - artist' format for better results")
+            embed.set_footer(text="Lyrics provided by ChartLyrics")
+            await status_msg.edit(embed=embed)
 
-            self.logger.info(f"Successfully found lyrics for: {result['title']}")
-            await loading_msg.edit(content=None, embed=embed)
-
-        except aiohttp.ClientError as e:
-            self.logger.error(f"Network error in lyrics search: {str(e)}")
-            await loading_msg.edit(content="❌ Network error while fetching lyrics. Please try again later.")
+        except commands.CommandOnCooldown as e:
+            await status_msg.edit(content=f"⏳ Please wait {e.retry_after:.1f}s before using this command again.")
         except Exception as e:
-            self.logger.error(f"Error in lyrics command: {str(e)}")
-            await loading_msg.edit(content="❌ An error occurred while searching for lyrics. Please try again.")
+            self.logger.error(f"Error in lyrics command: {e}")
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=f"An unexpected error occurred: {str(e)}",
+                color=discord.Color.red()
+            )
+            await status_msg.edit(embed=error_embed)
 
 async def setup(bot):
     """Setup function for the cog"""
