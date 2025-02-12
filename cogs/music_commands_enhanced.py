@@ -107,12 +107,12 @@ class MusicCommands(commands.Cog):
 
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
 
-            # Try exact search first
-            try:
-                song = self.genius.search_song(f"{song_title}", artist)
-            except Exception as search_error:
-                self.logger.error(f"Error in initial search: {str(search_error)}")
-                song = None
+            # Perform Genius API call in a thread pool to avoid blocking
+            song = await asyncio.to_thread(
+                self.genius.search_song,
+                title=song_title,
+                artist=artist
+            )
 
             if not song:
                 self.logger.info(f"No results found with exact search, trying alternative search...")
@@ -125,7 +125,11 @@ class MusicCommands(commands.Cog):
 
                 for search_title, search_artist in search_attempts:
                     try:
-                        song = self.genius.search_song(search_title, search_artist)
+                        song = await asyncio.to_thread(
+                            self.genius.search_song,
+                            title=search_title,
+                            artist=search_artist
+                        )
                         if song:
                             self.logger.info(f"Found lyrics with alternative search: {search_title} - {search_artist}")
                             break
@@ -813,7 +817,8 @@ class MusicCommands(commands.Cog):
 
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {str(e)}")
-            await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")    @commands.command(name='songlist')
+            await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")    
+    @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
         """List songs available for a given mood"""
         if mood not in self.mood_playlists:
@@ -1169,8 +1174,8 @@ class MusicCommands(commands.Cog):
         )
 
         try:
-            # Get lyrics using existing method
-            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+            # Properly await the lyrics coroutine
+            lyrics = await self.get_lyrics(song_title, artist)
 
             if not lyrics:
                 await loading_msg.edit(content=(
@@ -1179,7 +1184,7 @@ class MusicCommands(commands.Cog):
                 ))
                 return
 
-            # Clean up lyrics for display
+            # Since lyrics is now properly awaited, we can safely split it
             lyrics_lines = lyrics.split('\n')
             lyrics_lines = [line.strip() for line in lyrics_lines if line.strip()]
 
@@ -1208,10 +1213,8 @@ class MusicCommands(commands.Cog):
                 inline=False
             )
 
-            # Add initial lyrics display
-            current_line_index = min(int((current_time / total_duration) * len(lyrics_lines)), len(lyrics_lines) - 1)
-
             # Show 5 lines of lyrics, with current line highlighted
+            current_line_index = min(int((current_time / total_duration) * len(lyrics_lines)), len(lyrics_lines) - 1)
             start_idx = max(0, current_line_index - 2)
             end_idx = min(len(lyrics_lines), start_idx + 5)
 
@@ -1297,5 +1300,5 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in instant_lyrics command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while displaying instant lyrics.")
 
-async def setup(bot):
-    await bot.add_cog(MusicCommands(bot))
+    async def setup(bot):
+        await bot.add_cog(MusicCommands(bot))
