@@ -99,50 +99,48 @@ class MusicCommands(commands.Cog):
             self.logger.warning(f"Could not initialize Genius API client: {str(e)}")
 
     async def get_lyrics(self, song_title: str, artist: str) -> Optional[str]:
-        """Get lyrics for a song using Genius API via lyricsgenius library"""
+        """Get lyrics for a song using Genius API and web scraping"""
         try:
             if not self.genius:
                 self.logger.error("Genius API client not initialized")
                 return None
 
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
-
-            # Perform Genius API call in a thread pool to avoid blocking
-            song = await asyncio.to_thread(
-                self.genius.search_song,
-                title=song_title,
-                artist=artist
-            )
-
-            if not song:
-                self.logger.info(f"No results found with exact search, trying alternative search...")
-                # Try alternative search formats
-                search_attempts = [
-                    (song_title, ""),  # Just the song title
-                    (f"{song_title} {artist}", ""),  # Combined search
-                    (song_title.lower(), artist.lower()),  # Lowercase everything
-                ]
-
-                for search_title, search_artist in search_attempts:
-                    try:
-                        song = await asyncio.to_thread(
-                            self.genius.search_song,
-                            title=search_title,
-                            artist=search_artist
-                        )
-                        if song:
-                            self.logger.info(f"Found lyrics with alternative search: {search_title} - {search_artist}")
-                            break
-                    except Exception as e:
-                        self.logger.error(f"Error in alternative search: {str(e)}")
-                        continue
-
-            if song:
-                self.logger.info(f"Found lyrics for: {song.title} by {song.artist}")
-                return song.lyrics
-
-            self.logger.warning(f"No lyrics found for: {song_title} by {artist} after all attempts")
-            return None
+            
+            # Search for song URL using Genius API
+            search_url = f"https://api.genius.com/search?q={song_title} {artist}"
+            headers = {"Authorization": f"Bearer {self.genius.auth.access_token}"}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(search_url, headers=headers) as response:
+                    if response.status != 200:
+                        return None
+                    
+                    data = await response.json()
+                    if not data['response']['hits']:
+                        return None
+                    
+                    song_url = data['response']['hits'][0]['result']['url']
+                    
+                    # Scrape lyrics from the Genius page
+                    async with session.get(song_url) as page_response:
+                        if page_response.status != 200:
+                            return None
+                            
+                        html = await page_response.text()
+                        soup = BeautifulSoup(html, 'html.parser')
+                        
+                        # Find lyrics container
+                        lyrics_div = soup.select_one('div[class*="Lyrics__Container"]')
+                        if not lyrics_div:
+                            return f"[Click here to view lyrics]({song_url})"
+                            
+                        # Clean up lyrics
+                        lyrics = lyrics_div.get_text()
+                        lyrics = re.sub(r'[\(\[].*?[\)\]]', '', lyrics)  # Remove [Verse], [Chorus] etc
+                        lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Remove extra newlines
+                        
+                        return lyrics.strip()
 
         except Exception as e:
             self.logger.error(f"Error getting lyrics: {str(e)}")
