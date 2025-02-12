@@ -164,7 +164,7 @@ class MusicCommands(commands.Cog):
                 await loading_msg.edit(content="❌ Genius API client not initialized. Please check API key.")
                 return
 
-            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+            lyrics = await self.get_lyrics(song_title, artist)
             self.logger.info(f"Lyrics search result: {'Found' if lyrics else 'Not found'}")
 
             if not lyrics:
