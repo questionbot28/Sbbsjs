@@ -820,16 +820,25 @@ class MusicCommands(commands.Cog):
             await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")    
     @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
-        """List songs available for a given mood"""if mood not in self.mood_playlists:
+        """List songs available for a given mood"""
+        if mood not in self.mood_playlists:
             await ctx.send(f"❌ Mood '{mood}' not found. Available moods: {', '.join(self.mood_playlists.keys())}")
             return
 
-        songs = self.mood_playlists[mood]
         embed = discord.Embed(
-            title=f"🎵 {mood.title()} Playlist",
-            description="\n".join(songs),
+            title=f"🎵 {mood.title()} Mood Playlist",
+            description="Here are some songs that match your mood:",
             color=discord.Color.blue()
         )
+
+        # Add songs to embed
+        songs_list = "\n".join([f"🎵 {i+1}. {song}" for i, song in enumerate(self.mood_playlists[mood])])
+        embed.add_field(
+            name="Songs",
+            value=songs_list,
+            inline=False
+        )
+
         await ctx.send(embed=embed)
 
     @commands.command(name='moodplay')
