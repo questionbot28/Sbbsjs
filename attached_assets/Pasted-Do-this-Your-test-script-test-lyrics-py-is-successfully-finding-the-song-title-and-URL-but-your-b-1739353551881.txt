@@ -1,0 +1,70 @@
+Do this Your test script (test_lyrics.py) is successfully finding the song title and URL, but your bot still isn't fetching lyrics. This confirms that the issue is with extracting lyrics from the Genius API.
+
+
+---
+
+🚨 Fix: Use Genius API for Lyrics Instead of Scraping
+
+Right now, your bot is trying to scrape lyrics from the webpage, but Genius API doesn't allow that. Instead, you should use the official Genius API lyrics endpoint.
+
+✅ Fix Your Code to Get Lyrics Using API
+
+Modify your get_lyrics function:
+
+import os
+import requests
+
+GENIUS_API_KEY = os.getenv("GENIUS_API_KEY")  # Fetch API key from Replit secrets
+headers = {"Authorization": f"Bearer {GENIUS_API_KEY}"}
+
+def get_lyrics(song_title):
+    search_url = f"https://api.genius.com/search?q={song_title.replace(' ', '%20')}"
+    response = requests.get(search_url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        if data["response"]["hits"]:
+            song_api_path = data["response"]["hits"][0]["result"]["api_path"]
+            song_url = f"https://api.genius.com{song_api_path}"
+
+            # Fetch song details
+            song_response = requests.get(song_url, headers=headers)
+            if song_response.status_code == 200:
+                song_data = song_response.json()
+                lyrics = song_data["response"]["song"]["lyrics"]["plain"]
+                return lyrics
+            else:
+                return "Error fetching song details."
+        else:
+            return "No results found."
+    else:
+        return f"API error: {response.status_code}"
+
+# Test fetching lyrics
+song_title = "Shape of You Ed Sheeran"
+lyrics = get_lyrics(song_title)
+print(lyrics)
+
+
+---
+
+🚀 Why This Works
+
+1️⃣ Instead of scraping the Genius webpage, this fetches lyrics directly from the API.
+2️⃣ Genius blocks web scraping with Cloudflare, so using the API is the only way.
+3️⃣ This avoids HTML parsing issues (which might be breaking your bot).
+
+
+---
+
+📌 Next Steps
+
+Replace your current get_lyrics function with this updated version.
+
+Test !getlyrics Shape of You Ed Sheeran again.
+
+If you still get "No lyrics found", check the API response structure.
+
+
+Let me know if you need more help!
+
