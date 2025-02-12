@@ -813,9 +813,7 @@ class MusicCommands(commands.Cog):
 
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {str(e)}")
-            await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")
-
-    @commands.command(name='songlist')
+            await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")    @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
         """List songs available for a given mood"""
         if mood not in self.mood_playlists:
@@ -1058,6 +1056,98 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in singer command: {str(e)}")
             await loading_msg.edit(content=f"❌ An error occurred while playing songs by **{singer_name}**")
+
+    @commands.command(name='vplay')
+    async def vplay(self, ctx, *, query: str):
+        """Start a YouTube watch party for a song"""
+        if not ctx.author.voice:
+            await ctx.send("❌ You need to be in a voice channel first!")
+            return
+
+        # Create initial search message
+        loading_msg = await ctx.send(
+            f"🔍 **Searching for:** `{query}`\n"
+            "⏳ Setting up watch party..."
+        )
+
+        try:
+            # Get search results using existing method
+            results = await self.get_song_results(query)
+
+            if not results:
+                await loading_msg.edit(content="❌ No videos found!")
+                return
+
+            # Get the first result
+            video = results[0]
+            video_id = video['webpage_url'].split('watch?v=')[-1]
+
+            # Check if user is in a valid voice channel
+            if not ctx.author.voice or not ctx.author.voice.channel:
+                await loading_msg.edit(content="❌ You need to be in a voice channel!")
+                return
+
+            # Create invite link with activity
+            try:
+                invite = await ctx.author.voice.channel.create_invite(
+                    target_type=discord.InviteTarget.embedded_application,
+                    target_application_id=880218394199220334,  # YouTube Watch Together App ID
+                    max_age=86400  # 24 hours
+                )
+
+                # Create embedded message with video info and invite
+                embed = discord.Embed(
+                    title="🎥 YouTube Watch Party",
+                    description=f"**{video['title']}**\nBy: {video['uploader']}",
+                    color=discord.Color.red()
+                )
+
+                if video['thumbnail']:
+                    embed.set_thumbnail(url=video['thumbnail'])
+
+                embed.add_field(
+                    name="Duration",
+                    value=f"`{video['duration_string']}`",
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="Host",
+                    value=ctx.author.mention,
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="How to Join",
+                    value=f"1. Join the voice channel: {ctx.author.voice.channel.mention}\n"
+                          f"2. Click the join button below\n"
+                          f"3. The video will be preloaded: `{video['title']}`",
+                    inline=False
+                )
+
+                # Create button for joining
+                view = discord.ui.View()
+                view.add_item(
+                    discord.ui.Button(
+                        style=discord.ButtonStyle.green,
+                        label="Join Watch Party",
+                        url=invite.url
+                    )
+                )
+
+                # Send final message and delete loading message
+                await ctx.send(embed=embed, view=view)
+                await loading_msg.delete()
+
+            except discord.errors.Forbidden:
+                await loading_msg.edit(content="❌ I don't have permission to create invites!")
+            except Exception as e:
+                self.logger.error(f"Error creating watch party: {e}")
+                await loading_msg.edit(content="❌ Failed to create watch party. Please try again.")
+
+        except Exception as e:
+            self.logger.error(f"Error in vplay command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while setting up the watch party.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
