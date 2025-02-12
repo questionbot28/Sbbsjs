@@ -12,7 +12,7 @@ def test_genius_api() -> Optional[Dict[str, Any]]:
         
     headers = {"Authorization": f"Bearer {GENIUS_API_KEY}"}
     search_url = "https://api.genius.com/search"
-    params = {"q": "Shape of You Ed Sheeran"}
+    params = {"q": "Shape of You Ed Sheeran"}  # More specific search
     
     try:
         response = requests.get(search_url, headers=headers, params=params)
