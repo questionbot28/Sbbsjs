@@ -955,7 +955,7 @@ class MusicCommands(commands.Cog):
             await ctx.send("❌ You need to be in a voice channel first!")
             return
 
-        # Create initial search message with loading animation
+        # Create initial search message
         loading_msg = await ctx.send(
             f"🎤 **Finding a song by:** `{singer_name}`\n"
             "🔍 Searching through artist's discography..."
@@ -1041,9 +1041,11 @@ class MusicCommands(commands.Cog):
                 inline=False
             )
 
-            # Send embed and start progress updates
+            # Send Now Playing embed and update loading message
             now_playing_msg = await ctx.send(embed=playing_embed)
-            await loading_msg.edit(content=f"🎵 Playing a song by **{singer_name}**: `{song_info['title']}`")
+
+            # Delete the loading message instead of updating it
+            await loading_msg.delete()
 
             # Update progress
             if ctx.guild.id in self.progress_update_tasks:
