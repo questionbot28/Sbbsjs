@@ -111,7 +111,12 @@ class MusicCommands(commands.Cog):
             
             # Use Genius API directly
             search_url = f"https://api.genius.com/search?q={song_title} {artist}"
-            headers = {"Authorization": f"Bearer {os.getenv('GENIUS_API_KEY')}"}
+            headers = {
+                "Authorization": f"Bearer {os.getenv('GENIUS_API_KEY')}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
