@@ -1,0 +1,77 @@
+The error "No synced lyrics found" means that your bot is looking for timestamped lyrics (like karaoke mode) but isn't finding any. The Genius API does not provide synced lyrics, only static ones.
+
+✅ Fix: Use Static Lyrics Instead
+
+Since syncing lyrics automatically isn’t possible from Genius, modify your bot to fetch static lyrics and display them gradually.
+
+
+---
+
+🔹 Update Your Code to Handle Static Lyrics
+
+Use this function to fetch and display static lyrics:
+
+import requests
+from bs4 import BeautifulSoup
+
+GENIUS_API_KEY = "YOUR_GENIUS_API_KEY"
+headers = {"Authorization": f"Bearer {GENIUS_API_KEY}"}
+
+def get_lyrics(song_name):
+    search_url = f"https://api.genius.com/search?q={song_name}"
+    response = requests.get(search_url, headers=headers).json()
+
+    if response["response"]["hits"]:
+        song_url = response["response"]["hits"][0]["result"]["url"]  # Get song page
+        return f"🎶 Lyrics found! Click here: {song_url}"
+    else:
+        return "❌ Lyrics not found!"
+
+# Discord command to fetch lyrics
+@bot.command()
+async def instant_lyrics(ctx):
+    current_song = "LOCK"  # Replace with actual playing song logic
+    lyrics = get_lyrics(current_song)
+    await ctx.send(lyrics)
+
+
+---
+
+🚀 How This Fix Works:
+
+✅ Instead of searching for synced lyrics, it fetches static lyrics.
+✅ If lyrics aren't available, it gives a direct link to Genius.
+✅ This prevents the error "No synced lyrics found."
+
+
+---
+
+🔹 Want Karaoke-Style Sync?
+
+To manually sync lyrics, use message editing to send one line at a time:
+
+import asyncio
+
+async def send_lyrics(ctx, song_name):
+    lyrics = [
+        "🎤 First line of lyrics...",
+        "🎤 Second line of lyrics...",
+        "🎤 Third line...",
+    ]
+    
+    msg = await ctx.send(lyrics[0])  # Send first line
+    
+    for line in lyrics[1:]:
+        await asyncio.sleep(5)  # Delay between lines
+        await msg.edit(content=line)  # Update message instead of spamming
+
+
+---
+
+💡 Next Steps
+
+1️⃣ Does your bot fetch song names from the music player correctly?
+2️⃣ Do you want a more advanced lyrics sync method?
+
+Let me know how it's working! 🚀
+
