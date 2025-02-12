@@ -107,8 +107,8 @@ class MusicCommands(commands.Cog):
             search_query = f"{song_title} {artist}"
             
             async with aiohttp.ClientSession() as session:
-                # First search for the song
-                search_url = f"https://saavn.dev/api/search?query={search_query}"
+                # First search for the song using alternative API
+                search_url = f"https://jiosaavn-api.vercel.app/search?query={search_query}"
                 async with session.get(search_url) as response:
                     if response.status != 200:
                         self.logger.error(f"Search failed with status: {response.status}")

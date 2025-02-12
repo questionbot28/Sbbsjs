@@ -14,8 +14,8 @@ async def test_jiosaavn_api():
 
         print(f"\nSearching for: {search_query}")
 
-        # First get song ID from search
-        search_url = f"https://saavn.dev/api/search?query={search_query}"
+        # Use alternative API endpoint
+        search_url = f"https://jiosaavn-api.vercel.app/search?query={search_query}"
         
         async with aiohttp.ClientSession() as session:
             async with session.get(search_url) as response:
@@ -24,21 +24,21 @@ async def test_jiosaavn_api():
                     return None
 
                 data = await response.json()
-                if not data.get('results'):
+                if not data.get('data'):
                     print("❌ No results found")
                     return None
 
                 # Get first result
-                song = data['results'][0]
+                song = data['data'][0]
                 print("\n✅ Song found!")
-                print(f"Title: {song.get('title')}")
-                print(f"Artist: {song.get('artist')}")
+                print(f"Title: {song.get('name')}")
+                print(f"Artist: {song.get('primaryArtists')}")
                 print(f"URL: {song.get('url')}")
 
                 # Try to get lyrics
                 song_id = song.get('id')
                 if song_id:
-                    lyrics_url = f"https://saavn.dev/api/lyrics/{song_id}"
+                    lyrics_url = f"https://jiosaavn-api.vercel.app/lyrics?id={song_id}"
                     async with session.get(lyrics_url) as lyrics_response:
                         if lyrics_response.status == 200:
                             lyrics_data = await lyrics_response.json()
