@@ -3,6 +3,37 @@ import os
 import requests
 import json
 from typing import Optional, Dict, Any
+from bs4 import BeautifulSoup
+
+def scrape_lyrics(song_url: str) -> Optional[str]:
+    """Scrape lyrics from Genius webpage"""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
+    }
+    try:
+        page = requests.get(song_url, headers=headers)
+        soup = BeautifulSoup(page.text, "html.parser")
+
+        # Try old format
+        lyrics_div = soup.find("div", class_="lyrics")
+        if lyrics_div:
+            return lyrics_div.get_text().strip()
+
+        # Try new format
+        lyrics_divs = soup.find_all("div", class_="Lyrics__Container")
+        if lyrics_divs:
+            return "\n".join([div.get_text() for div in lyrics_divs]).strip()
+            
+        # Try latest format
+        lyrics_containers = soup.select('[class*="lyrics"], [class*="Lyrics"]')
+        if lyrics_containers:
+            return "\n".join([div.get_text() for div in lyrics_containers]).strip()
+
+        return None
+            
+    except Exception as e:
+        print(f"Error scraping lyrics: {e}")
+        return None
 
 def test_genius_api() -> Optional[Dict[str, Any]]:
     """Test Genius API connectivity and search functionality"""
@@ -28,16 +59,22 @@ def test_genius_api() -> Optional[Dict[str, Any]]:
         if response.status_code == 200:
             data = response.json()
             if data["response"]["hits"]:
-                for hit in data["response"]["hits"][:3]:  # Show top 3 results
-                    print(f"\nFound: {hit['result']['full_title']}")
-                    print(f"URL: {hit['result']['url']}")
-                
-                result = data["response"]["hits"][0]["result"]
+                first_hit = data["response"]["hits"][0]["result"]
                 print("\n✅ API connection successful!")
                 print(f"\nFirst result:")
-                print(f"Title: {result['title']}")
-                print(f"Artist: {result['primary_artist']['name']}")
-                print(f"URL: {result['url']}")
+                print(f"Title: {first_hit['title']}")
+                print(f"Artist: {first_hit['primary_artist']['name']}")
+                print(f"URL: {first_hit['url']}")
+                
+                # Try to scrape lyrics
+                print("\nAttempting to scrape lyrics...")
+                lyrics = scrape_lyrics(first_hit['url'])
+                if lyrics:
+                    print("\n✅ Lyrics found!")
+                    print("\nFirst few lines:")
+                    print("\n".join(lyrics.split("\n")[:5]) + "...")
+                else:
+                    print("❌ Could not scrape lyrics")
                 
                 return data["response"]["hits"][0]
             else:
