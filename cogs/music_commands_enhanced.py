@@ -835,104 +835,65 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='lyrics')
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def get_lyrics_musixmatch(self, ctx, *, query: str):
-        """Get lyrics for a song using Musixmatch API"""
+    async def lyrics(self, ctx, *, query: str):
+        """Get lyrics for a song"""
+        loading_msg = await ctx.send("🔍 Searching for lyrics...")
+
         try:
-            # Create loading message
-            loading_msg = await ctx.send("🔄 Testing API connection...")
+            # Log the search attempt
+            self.logger.info(f"Searching lyrics for query: {query}")
 
-            # Test API connection first
-            is_api_working = await self.test_api_connection()
-            if not is_api_working:
-                await loading_msg.edit(content="❌ Musixmatch API is currently unavailable. Please try again later.")
-                return
-
-            # Update message to show searching status
-            await loading_msg.edit(content=f"🔍 Searching lyrics for: {query}")
-
-            # Parse song and artist from query
-            if " - " in query:
-                song, artist = query.split(" - ", 1)
+            # Try to split artist and title if provided in format "title - artist"
+            parts = query.split('-')
+            if len(parts) == 2:
+                song_title = parts[0].strip()
+                artist = parts[1].strip()
             else:
-                song = query
-                artist = ""
+                song_title = query
+                artist = ""  # We'll try without artist first
 
-            # Verify API key
-            if not self.musixmatch_api_key:
-                await loading_msg.edit(content="❌ Musixmatch API key not configured.")
+            result = await self.get_lyrics(song_title, artist)
+            self.logger.info(f"Lyrics search result: {'Found' if result else 'Not found'}")
+
+            if not result:
+                await loading_msg.edit(content=(
+                    "❌ No lyrics found. Please try:\n"
+                    "• Using the exact song title\n"
+                    "• Adding the artist name (e.g., 'Shape of You - Ed Sheeran')\n"
+                    "• Checking the spelling"
+                ))
                 return
 
-            # URL encode parameters properly
-            params = {
-                'apikey': self.musixmatch_api_key,
-                'q_track': song.strip(),
-                'q_artist': artist.strip() if artist else '',
-                'format': 'json'
-            }
+            # Clean up lyrics for better formatting
+            lyrics = result['lyrics'].strip()
+            lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Replace multiple newlines with double newline
 
-            headers = {
-                'User-Agent': 'EducationalBot/1.0',
-                'Accept': 'application/json'
-            }
+            # Create embed for song information
+            embed = discord.Embed(
+                title=f"🎵 {result['title']}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Artist", value=result['artist'], inline=False)
 
-            base_url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+            # Split lyrics into chunks of 2000 characters (Discord's limit)
+            lyrics_chunks = [lyrics[i:i+2000] for i in range(0, len(lyrics), 2000)]
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(base_url, params=params, headers=headers) as response:
-                    self.logger.info(f"Musixmatch API Response Status: {response.status}")
+            # Send first chunk with song info
+            first_chunk_embed = discord.Embed(
+                title=f"🎵 {result['title']} - {result['artist']}",
+                description=lyrics_chunks[0],
+                color=discord.Color.blue()
+            )
+            await loading_msg.edit(content=None, embed=first_chunk_embed)
 
-                    try:
-                        data = await response.json()
-                        self.logger.info(f"API Response Header: {json.dumps(data.get('message', {}).get('header', {}), indent=2)}")
-
-                        status_code = data['message']['header']['status_code']
-                        if status_code != 200:
-                            error_msg = {
-                                401: "API key is invalid or expired. Please contact the bot administrator.",
-                                404: f"No lyrics found for '{song}'{f' by {artist}' if artist else ''}",
-                                100: "Invalid API key format",
-                                500: "Musixmatch service error",
-                            }.get(status_code, f"API Error {status_code}")
-
-                            await loading_msg.edit(content=f"❌ {error_msg}")
-                            return
-
-                        # Extract lyrics
-                        lyrics = data['message']['body']['lyrics']['lyrics_body']
-                        lyrics = lyrics.split("******* This Lyrics is NOT")[0].strip()
-
-                        # Create embed
-                        embed = discord.Embed(
-                            title=f"🎵 {song}",
-                            color=discord.Color.blue()
-                        )
-
-                        if artist:
-                            embed.add_field(name="Artist", value=artist, inline=False)
-
-                        # Split lyrics into chunks (Discord's embed description limit is 4096 characters)
-                        chunks = [lyrics[i:i+4000] for i in range(0, len(lyrics), 4000)]
-
-                        # Send first chunk
-                        embed.description = chunks[0]
-                        embed.set_footer(text="Powered by Musixmatch")
-                        await loading_msg.edit(content=None, embed=embed)
-
-                        # Send remaining chunks if any
-                        for chunk in chunks[1:]:
-                            chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
-                            await ctx.send(embed=chunk_embed)
-
-                    except KeyError as e:
-                        self.logger.error(f"KeyError in response parsing: {str(e)}")
-                        await loading_msg.edit(content="❌ Could not find lyrics in the response")
-                    except json.JSONDecodeError as e:
-                        self.logger.error(f"JSON decode error: {str(e)}")
-                        await loading_msg.edit(content="❌ Invalid response from lyrics service")
+            # Send remaining chunks if any
+            for chunk in lyrics_chunks[1:]:
+                chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
+                await ctx.send(embed=chunk_embed)
 
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {str(e)}")
-            await loading_msg.edit(content="❌ An error occurred while fetching lyrics")
+            await loading_msg.edit(content="❌ An error occurred while fetching lyrics.")
 
     @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
