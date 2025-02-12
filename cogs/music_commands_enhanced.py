@@ -67,29 +67,52 @@ class MusicCommands(commands.Cog):
             duration = track_info['duration']
 
             while ctx.voice_client and ctx.voice_client.is_playing():
-                current_time = asyncio.get_event_loop().time() - start_time
+                current_time = int(asyncio.get_event_loop().time() - start_time)
                 if current_time >= duration:
                     break
 
-                progress_bar = self.create_progress_bar(int(current_time), duration)
-                current_timestamp = self.format_duration(int(current_time))
+                # Calculate progress bar segments (20 segments total)
+                progress = min(current_time / duration, 1.0)
+                filled_segments = int(20 * progress)
+                progress_bar = '▰' * filled_segments + '▱' * (20 - filled_segments)
+
+                # Format timestamps
+                current_timestamp = self.format_duration(current_time)
                 duration_timestamp = self.format_duration(duration)
 
                 embed = message.embeds[0]
-                for field in embed.fields:
-                    if field.name == "Progress":
-                        field.value = (
-                            f"{progress_bar}\n"
-                            f"Time: `{current_timestamp} / {duration_timestamp}`\n"
-                            f"Duration: `{duration_timestamp}`"
-                        )
-                        break
+                embed.set_field_at(
+                    0,  # Progress field is the first field
+                    name="Progress",
+                    value=f"{progress_bar}\n"
+                          f"Time: `{current_timestamp} / {duration_timestamp}`\n"
+                          f"Duration: `{duration_timestamp}`",
+                    inline=False
+                )
 
-                await message.edit(embed=embed)
+                try:
+                    await message.edit(embed=embed)
+                except discord.HTTPException as e:
+                    self.logger.error(f"Error updating progress message: {e}")
+                    break
+
                 await asyncio.sleep(5)  # Update every 5 seconds
 
+            # Final update to show completion
+            if ctx.voice_client and not ctx.voice_client.is_playing():
+                embed = message.embeds[0]
+                embed.set_field_at(
+                    0,
+                    name="Progress",
+                    value=f"{'▰' * 20}\n"
+                          f"Time: `{duration_timestamp} / {duration_timestamp}`\n"
+                          f"Duration: `{duration_timestamp}`",
+                    inline=False
+                )
+                await message.edit(embed=embed)
+
         except Exception as e:
-            self.logger.error(f"Error updating progress: {e}")
+            self.logger.error(f"Error in progress update task: {str(e)}")
 
     async def get_song_results(self, query: str) -> List[Dict[str, Any]]:
         """Search for songs using yt-dlp"""
@@ -97,32 +120,49 @@ class MusicCommands(commands.Cog):
             'format': 'bestaudio/best',
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': True,
-            'default_search': 'ytsearch5'  # Get top 5 results
+            'extract_flat': False,
+            'default_search': 'ytsearch5',
+            'simulate': True,
+            'skip_download': True,
+            'force_generic_extractor': False
         }
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                self.logger.info(f"Searching for query: {query}")
                 info = await asyncio.to_thread(ydl.extract_info, f"ytsearch5:{query}", download=False)
-                if not info.get('entries'):
+                if not info or 'entries' not in info:
+                    self.logger.error("No search results found or invalid response format")
                     return []
 
                 results = []
-                for entry in info['entries'][:5]:  # Limit to 5 results
-                    duration = int(entry.get('duration', 0))
-                    results.append({
-                        'title': entry['title'],
-                        'url': entry['url'],
-                        'webpage_url': entry['webpage_url'],
-                        'thumbnail': entry.get('thumbnail', ''),
-                        'duration': duration,
-                        'duration_string': self.format_duration(duration),
-                        'uploader': entry.get('uploader', 'Unknown Artist')
-                    })
+                for entry in info['entries'][:5]:
+                    try:
+                        # Store URL in track info for effect switching
+                        url = entry.get('url', '') or entry.get('webpage_url', '')
+                        if not url:
+                            continue
+
+                        result = {
+                            'title': entry.get('title', 'Unknown Title'),
+                            'url': url,
+                            'webpage_url': entry.get('webpage_url', url),
+                            'thumbnail': entry.get('thumbnail', ''),
+                            'duration': int(entry.get('duration', 0)),
+                            'duration_string': self.format_duration(int(entry.get('duration', 0))),
+                            'uploader': entry.get('uploader', 'Unknown Artist')
+                        }
+
+                        results.append(result)
+
+                    except Exception as e:
+                        self.logger.error(f"Error processing search result: {str(e)}")
+                        continue
+
                 return results
 
         except Exception as e:
-            self.logger.error(f"Error searching songs: {e}")
+            self.logger.error(f"Error in song search: {str(e)}")
             return []
 
     @commands.command(name='play')
@@ -184,15 +224,22 @@ class MusicCommands(commands.Cog):
                 applied_filter = next((f for f in filter_keywords if f in query.lower()), None)
                 if applied_filter and applied_filter in self.audio_filters:
                     ffmpeg_options['options'] = f'-vn -af {self.audio_filters[applied_filter]}'
+                    self.logger.info(f"Applying audio filter: {applied_filter} with options: {ffmpeg_options['options']}")
 
                 # Create audio source
-                audio_source = discord.FFmpegPCMAudio(song['url'], **ffmpeg_options)
-                voice_client.play(
-                    discord.PCMVolumeTransformer(audio_source, volume=self.volume),
-                    after=lambda e: asyncio.run_coroutine_threadsafe(
-                        self.song_finished(ctx.guild.id, e), self.bot.loop
-                    ) if e else None
-                )
+                try:
+                    self.logger.info(f"Creating audio source with URL: {song['url']}")
+                    audio_source = discord.FFmpegPCMAudio(song['url'], **ffmpeg_options)
+                    voice_client.play(
+                        discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                        after=lambda e: asyncio.run_coroutine_threadsafe(
+                            self.song_finished(ctx.guild.id, e), self.bot.loop
+                        ) if e else None
+                    )
+                    self.logger.info("Successfully started playing audio")
+                except Exception as e:
+                    self.logger.error(f"Error creating audio source: {e}")
+                    raise
 
                 # Save current track info
                 start_time = asyncio.get_event_loop().time()
@@ -202,7 +249,8 @@ class MusicCommands(commands.Cog):
                     'thumbnail': song['thumbnail'],
                     'uploader': song['uploader'],
                     'requester': ctx.author,
-                    'start_time': start_time
+                    'start_time': start_time,
+                    'url': song['url'] #added url
                 }
 
                 # Create Now Playing embed
@@ -321,6 +369,11 @@ class MusicCommands(commands.Cog):
         `!pause` - Pause current song
         `!resume` - Resume paused song
         `!stop` - Stop playing
+        `!volume <0-200>` - Adjust volume
+        `!bassboost` - Apply bassboost
+        `!8d` - Apply 8D effect
+        `!nightcore` - Apply nightcore effect
+        `!reverb` - Apply reverb effect
         """
         embed.add_field(
             name="🎧 Playback Commands",
@@ -418,11 +471,10 @@ class MusicCommands(commands.Cog):
         """Enhanced song search using multiple sources"""
         try:
             # Format query
-            search_term = query.strip()
-            search_term = re.sub(r'\s+', '+', search_term)
+            search_term = query.strip().replace(" ", "+")
 
             # Build URL with proper parameters
-            url = f"{self.search_url}?q={search_term}"
+            url = f"https://search.azlyrics.com/search.php?q={search_term}"
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -430,7 +482,7 @@ class MusicCommands(commands.Cog):
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers, timeout=10) as response:
                     if response.status != 200:
-                        self.logger.error(f"AZLyrics API error: {response.status}")
+                        self.logger.error(f"Search API error: {response.status}")
                         return None
 
                     html = await response.text()
@@ -440,6 +492,7 @@ class MusicCommands(commands.Cog):
                     results = soup.find_all('td', class_='text-left visitedlyr')
 
                     if not results:
+                        self.logger.info(f"No results found for query: {query}")
                         return None
 
                     # Get the first result
@@ -453,6 +506,8 @@ class MusicCommands(commands.Cog):
                     artist = result.find_all('b')[-1].get_text(strip=True) if result.find_all('b') else "Unknown Artist"
                     url = song_link.get('href', '')
 
+                    self.logger.info(f"Found song: {title} by {artist}")
+
                     return {
                         'title': title,
                         'artist': artist,
@@ -461,6 +516,9 @@ class MusicCommands(commands.Cog):
                         'query': query
                     }
 
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error in song search: {str(e)}")
+            return None
         except Exception as e:
             self.logger.error(f"Error in song search: {str(e)}")
             return None
@@ -478,8 +536,8 @@ class MusicCommands(commands.Cog):
                 await loading_msg.edit(content=(
                     "❌ No lyrics found. Please try:\n"
                     "• Using the format: song - artist\n"
-                    "• Checking spelling\n"
-                    "• Using the full song title"
+                    "• Using the full song title\n"
+                    "• Checking spelling"
                 ))
                 return
 
@@ -487,12 +545,19 @@ class MusicCommands(commands.Cog):
                 title=f"🎵 {result['title']}",
                 color=discord.Color.blue()
             )
-            embed.add_field(name="Artist", value=result['artist'], inline=False)
+
+            embed.add_field(
+                name="Artist",
+                value=result['artist'],
+                inline=False
+            )
+
             embed.add_field(
                 name="Lyrics",
                 value=f"[Click to view lyrics]({result['url']})",
                 inline=False
             )
+
             await loading_msg.edit(content=None, embed=embed)
 
         except Exception as e:
@@ -514,6 +579,110 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error joining voice channel: {e}")
             await ctx.send("❌ Could not join the voice channel.")
+
+
+    @commands.command(name='volume')
+    async def volume(self, ctx, volume: float):
+        """Change the volume of the currently playing song (0-200%)"""
+        if not ctx.voice_client:
+            await ctx.send("❌ I'm not in a voice channel!")
+            return
+
+        if not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is playing right now!")
+            return
+
+        if not 0 <= volume <= 200:
+            await ctx.send("❌ Volume must be between 0 and 200!")
+            return
+
+        try:
+            ctx.voice_client.source.volume = volume / 100
+            self.volume = volume / 100
+            await ctx.send(f"🔊 Volume set to {volume}%")
+            self.logger.info(f"Volume set to {volume}% for guild {ctx.guild.id}")
+        except Exception as e:
+            self.logger.error(f"Error setting volume: {str(e)}")
+            await ctx.send("❌ An error occurred while adjusting the volume.")
+
+    async def _apply_audio_effect(self, ctx: commands.Context, effect: str):
+        """Apply an audio effect to the currently playing song"""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is playing right now! Start a song first with !play")
+            return
+
+        if effect not in self.audio_filters:
+            await ctx.send("❌ Invalid audio effect!")
+            return
+
+        try:
+            # Get current track info
+            if ctx.guild.id not in self.current_tracks:
+                await ctx.send("❌ No track information available!")
+                return
+
+            track_info = self.current_tracks[ctx.guild.id]
+
+            # Verify URL exists
+            if 'url' not in track_info:
+                await ctx.send("❌ Track URL not available!")
+                return
+
+            # Calculate current position in seconds
+            current_time = int(asyncio.get_event_loop().time() - track_info['start_time'])
+
+            # Stop current playback
+            ctx.voice_client.stop()
+
+            # Setup FFmpeg options with the new filter and start position
+            ffmpeg_options = {
+                'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {current_time}',
+                'options': f'-vn -af {self.audio_filters[effect]}'
+            }
+
+            self.logger.info(f"Applying {effect} effect with filter: {self.audio_filters[effect]} at position {current_time}s")
+
+            # Create new audio source with effect
+            audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
+            transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
+
+            # Update start time to maintain progress bar accuracy
+            track_info['start_time'] = asyncio.get_event_loop().time() - current_time
+
+            ctx.voice_client.play(
+                transformed_source,
+                after=lambda e: asyncio.run_coroutine_threadsafe(
+                    self.song_finished(ctx.guild.id, e), self.bot.loop
+                ) if e else None
+            )
+
+            await ctx.send(f"✨ Applied {effect} effect to the current song!")
+            self.logger.info(f"Successfully applied {effect} effect for guild {ctx.guild.id}")
+
+        except Exception as e:
+            self.logger.error(f"Error applying audio effect: {str(e)}")
+            await ctx.send("❌ An error occurred while applying the audio effect. Please try again.")
+
+    @commands.command(name='bassboost')
+    async def bassboost(self, ctx):
+        """Apply bassboost effect to the current song"""
+        await self._apply_audio_effect(ctx, 'bassboost')
+
+    @commands.command(name='8d')
+    async def eight_d(self, ctx):
+        """Apply 8D effect to the current song"""
+        await self._apply_audio_effect(ctx, '8d')
+
+    @commands.command(name='nightcore')
+    async def nightcore(self, ctx):
+        """Apply nightcore effect to the current song"""
+        await self._apply_audio_effect(ctx, 'nightcore')
+
+    @commands.command(name='reverb')
+    async def reverb(self, ctx):
+        """Apply reverb effect to the current song"""
+        await self._apply_audio_effect(ctx, 'reverb')
+
 
 
 async def setup(bot):
