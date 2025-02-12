@@ -820,8 +820,7 @@ class MusicCommands(commands.Cog):
             await loading_msg.edit(content="❌ An error occurred while searching for lyrics.")    
     @commands.command(name='songlist')
     async def song_list(self, ctx, mood: str):
-        """List songs available for a given mood"""
-        if mood not in self.mood_playlists:
+        """List songs available for a given mood"""if mood not in self.mood_playlists:
             await ctx.send(f"❌ Mood '{mood}' not found. Available moods: {', '.join(self.mood_playlists.keys())}")
             return
 
@@ -1300,5 +1299,5 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in instant_lyrics command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while displaying instant lyrics.")
 
-    async def setup(bot):
-        await bot.add_cog(MusicCommands(bot))
+async def setup(bot):
+    await bot.add_cog(MusicCommands(bot))
