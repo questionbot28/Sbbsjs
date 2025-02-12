@@ -7,6 +7,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 import yt_dlp
 import re
+import random  # Added for random search time
 from discord import SelectOption
 from discord.ui import Select, View
 
@@ -44,7 +45,7 @@ class MusicCommands(commands.Cog):
             'bassboost': 'bass=g=20:f=110:w=0.3',
             '8d': 'apulsator=hz=0.09',
             'nightcore': 'aresample=48000,asetrate=48000*1.25',
-            'reverb': 'aecho=0.8:0.9:1000:0.3'
+            'slowand_reverb': 'aecho=0.8:0.9:1000:0.3,atempo=0.8'  # Combined slow and reverb effect
         }
         self.progress_update_tasks = {}
 
@@ -71,14 +72,14 @@ class MusicCommands(commands.Cog):
                 if current_time >= duration:
                     break
 
+                # Format timestamps
+                current_timestamp = self.format_duration(current_time)
+                duration_timestamp = self.format_duration(duration)
+
                 # Calculate progress bar segments (20 segments total)
                 progress = min(current_time / duration, 1.0)
                 filled_segments = int(20 * progress)
                 progress_bar = '▰' * filled_segments + '▱' * (20 - filled_segments)
-
-                # Format timestamps
-                current_timestamp = self.format_duration(current_time)
-                duration_timestamp = self.format_duration(duration)
 
                 embed = message.embeds[0]
                 embed.set_field_at(
@@ -100,6 +101,7 @@ class MusicCommands(commands.Cog):
 
             # Final update to show completion
             if ctx.voice_client and not ctx.voice_client.is_playing():
+                duration_timestamp = self.format_duration(duration)
                 embed = message.embeds[0]
                 embed.set_field_at(
                     0,
@@ -183,13 +185,54 @@ class MusicCommands(commands.Cog):
                 await ctx.send("❌ Could not join the voice channel.")
                 return
 
-        # Search for songs
-        loading_msg = await ctx.send("🔍 Searching for songs...")
-        results = await self.get_song_results(query)
+        # Create initial search message with loading animation
+        search_time = round(3.0 + random.uniform(0.1, 1.5), 1)  # Random time between 3-4.5s
+        loading_msg = await ctx.send(
+            f"🔍 **Finding the perfect match for:** `{query}`\n"
+            f"⏳ Estimated Time: `{search_time}s`\n"
+            "⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜  0%"
+        )
+
+        # Loading bar segments and their corresponding percentages
+        loading_segments = [
+            ("🟦⬜⬜⬜⬜⬜⬜⬜⬜⬜", "10%"),
+            ("🟦🟦⬜⬜⬜⬜⬜⬜⬜⬜", "20%"),
+            ("🟦🟦🟦⬜⬜⬜⬜⬜⬜⬜", "30%"),
+            ("🟦🟦🟦🟦⬜⬜⬜⬜⬜⬜", "40%"),
+            ("🟦🟦🟦🟦🟦⬜⬜⬜⬜⬜", "50%"),
+            ("🟦🟦🟦🟦🟦🟦⬜⬜⬜⬜", "60%"),
+            ("🟦🟦🟦🟦🟦🟦🟦⬜⬜⬜", "70%"),
+            ("🟦🟦🟦🟦🟦🟦🟦🟦⬜⬜", "80%"),
+            ("🟦🟦🟦🟦🟦🟦🟦🟦🟦⬜", "90%")
+        ]
+
+        # Animate loading bar while searching
+        search_task = asyncio.create_task(self.get_song_results(query))
+
+        for bar, percentage in loading_segments:
+            try:
+                await loading_msg.edit(
+                    content=f"🔍 **Finding the perfect match for:** `{query}`\n"
+                           f"⏳ Estimated Time: `{search_time}s`\n"
+                           f"{bar}  {percentage}"
+                )
+                await asyncio.sleep(search_time / 10)  # Divide total time into 10 segments
+            except discord.errors.NotFound:
+                break  # Message was deleted
+
+        # Get search results
+        results = await search_task
 
         if not results:
             await loading_msg.edit(content="❌ No songs found!")
             return
+
+        # Show completion message
+        await loading_msg.edit(
+            content=f"✅ **Match Found! Loading songs...** `100%`\n"
+                   f"🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦  100%"
+        )
+        await asyncio.sleep(0.5)  # Brief pause to show completion
 
         # Create selection menu
         async def select_callback(interaction: discord.Interaction, song: Dict[str, Any]):
@@ -220,7 +263,7 @@ class MusicCommands(commands.Cog):
                 }
 
                 # Add audio filter if specified in the query
-                filter_keywords = ['bassboost', '8d', 'nightcore', 'reverb']
+                filter_keywords = ['bassboost', '8d', 'nightcore', 'slowand_reverb']
                 applied_filter = next((f for f in filter_keywords if f in query.lower()), None)
                 if applied_filter and applied_filter in self.audio_filters:
                     ffmpeg_options['options'] = f'-vn -af {self.audio_filters[applied_filter]}'
@@ -250,7 +293,7 @@ class MusicCommands(commands.Cog):
                     'uploader': song['uploader'],
                     'requester': ctx.author,
                     'start_time': start_time,
-                    'url': song['url'] #added url
+                    'url': song['url']
                 }
 
                 # Create Now Playing embed
@@ -365,15 +408,13 @@ class MusicCommands(commands.Cog):
         `!play <song> bassboost` - Play with bass boost
         `!play <song> 8d` - Play with 8D effect
         `!play <song> nightcore` - Play with nightcore effect
-        `!play <song> reverb` - Play with reverb effect
+        `!play <song> slowand_reverb` - Play with slow + reverb effect
         `!pause` - Pause current song
         `!resume` - Resume paused song
         `!stop` - Stop playing
         `!volume <0-200>` - Adjust volume
-        `!bassboost` - Apply bassboost
-        `!8d` - Apply 8D effect
-        `!nightcore` - Apply nightcore effect
-        `!reverb` - Apply reverb effect
+        `!seek <forward/back> <seconds>` - Skip forward/backward in song
+        `!normal` - Remove all audio effects
         """
         embed.add_field(
             name="🎧 Playback Commands",
@@ -381,20 +422,24 @@ class MusicCommands(commands.Cog):
             inline=False
         )
 
-        lyrics_commands = """
-        `!lyrics <song> - <artist>` - Search for song lyrics
-        `!songinfo <song>` - Get song information
+        audio_effects = """
+        `!bassboost` - Apply bassboost effect
+        `!8d` - Apply 8D effect
+        `!nightcore` - Apply nightcore effect
+        `!slowand_reverb` - Apply slow + reverb effect
+        `!normal` - Remove all effects
         """
         embed.add_field(
-            name="📝 Lyrics Commands",
-            value=lyrics_commands,
+            name="🎛️ Audio Effects",
+            value=audio_effects,
             inline=False
         )
 
         examples = """
         • `!play Shape of You`
-        • `!play Blinding Lights bassboost`
-        • `!lyrics Shape of You - Ed Sheeran`
+        • `!seek forward 30` - Skip forward 30 seconds
+        • `!seek back 15` - Go back 15 seconds
+        • `!play Blinding Lights slowand_reverb`
         """
         embed.add_field(
             name="📋 Examples",
@@ -678,12 +723,114 @@ class MusicCommands(commands.Cog):
         """Apply nightcore effect to the current song"""
         await self._apply_audio_effect(ctx, 'nightcore')
 
-    @commands.command(name='reverb')
-    async def reverb(self, ctx):
-        """Apply reverb effect to the current song"""
-        await self._apply_audio_effect(ctx, 'reverb')
+    @commands.command(name='slowand_reverb')
+    async def slowand_reverb(self, ctx):
+        """Apply slow + reverb effect to the current song"""
+        await self._apply_audio_effect(ctx, 'slowand_reverb')
 
+    @commands.command(name='seek')
+    async def seek(self, ctx, direction: str, seconds: int = 10):
+        """Seek forward or backward in the current song
+        Usage: !seek forward 30 or !seek back 15"""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is playing right now!")
+            return
 
+        if ctx.guild.id not in self.current_tracks:
+            await ctx.send("❌ No track information available!")
+            return
+
+        track_info = self.current_tracks[ctx.guild.id]
+        current_time = int(asyncio.get_event_loop().time() - track_info['start_time'])
+
+        # Calculate new position
+        if direction.lower() in ['forward', 'f']:
+            new_time = min(current_time + seconds, track_info['duration'])
+        elif direction.lower() in ['back', 'b']:
+            new_time = max(0, current_time - seconds)
+        else:
+            await ctx.send("❌ Invalid direction! Use 'forward' or 'back'")
+            return
+
+        # Stop current playback
+        ctx.voice_client.stop()
+
+        # Setup FFmpeg options with new position
+        ffmpeg_options = {
+            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {new_time}',
+            'options': '-vn'
+        }
+
+        self.logger.info(f"Seeking to position {new_time}s")
+
+        try:
+            # Create new audio source
+            audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
+            transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
+
+            # Update start time to maintain progress bar accuracy
+            track_info['start_time'] = asyncio.get_event_loop().time() - new_time
+
+            ctx.voice_client.play(
+                transformed_source,
+                after=lambda e: asyncio.run_coroutine_threadsafe(
+                    self.song_finished(ctx.guild.id, e), self.bot.loop
+                ) if e else None
+            )
+
+            # Send confirmation
+            seek_type = "forward" if direction.lower() in ['forward', 'f'] else "back"
+            await ctx.send(f"⏩ Seeked {seek_type} {seconds} seconds")
+
+        except Exception as e:
+            self.logger.error(f"Error seeking: {str(e)}")
+            await ctx.send("❌ An error occurred while seeking.")
+
+    @commands.command(name='normal')
+    async def remove_effects(self, ctx):
+        """Remove all audio effects and return to normal playback"""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is playing right now!")
+            return
+
+        if ctx.guild.id not in self.current_tracks:
+            await ctx.send("❌ No track information available!")
+            return
+
+        track_info = self.current_tracks[ctx.guild.id]
+        current_time = int(asyncio.get_event_loop().time() - track_info['start_time'])
+
+        # Stop current playback
+        ctx.voice_client.stop()
+
+        # Setup FFmpeg options without effects
+        ffmpeg_options = {
+            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {current_time}',
+            'options': '-vn'
+        }
+
+        self.logger.info(f"Removing effects at position {current_time}s")
+
+        try:
+            # Create new audio source without effects
+            audio_source = discord.FFmpegPCMAudio(track_info['url'], **ffmpeg_options)
+            transformed_source = discord.PCMVolumeTransformer(audio_source, volume=self.volume)
+
+            # Update start time to maintain progress bar accuracy
+            track_info['start_time'] = asyncio.get_event_loop().time() - current_time
+
+            ctx.voice_client.play(
+                transformed_source,
+                after=lambda e: asyncio.run_coroutine_threadsafe(
+                    self.song_finished(ctx.guild.id, e), self.bot.loop
+                ) if e else None
+            )
+
+            await ctx.send("✨ Removed all audio effects")
+
+        except Exception as e:
+            self.logger.error(f"Error removing effects: {str(e)}")
+            await ctx.send("❌ An error occurred while removing effects.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))

@@ -1,0 +1,122 @@
+Let's take your song searching animation to the next level! 🚀
+
+✅ Cool animated loading bar
+✅ Estimated search time (randomized for realism)
+✅ Smooth progress update (0% → 100%)
+✅ Attractive emojis & stylish formatting
+
+
+---
+
+🎵 Example of New Searching Message
+
+🔍 **Finding the perfect match for:** `Shape of You`
+⏳ Estimated Time: `3.2s`
+  
+🟦⬜⬜⬜⬜⬜⬜⬜⬜⬜  10%  
+🟦🟦⬜⬜⬜⬜⬜⬜⬜⬜  20%  
+🟦🟦🟦⬜⬜⬜⬜⬜⬜⬜  30%  
+🟦🟦🟦🟦⬜⬜⬜⬜⬜⬜  40%  
+🟦🟦🟦🟦🟦⬜⬜⬜⬜⬜  50%  
+🟦🟦🟦🟦🟦🟦⬜⬜⬜⬜  60%  
+🟦🟦🟦🟦🟦🟦🟦⬜⬜⬜  70%  
+🟦🟦🟦🟦🟦🟦🟦🟦⬜⬜  80%  
+🟦🟦🟦🟦🟦🟦🟦🟦🟦⬜  90%  
+✅ **Match Found! Loading song...** `100%`
+
+
+---
+
+🔥 Implement This in Your Code
+
+import discord
+from discord.ext import commands
+import asyncio
+import random
+from youtubesearchpython import VideosSearch
+
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
+
+async def search_youtube(song_name):
+    search = VideosSearch(song_name, limit=1)
+    result = await search.next()
+    
+    if result and "result" in result:
+        video = result["result"][0]
+        return {
+            "title": video["title"],
+            "url": video["link"],
+            "thumbnail": video["thumbnails"][0]["url"],
+            "duration": video["duration"],
+            "channel": video["channel"]["name"]
+        }
+    return None
+
+@bot.command()
+async def play(ctx, *, song_name):
+    estimated_time = round(random.uniform(2.5, 4.5), 1)  # Simulate a random search time
+    loading_bars = [
+        "🟦⬜⬜⬜⬜⬜⬜⬜⬜⬜ 10%",
+        "🟦🟦⬜⬜⬜⬜⬜⬜⬜⬜ 20%",
+        "🟦🟦🟦⬜⬜⬜⬜⬜⬜⬜ 30%",
+        "🟦🟦🟦🟦⬜⬜⬜⬜⬜⬜ 40%",
+        "🟦🟦🟦🟦🟦⬜⬜⬜⬜⬜ 50%",
+        "🟦🟦🟦🟦🟦🟦⬜⬜⬜⬜ 60%",
+        "🟦🟦🟦🟦🟦🟦🟦⬜⬜⬜ 70%",
+        "🟦🟦🟦🟦🟦🟦🟦🟦⬜⬜ 80%",
+        "🟦🟦🟦🟦🟦🟦🟦🟦🟦⬜ 90%"
+    ]
+
+    message = await ctx.send(f"🔍 **Finding the perfect match for:** `{song_name}`\n⏳ Estimated Time: `{estimated_time}s`\n{loading_bars[0]}")
+    
+    for i, bar in enumerate(loading_bars[1:], start=1):
+        await asyncio.sleep(estimated_time / 10)  # Adjust progress speed dynamically
+        await message.edit(content=f"🔍 **Finding the perfect match for:** `{song_name}`\n⏳ Estimated Time: `{estimated_time}s`\n{bar}")
+
+    await asyncio.sleep(0.5)
+    song_info = await search_youtube(song_name)
+    
+    if not song_info:
+        return await message.edit(content="❌ **Song not found. Try again!**")
+
+    await message.edit(content="✅ **Match Found! Loading song...** `100%`")
+
+    embed = discord.Embed(
+        title="🎵 Now Playing",
+        description=f"**[{song_info['title']}]({song_info['url']})**",
+        color=discord.Color.blue()
+    )
+    embed.set_thumbnail(url=song_info["thumbnail"])
+    embed.add_field(name="🎤 Artist", value=song_info["channel"], inline=True)
+    embed.add_field(name="⏳ Duration", value=song_info["duration"], inline=True)
+    embed.add_field(name="🔁 Loop Mode", value="Disabled", inline=True)
+    embed.set_footer(text="🎶 Use !pause | !skip | !stop to control playback.")
+
+    await ctx.send(embed=embed)
+
+bot.run("your_discord_bot_token")
+
+
+---
+
+✨ What’s New?
+
+✔ Loading bar animation with real-time updates
+✔ Estimated search time (randomized for realism)
+✔ More engaging & professional UI
+✔ Smooth transition from searching → playing song
+
+
+---
+
+🔹 What’s Next?
+
+Add Spotify API for more song details & album covers
+
+Make the loading bar color change dynamically (red → yellow → green)
+
+Add a GIF background for searching animation
+
+
+Let me know if you need more effects! 🚀🔥
+
