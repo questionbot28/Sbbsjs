@@ -18,7 +18,8 @@ COMMAND_PREFIX = '!'
 intents = discord.Intents.default()
 intents.message_content = True  # Required for detecting commands
 intents.guilds = True  # Required for guild-related functionality
-intents.voice_states = True  # Required for music commands
+intents.voice_states = True  # Required for voice features
+intents.messages = True  # Required for message commands
 
 class EducationalBot(commands.Bot):
     def __init__(self):
@@ -31,7 +32,7 @@ class EducationalBot(commands.Bot):
             'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands_enhanced',  # Music commands cog
+            'cogs.music_commands_enhanced',  # Music cog
             'cogs.staff_commands',
             'cogs.ticket_manager'
         ]
