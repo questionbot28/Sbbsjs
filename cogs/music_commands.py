@@ -81,16 +81,23 @@ class MusicCommands(commands.Cog):
             return f"❌ An error occurred while fetching lyrics: {str(e)}"
 
     @commands.command(name='lyrics')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def lyrics(self, ctx, *, song_name: str):
-        """Get lyrics for a song using ChartLyrics"""
-        # Send initial searching message
-        loading_embed = discord.Embed(
-            title="🔍 Searching for Lyrics",
-            description=f"Looking for: **{song_name}**",
-            color=discord.Color.blue()
-        )
-        status_msg = await ctx.send(embed=loading_embed)
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def lyrics(self, ctx, *, query: str):
+        """Get lyrics for a song"""
+        loading_msg = await ctx.send("🔍 Searching for lyrics...")
+
+        try:
+            # Log the search attempt
+            self.logger.info(f"Searching lyrics for query: {query}")
+
+            # Try to split artist and title if provided in format "title - artist"
+            parts = query.split('-')
+            if len(parts) == 2:
+                song_title = parts[0].strip()
+                artist = parts[1].strip()
+                result = await self.get_lyrics(song_title) #This line was changed from self.search_song_info(song_title)
+            else:
+                result = await self.get_lyrics(query) #This line was changed from self.search_song_info(query)
 
         try:
             result = await self.get_lyrics(song_name)
