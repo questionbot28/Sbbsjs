@@ -1,39 +1,44 @@
-
 import os
 import requests
 import json
 from typing import Optional, Dict, Any
 from bs4 import BeautifulSoup
 
-def scrape_lyrics(song_url: str) -> Optional[str]:
-    """Scrape lyrics from Genius webpage"""
+def scrape_lyrics(song_url):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
     }
-    try:
-        page = requests.get(song_url, headers=headers)
-        soup = BeautifulSoup(page.text, "html.parser")
 
-        # Try old format
-        lyrics_div = soup.find("div", class_="lyrics")
-        if lyrics_div:
-            return lyrics_div.get_text().strip()
+    print("Attempting to scrape lyrics...")
+    response = requests.get(song_url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-        # Try new format
+    # Try multiple methods to find lyrics
+    lyrics = None
+
+    # Method 1: Check for old Genius format
+    lyrics_div = soup.find("div", class_="lyrics")
+    if lyrics_div:
+        lyrics = lyrics_div.get_text()
+
+    # Method 2: Check for new Genius format
+    if not lyrics:
         lyrics_divs = soup.find_all("div", class_="Lyrics__Container")
         if lyrics_divs:
-            return "\n".join([div.get_text() for div in lyrics_divs]).strip()
-            
-        # Try latest format
-        lyrics_containers = soup.select('[class*="lyrics"], [class*="Lyrics"]')
-        if lyrics_containers:
-            return "\n".join([div.get_text() for div in lyrics_containers]).strip()
+            lyrics = "\n".join([div.get_text(separator="\n") for div in lyrics_divs])
 
-        return None
-            
-    except Exception as e:
-        print(f"Error scraping lyrics: {e}")
-        return None
+    # Method 3: Try finding other possible classes
+    if not lyrics:
+        lyrics_divs = soup.find_all("div", class_="lyric-text")
+        if lyrics_divs:
+            lyrics = "\n".join([div.get_text(separator="\n") for div in lyrics_divs])
+
+    if lyrics:
+        print("✅ Lyrics scraped successfully!")
+        return lyrics.strip()
+    else:
+        print("❌ Could not scrape lyrics.")
+        return f"Lyrics not available! Check here: {song_url}"
 
 def test_genius_api() -> Optional[Dict[str, Any]]:
     """Test Genius API connectivity and search functionality"""
