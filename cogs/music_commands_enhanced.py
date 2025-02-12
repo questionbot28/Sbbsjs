@@ -130,15 +130,21 @@ class MusicCommands(commands.Cog):
                         html = await page_response.text()
                         soup = BeautifulSoup(html, 'html.parser')
                         
-                        # Find lyrics container
-                        lyrics_div = soup.select_one('div[class*="Lyrics__Container"]')
+                        # Try multiple methods to find lyrics
+                        lyrics_div = soup.find("div", class_="lyrics")  # Old layout
                         if not lyrics_div:
-                            return f"[Click here to view lyrics]({song_url})"
-                            
+                            lyrics_divs = soup.find_all("div", class_="Lyrics__Container")  # New layout
+                            if lyrics_divs:
+                                lyrics = "\n".join([div.get_text() for div in lyrics_divs])
+                            else:
+                                return f"[Click here to view lyrics]({song_url})"
+                        else:
+                            lyrics = lyrics_div.get_text()
+
                         # Clean up lyrics
-                        lyrics = lyrics_div.get_text()
                         lyrics = re.sub(r'[\(\[].*?[\)\]]', '', lyrics)  # Remove [Verse], [Chorus] etc
                         lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Remove extra newlines
+                        lyrics = lyrics.strip()
                         
                         return lyrics.strip()
 
