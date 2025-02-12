@@ -12,17 +12,26 @@ def test_genius_api() -> Optional[Dict[str, Any]]:
         print("❌ Genius API key not found! Please add it to Secrets.")
         return None
         
-    headers = {"Authorization": f"Bearer {GENIUS_API_KEY}"}
-    search_url = "https://api.genius.com/search"
-    params = {"q": "Shape of You Ed Sheeran"}
+    headers = {
+        "Authorization": f"Bearer {GENIUS_API_KEY}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
+    }
+    
+    # Test with specific song
+    song_name = "Lock Sidhu Moose Wala"
+    search_url = f"https://api.genius.com/search?q={song_name}"
     
     try:
-        response = requests.get(search_url, headers=headers, params=params)
+        response = requests.get(search_url, headers=headers)
         print(f"\nAPI Response Status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
             if data["response"]["hits"]:
+                for hit in data["response"]["hits"][:3]:  # Show top 3 results
+                    print(f"\nFound: {hit['result']['full_title']}")
+                    print(f"URL: {hit['result']['url']}")
+                
                 result = data["response"]["hits"][0]["result"]
                 print("\n✅ API connection successful!")
                 print(f"\nFirst result:")
@@ -30,15 +39,7 @@ def test_genius_api() -> Optional[Dict[str, Any]]:
                 print(f"Artist: {result['primary_artist']['name']}")
                 print(f"URL: {result['url']}")
                 
-                # Get song details
-                song_id = result['id']
-                song_url = f"https://api.genius.com/songs/{song_id}"
-                song_response = requests.get(song_url, headers=headers)
-                print(f"\nSong API Response Status: {song_response.status_code}")
-                
-                if song_response.status_code == 200:
-                    song_data = song_response.json()
-                    return song_data
+                return data["response"]["hits"][0]
             else:
                 print("❌ No results found")
                 return None
