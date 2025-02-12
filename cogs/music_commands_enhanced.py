@@ -100,112 +100,74 @@ class MusicCommands(commands.Cog):
             self.genius = None
             self.logger.warning(f"Could not initialize Genius API client: {str(e)}")
 
-    async def get_lyrics(self, song_title: str, artist: str) -> Optional[str]:
-        """Get lyrics for a song using JioSaavn API"""
+    async def get_lyrics(self, song_title: str, artist: str) -> Optional[Dict[str, Any]]:
+        """Get lyrics using Spotify and Musixmatch APIs"""
         try:
-            self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
-            search_query = f"{song_title} {artist}"
-            
+            # Get Spotify access token
+            auth_url = "https://accounts.spotify.com/api/token"
+            auth_data = {
+                "grant_type": "client_credentials",
+                "client_id": os.getenv('SPOTIFY_CLIENT_ID'),
+                "client_secret": os.getenv('SPOTIFY_CLIENT_SECRET')
+            }
+
             async with aiohttp.ClientSession() as session:
-                # First search for the song using alternative API
-                search_url = f"https://jiosaavn-api.vercel.app/search?query={search_query}"
-                async with session.get(search_url) as response:
-                    if response.status != 200:
-                        self.logger.error(f"Search failed with status: {response.status}")
+                # Get Spotify token
+                async with session.post(auth_url, data=auth_data) as auth_response:
+                    if auth_response.status != 200:
+                        self.logger.error("Failed to get Spotify token")
                         return None
-                        
-                    data = await response.json()
-                    if not data.get('results'):
-                        return None
-                        
-                    # Get first result
-                    song = data['results'][0]
-                    song_id = song.get('id')
-                    
-                    if not song_id:
-                        return None
-                        
-                    # Get lyrics using song ID
-                    lyrics_url = f"https://saavn.dev/api/lyrics/{song_id}"
-                    async with session.get(lyrics_url) as lyrics_response:
-                        if lyrics_response.status != 200:
+
+                    token_data = await auth_response.json()
+                    access_token = token_data["access_token"]
+
+                    # Search song on Spotify
+                    search_url = f"https://api.spotify.com/v1/search?q={song_title.replace(' ', '%20')}%20{artist.replace(' ', '%20')}&type=track"
+                    headers = {"Authorization": f"Bearer {access_token}"}
+
+                    async with session.get(search_url, headers=headers) as spotify_response:
+                        if spotify_response.status != 200:
+                            self.logger.error("Failed to search Spotify")
                             return None
-                            
-                        lyrics_data = await lyrics_response.json()
-                        if not lyrics_data.get('lyrics'):
+
+                        spotify_data = await spotify_response.json()
+                        if not spotify_data["tracks"]["items"]:
                             return None
-                            
-                        return {
-                            'title': song.get('title', song_title),
-                            'artist': song.get('artist', artist),
-                            'lyrics': lyrics_data['lyrics'],
-                            'url': song.get('url', ''),
-                            'query': search_query
+
+                        track = spotify_data["tracks"]["items"][0]
+                        exact_title = track["name"]
+                        exact_artist = track["artists"][0]["name"]
+
+                        # Get lyrics from Musixmatch
+                        musixmatch_key = os.getenv('MUSIXMATCH_API_KEY')
+                        lyrics_url = f"https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+                        params = {
+                            "q_track": exact_title,
+                            "q_artist": exact_artist,
+                            "apikey": musixmatch_key
                         }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(search_url, headers=headers) as response:
-                    if response.status == 403:
-                        self.logger.error("Genius API access denied (403 Forbidden)")
-                        return None
+                        async with session.get(lyrics_url, params=params) as lyrics_response:
+                            if lyrics_response.status != 200:
+                                self.logger.error("Failed to fetch Musixmatch lyrics")
+                                return None
 
-                    if response.status != 200:
-                        self.logger.error(f"Genius API request failed with status {response.status}")
-                        return None
-                    if response.status != 200:
-                        return None
+                            lyrics_data = await lyrics_response.json()
+                            try:
+                                lyrics = lyrics_data["message"]["body"]["lyrics"]["lyrics_body"]
+                                # Remove Musixmatch disclaimer
+                                lyrics = lyrics.split("******* This Lyrics is NOT")[0].strip()
 
-                    data = await response.json()
-                    if not data['response']['hits']:
-                        return None
-
-                    song_url = data['response']['hits'][0]['result']['url']
-
-                    # Scrape lyrics from the Genius page with improved error handling
-                    async with session.get(song_url, headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-                    }) as page_response:
-                        if page_response.status != 200:
-                            self.logger.error(f"Failed to fetch lyrics page: {page_response.status}")
-                            return None
-
-                        html = await page_response.text()
-                        soup = BeautifulSoup(html, 'html.parser')
-
-                        # Try multiple methods to find lyrics
-                        lyrics = None
-
-                        # Method 1: Old layout
-                        lyrics_div = soup.find("div", class_="lyrics")
-                        if lyrics_div:
-                            lyrics = lyrics_div.get_text()
-
-                        # Method 2: New layout with Lyrics__Container
-                        if not lyrics:
-                            lyrics_divs = soup.find_all("div", class_="Lyrics__Container")
-                            if lyrics_divs:
-                                lyrics = "\n".join([div.get_text() for div in lyrics_divs])
-
-                        # Method 3: Latest layout
-                        if not lyrics:
-                            lyrics_divs = soup.select('[class*="lyrics"], [class*="Lyrics"]')
-                            if lyrics_divs:
-                                lyrics = "\n".join([div.get_text() for div in lyrics_divs])
-
-                        if not lyrics:
-                            self.logger.warning(f"Could not find lyrics in page: {song_url}")
-                            return f"[Click here to view lyrics]({song_url})"
-
-                        lyrics = lyrics.strip()
-
-
-                        # Clean up lyrics
-                        lyrics = re.sub(r'[\(\[].*?[\)\]]', '', lyrics)  # Remove [Verse], [Chorus] etc
-                        lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Remove extra newlines
-                        lyrics = lyrics.strip()
-
-                        return lyrics.strip()
+                                return {
+                                    'title': exact_title,
+                                    'artist': exact_artist,
+                                    'lyrics': lyrics,
+                                    'url': track["external_urls"]["spotify"],
+                                    'query': f"{song_title} - {artist}"
+                                }
+                            except KeyError:
+                                self.logger.error("No lyrics found in Musixmatch response")
+                                return None
 
         except Exception as e:
             self.logger.error(f"Error getting lyrics: {str(e)}")

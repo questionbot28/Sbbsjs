@@ -4,60 +4,66 @@ import aiohttp
 import asyncio
 from typing import Optional, Dict, Any
 
-async def test_jiosaavn_api():
-    """Test JioSaavn API connectivity and search functionality"""
+async def test_spotify_musixmatch_api():
+    """Test Spotify and Musixmatch API integration"""
     try:
-        # Test with specific song
+        # Test song
         song_name = "Lock"
         artist_name = "Sidhu Moose Wala"
-        search_query = f"{song_name} {artist_name}"
-
-        print(f"\nSearching for: {search_query}")
-
-        # Use alternative API endpoint
-        search_url = f"https://jiosaavn-api.vercel.app/search?query={search_query}"
+        
+        print(f"\nTesting lyrics fetch for: {song_name} by {artist_name}")
+        
+        # Get Spotify token
+        auth_url = "https://accounts.spotify.com/api/token"
+        auth_data = {
+            "grant_type": "client_credentials",
+            "client_id": os.getenv('SPOTIFY_CLIENT_ID'),
+            "client_secret": os.getenv('SPOTIFY_CLIENT_SECRET')
+        }
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(search_url) as response:
-                if response.status != 200:
-                    print(f"❌ API request failed: {response.status}")
-                    return None
-
-                data = await response.json()
-                if not data.get('data'):
-                    print("❌ No results found")
-                    return None
-
-                # Get first result
-                song = data['data'][0]
-                print("\n✅ Song found!")
-                print(f"Title: {song.get('name')}")
-                print(f"Artist: {song.get('primaryArtists')}")
-                print(f"URL: {song.get('url')}")
-
-                # Try to get lyrics
-                song_id = song.get('id')
-                if song_id:
-                    lyrics_url = f"https://jiosaavn-api.vercel.app/lyrics?id={song_id}"
-                    async with session.get(lyrics_url) as lyrics_response:
-                        if lyrics_response.status == 200:
-                            lyrics_data = await lyrics_response.json()
-                            if lyrics_data.get('lyrics'):
-                                print("\n✅ Lyrics found!")
-                                print("\nFirst few lines:")
-                                lyrics_preview = "\n".join(lyrics_data['lyrics'].split("\n")[:5])
-                                print(f"{lyrics_preview}...")
-                                return lyrics_data
-                            else:
-                                print("❌ No lyrics found")
-                                return None
+            async with session.post(auth_url, data=auth_data) as auth_response:
+                if auth_response.status != 200:
+                    print("❌ Failed to get Spotify token")
+                    return
+                    
+                token_data = await auth_response.json()
+                access_token = token_data["access_token"]
+                print("✅ Got Spotify access token")
+                
+                # Search on Spotify
+                search_url = f"https://api.spotify.com/v1/search?q={song_name}%20{artist_name}&type=track"
+                headers = {"Authorization": f"Bearer {access_token}"}
+                
+                async with session.get(search_url, headers=headers) as spotify_response:
+                    spotify_data = await spotify_response.json()
+                    if "tracks" not in spotify_data or not spotify_data["tracks"]["items"]:
+                        print("❌ Song not found on Spotify")
+                        return
+                        
+                    track = spotify_data["tracks"]["items"][0]
+                    print(f"\n✅ Found on Spotify:")
+                    print(f"Title: {track['name']}")
+                    print(f"Artist: {track['artists'][0]['name']}")
+                    
+                    # Get Musixmatch lyrics
+                    musixmatch_key = os.getenv('MUSIXMATCH_API_KEY')
+                    lyrics_url = f"https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+                    params = {
+                        "q_track": track['name'],
+                        "q_artist": track['artists'][0]['name'],
+                        "apikey": musixmatch_key
+                    }
+                    
+                    async with session.get(lyrics_url, params=params) as lyrics_response:
+                        lyrics_data = await lyrics_response.json()
+                        if "message" in lyrics_data and "body" in lyrics_data["message"]:
+                            lyrics = lyrics_data["message"]["body"]["lyrics"]["lyrics_body"]
+                            print("\n✅ Found lyrics! First few lines:")
+                            preview = "\n".join(lyrics.split("\n")[:5])
+                            print(f"{preview}...")
                         else:
-                            print(f"❌ Failed to fetch lyrics: {lyrics_response.status}")
-                            return None
-
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        return None
+                            print("❌ No lyrics found")
 
 if __name__ == "__main__":
-    asyncio.run(test_jiosaavn_api())
+    asyncio.run(test_spotify_musixmatch_api())
