@@ -1263,7 +1263,7 @@ class MusicCommands(commands.Cog):
         try:
             if not self.genius:
                 return None
-            song = self.genius.search_song(song_title, artist)
+            song = await asyncio.to_thread(self.genius.search_song, song_title, artist)
             if song:
                 return song.lyrics
             return None
@@ -1278,7 +1278,7 @@ class MusicCommands(commands.Cog):
         loading_msg = await ctx.send(f"🔍 Searching lyrics for: {song_title} by {artist}...")
 
         try:
-            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+            lyrics = await self.get_lyrics(song_title, artist)
 
             if not lyrics:
                 await loading_msg.edit(content=(
