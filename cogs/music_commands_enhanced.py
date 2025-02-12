@@ -112,29 +112,33 @@ class MusicCommands(commands.Cog):
             }
 
             headers = {
-                'Accept': 'application/json',
+                'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8',
                 'Content-Type': 'application/json',
-                'User-Agent': 'EducationalBot/1.0'
+                'User-Agent': 'Mozilla/5.0 EducationalBot/1.0'
             }
 
             lyrics_url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(lyrics_url, params=params, headers=headers) as response:
-                    # Log raw response for debugging
-                    raw_response = await response.text()
-                    self.logger.debug(f"Raw Musixmatch API response: {raw_response[:200]}...")  # First 200 chars
+                    # Log response headers for debugging
+                    self.logger.debug(f"Response headers: {response.headers}")
+
+                    # Get raw response content
+                    content = await response.text()
+                    self.logger.debug(f"Raw response content: {content[:200]}...")
 
                     if response.status == 429:
                         self.logger.warning("Rate limit reached, please wait before trying again")
                         return None
 
                     if response.status != 200:
-                        self.logger.error(f"HTTP Error {response.status}: {raw_response}")
+                        self.logger.error(f"HTTP Error {response.status}: {content}")
                         return None
 
                     try:
-                        data = await response.json()
+                        # First try parsing as JSON
+                        data = json.loads(content)
 
                         # Check API response status
                         status_code = data['message']['header']['status_code']
@@ -154,9 +158,13 @@ class MusicCommands(commands.Cog):
                             'status': 'success'
                         }
 
-                    except (KeyError, json.JSONDecodeError) as e:
-                        self.logger.error(f"Error parsing API response: {str(e)}")
-                        self.logger.debug(f"Failed response content: {raw_response}")
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"JSON Parse Error: {str(e)}")
+                        self.logger.debug(f"Failed response content: {content}")
+                        return None
+                    except KeyError as e:
+                        self.logger.error(f"Unexpected API Response Format: {str(e)}")
+                        self.logger.debug(f"Response structure: {json.dumps(data, indent=2)}")
                         return None
 
         except aiohttp.ClientError as e:
