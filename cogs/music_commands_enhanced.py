@@ -97,76 +97,73 @@ class MusicCommands(commands.Cog):
             self.logger.info(f"Musixmatch API key loaded successfully (length: {len(self.musixmatch_api_key)})")
 
     async def get_lyrics(self, song_title: str, artist: str) -> Optional[Dict[str, Any]]:
-        """Get lyrics using Spotify and Musixmatch APIs"""
+        """Get lyrics using Musixmatch API with enhanced error handling"""
         try:
-            # Get Spotify access token
-            auth_url = "https://accounts.spotify.com/api/token"
-            auth_data = {
-                "grant_type": "client_credentials",
-                "client_id": os.getenv('SPOTIFY_CLIENT_ID'),
-                "client_secret": os.getenv('SPOTIFY_CLIENT_SECRET')
+            if not self.musixmatch_api_key:
+                self.logger.error("Musixmatch API key not found")
+                return None
+
+            # Prepare request parameters
+            params = {
+                'apikey': self.musixmatch_api_key,
+                'q_track': song_title,
+                'q_artist': artist,
+                'format': 'json'  # Force JSON response
             }
 
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'EducationalBot/1.0'
+            }
+
+            lyrics_url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+
             async with aiohttp.ClientSession() as session:
-                # Get Spotify token
-                async with session.post(auth_url, data=auth_data) as auth_response:
-                    if auth_response.status != 200:
-                        self.logger.error("Failed to get Spotify token")
+                async with session.get(lyrics_url, params=params, headers=headers) as response:
+                    # Log raw response for debugging
+                    raw_response = await response.text()
+                    self.logger.debug(f"Raw Musixmatch API response: {raw_response[:200]}...")  # First 200 chars
+
+                    if response.status == 429:
+                        self.logger.warning("Rate limit reached, please wait before trying again")
                         return None
 
-                    token_data = await auth_response.json()
-                    access_token = token_data["access_token"]
+                    if response.status != 200:
+                        self.logger.error(f"HTTP Error {response.status}: {raw_response}")
+                        return None
 
-                    # Search song on Spotify
-                    search_url = f"https://api.spotify.com/v1/search?q={song_title.replace(' ', '%20')}%20{artist.replace(' ', '%20')}&type=track"
-                    headers = {"Authorization": f"Bearer {access_token}"}
+                    try:
+                        data = await response.json()
 
-                    async with session.get(search_url, headers=headers) as spotify_response:
-                        if spotify_response.status != 200:
-                            self.logger.error("Failed to search Spotify")
+                        # Check API response status
+                        status_code = data['message']['header']['status_code']
+                        if status_code != 200:
+                            self.logger.error(f"API Error {status_code}: {data['message']['header'].get('message', 'Unknown error')}")
                             return None
 
-                        spotify_data = await spotify_response.json()
-                        if not spotify_data["tracks"]["items"]:
-                            return None
+                        # Extract lyrics
+                        lyrics = data['message']['body']['lyrics']['lyrics_body']
+                        # Remove Musixmatch disclaimer
+                        lyrics = lyrics.split("******* This Lyrics is NOT")[0].strip()
 
-                        track = spotify_data["tracks"]["items"][0]
-                        exact_title = track["name"]
-                        exact_artist = track["artists"][0]["name"]
-
-                        # Get lyrics from Musixmatch
-                        musixmatch_key = os.getenv('MUSIXMATCH_API_KEY')
-                        lyrics_url = f"https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
-                        params = {
-                            "q_track": exact_title,
-                            "q_artist": exact_artist,
-                            "apikey": musixmatch_key
+                        return {
+                            'title': song_title,
+                            'artist': artist,
+                            'lyrics': lyrics,
+                            'status': 'success'
                         }
 
-                        async with session.get(lyrics_url, params=params) as lyrics_response:
-                            if lyrics_response.status != 200:
-                                self.logger.error("Failed to fetch Musixmatch lyrics")
-                                return None
+                    except (KeyError, json.JSONDecodeError) as e:
+                        self.logger.error(f"Error parsing API response: {str(e)}")
+                        self.logger.debug(f"Failed response content: {raw_response}")
+                        return None
 
-                            lyrics_data = await lyrics_response.json()
-                            try:
-                                lyrics = lyrics_data["message"]["body"]["lyrics"]["lyrics_body"]
-                                # Remove Musixmatch disclaimer
-                                lyrics = lyrics.split("******* This Lyrics is NOT")[0].strip()
-
-                                return {
-                                    'title': exact_title,
-                                    'artist': exact_artist,
-                                    'lyrics': lyrics,
-                                    'url': track["external_urls"]["spotify"],
-                                    'query': f"{song_title} - {artist}"
-                                }
-                            except KeyError:
-                                self.logger.error("No lyrics found in Musixmatch response")
-                                return None
-
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error while fetching lyrics: {str(e)}")
+            return None
         except Exception as e:
-            self.logger.error(f"Error getting lyrics: {str(e)}")
+            self.logger.error(f"Unexpected error in get_lyrics: {str(e)}")
             return None
 
     @commands.command(name='getlyrics')
