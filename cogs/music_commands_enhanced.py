@@ -849,115 +849,39 @@ class MusicCommands(commands.Cog):
 
     @commands.command(name='moodplay')
     async def moodplay(self, ctx, mood: str):
-        """Play a song based on the specified mood"""
+        """Play music based on mood"""
         mood = mood.lower()
         if mood not in self.mood_playlists:
             available_moods = ", ".join(f"`{m}`" for m in self.mood_playlists.keys())
-            await ctx.send(f"❌ Invalid mood! Available moods: {available_moods}")
+            await ctx.send(f"❌ Invalid mood. Available moods: {available_moods}")
             return
 
-        # Select a random song from the mood playlist
-        selected_song = random.choice(self.mood_playlists[mood])
-
-        # Create loading message
-        loading_msg = await ctx.send(
-            f"🎭 **Selected Mood:** `{mood}`\n"
-            f"🎵 **Preparing to play:** `{selected_song}`\n"
-            "⏳ Loading..."
-        )
+        # Create loading message with mood emoji
+        mood_emojis = {
+            "happy": "😊",
+            "sad": "😢",
+            "chill": "😌",
+            "energetic": "⚡",
+            "focus": "🎯"
+        }
+        emoji = mood_emojis.get(mood, "🎵")
+        loading_msg = await ctx.send(f"{emoji} Finding the perfect **{mood}** song for you...")
 
         try:
-            # Use the existing play functionality
-            # Get song results
-            results = await self.get_song_results(selected_song)
-            if not results:
-                await loading_msg.edit(content=f"❌ Could not find song: {selected_song}")
-                return
+            # Get random song from mood playlist
+            playlist = self.mood_playlists[mood]
+            song_choice = random.choice(playlist)
 
-            song_info = results[0]  # Get first result
+            # Use existing play command functionality
+            ctx.content = f"!play {song_choice}"  # Simulate play command
+            await self.play(ctx, query=song_choice)
 
-            # Join voice channel if not already joined
-            if not ctx.author.voice:
-                await loading_msg.edit(content="❌ You need to be in a voice channel first!")
-                return
-
-            if ctx.guild.id not in self.voice_clients:
-                try:
-                    voice_client = await ctx.author.voice.channel.connect()
-                    self.voice_clients[ctx.guild.id] = voice_client
-                except Exception as e:
-                    self.logger.error(f"Error joining voice channel: {e}")
-                    await loading_msg.edit(content="❌ Could not join the voice channel.")
-                    return
-
-            # Setup FFmpeg options
-            ffmpeg_options = {
-                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': '-vn'
-            }
-
-            # Create and play audio
-            audio_source = discord.FFmpegPCMAudio(song_info['url'], **ffmpeg_options)
-            self.voice_clients[ctx.guild.id].play(
-                discord.PCMVolumeTransformer(audio_source, volume=self.volume),
-                after=lambda e: asyncio.run_coroutine_threadsafe(
-                    self.song_finished(ctx.guild.id, e), self.bot.loop
-                ) if e else None
-            )
-
-            # Save current track info
-            start_time = asyncio.get_event_loop().time()
-            self.current_tracks[ctx.guild.id] = {
-                'title': song_info['title'],
-                'duration': song_info['duration'],
-                'thumbnail': song_info['thumbnail'],
-                'uploader': song_info['uploader'],
-                'requester': ctx.author,
-                'start_time': start_time,
-                'url': song_info['url']
-            }
-
-            # Create Now Playing embed
-            playing_embed = discord.Embed(
-                title=f"🎭 Now Playing ({mood.title()} Mood)",
-                description=f"**{song_info['title']}**\nArtist: **{song_info['uploader']}**",
-                color=discord.Color.blue()
-            )
-
-            if song_info['thumbnail']:
-                playing_embed.set_thumbnail(url=song_info['thumbnail'])
-
-            progress_bar = self.create_progress_bar(0, song_info['duration'])
-            playing_embed.add_field(
-                name="Progress",
-                value=f"{progress_bar}\nTime: `00:00 / {song_info['duration_string']}`\nDuration: `{song_info['duration_string']}`",
-                inline=False
-            )
-
-            playing_embed.add_field(
-                name="Requested by",
-                value=ctx.author.mention,
-                inline=False
-            )
-
-            # Send and start progress updates
-            now_playing_msg = await ctx.send(embed=playing_embed)
-
-            # Delete the loading message
-            await loading_msg.delete()
-
-            # Start progress update task
-            if ctx.guild.id in self.progress_update_tasks:
-                self.progress_update_tasks[ctx.guild.id].cancel()
-
-            update_task = asyncio.create_task(
-                self.update_progress(ctx, now_playing_msg.id, self.current_tracks[ctx.guild.id])
-            )
-            self.progress_update_tasks[ctx.guild.id] = update_task
+            # Update loading message
+            await loading_msg.edit(content=f"{emoji} Playing a **{mood}** song: `{song_choice}`")
 
         except Exception as e:
             self.logger.error(f"Error in moodplay command: {str(e)}")
-            await loading_msg.edit(content=f"❌ An error occurred while playing the song: {str(e)}")
+            await loading_msg.edit(content=f"❌ An error occurred while playing the {mood} song. Please try again.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
