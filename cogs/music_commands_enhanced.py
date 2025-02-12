@@ -644,19 +644,25 @@ class MusicCommands(commands.Cog):
     async def search_song_info(self, query: str) -> Optional[Dict[str, Any]]:
         """Enhanced song search using multiple sources"""
         try:
-            # Clean and format query
-            search_term = query.strip().lower()
-            # Remove special characters but keep spaces
-            search_term = re.sub(r'[^\w\s]', '', search_term)
-            # Convert to URL format
-            url_term = search_term.replace(" ", "+")
-
-            # Try multiple search URLs
-            urls = [
-                f"https://search.azlyrics.com/search.php?q={url_term}",
-                f"https://search.azlyrics.com/search.php?q={url_term}+lyrics",
-                f"https://search.azlyrics.com/suggest.php?q={url_term}"
+            # Clean and format query with various search combinations
+            base_term = query.strip()
+            search_terms = [
+                base_term,                          # Original query
+                base_term.lower(),                  # Lowercase
+                base_term.title(),                  # Title case
+                f"{base_term} lyrics",              # With 'lyrics'
+                base_term.replace(" ", ""),         # No spaces
+                base_term.replace("'", "")          # Remove apostrophes
             ]
+            
+            # Convert terms to URL format
+            urls = []
+            for term in search_terms:
+                url_term = term.replace(" ", "+")
+                urls.extend([
+                    f"https://search.azlyrics.com/search.php?q={url_term}",
+                    f"https://search.azlyrics.com/suggest.php?q={url_term}"
+                ])
 
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
