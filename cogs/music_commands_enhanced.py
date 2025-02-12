@@ -803,7 +803,7 @@ class MusicCommands(commands.Cog):
                 return
 
             embed = discord.Embed(
-                title=f"🎵 {result['title']}",
+                title=f""🎵 {result['title']}",
                 color=discord.Color.blue()
             )
 
@@ -957,6 +957,115 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in moodplay command: {str(e)}")
             await loading_msg.edit(content=f"❌ An error occurred while playing the {mood} song. Please try again.")
+
+    @commands.command(name='singer')
+    async def singer(self, ctx, *, singer_name: str):
+        """Play a random song from the specified singer"""
+        if not ctx.author.voice:
+            await ctx.send("❌ You need to be in a voice channel first!")
+            return
+
+        # Create initial search message with loading animation
+        loading_msg = await ctx.send(
+            f"🎤 **Finding a song by:** `{singer_name}`\n"
+            "🔍 Searching through artist's discography..."
+        )
+
+        try:
+            # Format search query to focus on the singer
+            search_query = f"{singer_name} official audio"
+            self.logger.info(f"Searching for songs by: {singer_name}")
+
+            # Get search results
+            results = await self.get_song_results(search_query)
+
+            if not results:
+                await loading_msg.edit(content=f"❌ No songs found for **{singer_name}**!")
+                return
+
+            # Randomly select a song from the results
+            song_info = random.choice(results)
+
+            # Join voice channel if not already joined
+            if ctx.guild.id not in self.voice_clients:
+                try:
+                    voice_client = await ctx.author.voice.channel.connect()
+                    self.voice_clients[ctx.guild.id] = voice_client
+                except Exception as e:
+                    self.logger.error(f"Error joining voice channel: {e}")
+                    await loading_msg.edit(content="❌ Could not join the voice channel.")
+                    return
+
+            # Setup FFmpeg options
+            ffmpeg_options = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn'
+            }
+
+            # Create and play audio
+            try:
+                audio_source = discord.FFmpegPCMAudio(song_info['url'], **ffmpeg_options)
+                self.voice_clients[ctx.guild.id].play(
+                    discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                    after=lambda e: asyncio.run_coroutine_threadsafe(
+                        self.song_finished(ctx.guild.id, e), self.bot.loop
+                    ) if e else None
+                )
+            except Exception as e:
+                self.logger.error(f"Error playing song: {e}")
+                await loading_msg.edit(content="❌ Error playing the song. Please try again.")
+                return
+
+            # Update current track info
+            self.current_tracks[ctx.guild.id] = {
+                'title': song_info['title'],
+                'duration': song_info['duration'],
+                'thumbnail': song_info['thumbnail'],
+                'uploader': song_info['uploader'],
+                'requester': ctx.author,
+                'start_time': asyncio.get_event_loop().time(),
+                'url': song_info['url']
+            }
+
+            # Create Now Playing embed
+            playing_embed = discord.Embed(
+                title="🎤 Now Playing",
+                description=f"**{song_info['title']}**\nBy: **{singer_name}**",
+                color=discord.Color.blue()
+            )
+
+            if song_info['thumbnail']:
+                playing_embed.set_thumbnail(url=song_info['thumbnail'])
+
+            # Add progress information
+            progress_bar = self.create_progress_bar(0, song_info['duration'])
+            playing_embed.add_field(
+                name="Progress",
+                value=f"{progress_bar}\nTime: `00:00 / {song_info['duration_string']}`\nDuration: `{song_info['duration_string']}`",
+                inline=False
+            )
+
+            playing_embed.add_field(
+                name="Requested by",
+                value=ctx.author.mention,
+                inline=False
+            )
+
+            # Send embed and start progress updates
+            now_playing_msg = await ctx.send(embed=playing_embed)
+            await loading_msg.edit(content=f"🎵 Playing a song by **{singer_name}**: `{song_info['title']}`")
+
+            # Update progress
+            if ctx.guild.id in self.progress_update_tasks:
+                self.progress_update_tasks[ctx.guild.id].cancel()
+
+            self.progress_update_tasks[ctx.guild.id] = asyncio.create_task(
+                self.update_progress(ctx, now_playing_msg.id, self.current_tracks[ctx.guild.id])
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error in singer command: {str(e)}")
+            await loading_msg.edit(content=f"❌ An error occurred while playing songs by **{singer_name}**")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
