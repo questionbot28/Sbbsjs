@@ -10,6 +10,8 @@ import re
 import random
 from discord import SelectOption
 from discord.ui import Select, View
+import os
+import lyricsgenius
 
 class SongSelect(discord.ui.Select):
     def __init__(self, options: List[Dict[str, Any]], callback_func):
@@ -32,8 +34,6 @@ class SongSelect(discord.ui.Select):
         await self.callback_func(interaction, self.songs[int(self.values[0])])
 
 class MusicCommands(commands.Cog):
-    """Music commands using enhanced web scraping and playback"""
-
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
@@ -44,9 +44,122 @@ class MusicCommands(commands.Cog):
             'bassboost': 'bass=g=20:f=110:w=0.3',
             '8d': 'apulsator=hz=0.09',
             'nightcore': 'aresample=48000,asetrate=48000*1.25',
-            'slowand_reverb': 'atempo=0.90,asetrate=44100*0.90,aecho=0.8:0.9:1000|1800:0.2|0.1,areverse,aecho=0.8:0.88:60|50:0.2|0.1,areverse'  # Modified speed to 0.90
+            'slowand_reverb': 'atempo=0.90,asetrate=44100*0.90,aecho=0.8:0.9:1000|1800:0.2|0.1,areverse,aecho=0.8:0.88:60|50:0.2|0.1,areverse'
         }
         self.progress_update_tasks = {}
+        # Initialize Genius API client with retries and timeout
+        try:
+            genius_token = os.getenv('GENIUS_API_KEY')
+            if genius_token:
+                self.genius = lyricsgenius.Genius(
+                    genius_token,
+                    timeout=15,
+                    retries=3,
+                    verbose=True,
+                    remove_section_headers=True,
+                    skip_non_songs=False
+                )
+                self.logger.info("Successfully initialized Genius API client")
+            else:
+                self.genius = None
+                self.logger.error("Failed to initialize Genius API client - missing API key")
+        except Exception as e:
+            self.genius = None
+            self.logger.error(f"Error initializing Genius API client: {str(e)}")
+
+    async def get_lyrics(self, song_title: str, artist: str) -> Optional[str]:
+        """Get lyrics for a song using Genius API via lyricsgenius library"""
+        try:
+            if not self.genius:
+                self.logger.error("Genius API client not initialized")
+                return None
+
+            self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
+
+            # Try exact search first
+            try:
+                song = self.genius.search_song(f"{song_title}", artist)
+            except Exception as search_error:
+                self.logger.error(f"Error in initial search: {str(search_error)}")
+                song = None
+
+            if not song:
+                self.logger.info(f"No results found with exact search, trying alternative search...")
+                # Try alternative search formats
+                search_attempts = [
+                    (song_title, ""),  # Just the song title
+                    (f"{song_title} {artist}", ""),  # Combined search
+                    (song_title.lower(), artist.lower()),  # Lowercase everything
+                ]
+
+                for search_title, search_artist in search_attempts:
+                    try:
+                        song = self.genius.search_song(search_title, search_artist)
+                        if song:
+                            self.logger.info(f"Found lyrics with alternative search: {search_title} - {search_artist}")
+                            break
+                    except Exception as e:
+                        self.logger.error(f"Error in alternative search: {str(e)}")
+                        continue
+
+            if song:
+                self.logger.info(f"Found lyrics for: {song.title} by {song.artist}")
+                return song.lyrics
+
+            self.logger.warning(f"No lyrics found for: {song_title} by {artist} after all attempts")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error getting lyrics: {str(e)}")
+            return None
+
+    @commands.command(name='getlyrics')
+    async def get_lyrics_command(self, ctx, song_title: str, *, artist: str):
+        """Get lyrics for a specific song"""
+        loading_msg = await ctx.send(f"🔍 Searching lyrics for: {song_title} by {artist}...")
+
+        try:
+            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+
+            if not lyrics:
+                await loading_msg.edit(content=(
+                    "❌ No lyrics found. Please try:\n"
+                    "• Using the exact song title\n"
+                    "• Checking the artist name spelling\n"
+                    "• Using quotation marks for titles with spaces"
+                ))
+                return
+
+            # Clean up lyrics for better formatting
+            lyrics = lyrics.strip()
+            lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Replace multiple newlines with double newline
+
+            # Create embed for song information
+            embed = discord.Embed(
+                title=f"🎵 {song_title}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Artist", value=artist, inline=False)
+
+            # Split lyrics into chunks of 2000 characters (Discord's limit)
+            lyrics_chunks = [lyrics[i:i+2000] for i in range(0, len(lyrics), 2000)]
+
+            # Send first chunk with song info
+            first_chunk_embed = discord.Embed(
+                title=f"🎵 {song_title} - {artist}",
+                description=lyrics_chunks[0],
+                color=discord.Color.blue()
+            )
+            await loading_msg.edit(content=None, embed=first_chunk_embed)
+
+            # Send remaining chunks if any
+            for chunk in lyrics_chunks[1:]:
+                chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
+                await ctx.send(embed=chunk_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in get_lyrics_command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while fetching lyrics.")
 
     def format_duration(self, seconds: int) -> str:
         """Format seconds into MM:SS"""
@@ -97,7 +210,7 @@ class MusicCommands(commands.Cog):
                     break
 
                 await asyncio.sleep(5)  # Update every 5 seconds
-
+            
             # Final update to show completion
             if ctx.voice_client and not ctx.voice_client.is_playing():
                 duration_timestamp = self.format_duration(duration)
@@ -798,7 +911,7 @@ class MusicCommands(commands.Cog):
         elif direction.lower() in ['back', 'b']:
             new_time = max(0, current_time - seconds)
         else:
-            await ctx.send("❌ Invalid direction! Use 'forward' or 'back'")
+            await ctx.send("❌ Invalid direction! Use 'forward' or'back'")
             return
 
         # Stop current playback
@@ -872,7 +985,7 @@ class MusicCommands(commands.Cog):
                     f"✨ **Creating AI Mashup**\n"
                     f"🎵 Found: `{song1_info['title']}`\n"
                     f"🎵 Found: `{song2_info['title']}`\n\n"
-                    "🔄 Mixing songs..."
+                    "🔄 Downloading and mixing songs..."
                 )
             )
 
@@ -886,19 +999,12 @@ class MusicCommands(commands.Cog):
                     await status_msg.edit(content="❌ Could not join the voice channel.")
                     return
 
-            # Setup FFmpeg options for the mashup
-            # Using complex filter for proper mixing
-            ffmpeg_options = {
-                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': '-vn -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest:weights=0.5 0.5[a]" -map "[a]"'
-            }
-
             try:
-                # Create combined audio source
+                # Create audio source with basic mixing filter
                 audio_source = discord.FFmpegPCMAudio(
                     song1_info['url'],
-                    before_options=ffmpeg_options['before_options'],
-                    options=ffmpeg_options['options']
+                    before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                    options='-vn -af asetrate=44100,aresample=44100,volume=0.5'
                 )
 
                 # Save current track info
@@ -911,11 +1017,11 @@ class MusicCommands(commands.Cog):
                     'url': song1_info['url']
                 }
 
-                # Play the mashup
+                # Play first song
                 self.voice_clients[ctx.guild.id].play(
                     discord.PCMVolumeTransformer(audio_source, volume=self.volume),
                     after=lambda e: asyncio.run_coroutine_threadsafe(
-                        self.song_finished(ctx.guild.id, e), self.bot.loop
+                        self._play_second_track(ctx.guild.id, song2_info, e), self.bot.loop
                     ) if e else None
                 )
 
@@ -946,6 +1052,31 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in aimashup command: {e}")
             await status_msg.edit(content="❌ An error occurred while processing your request.")
+
+    async def _play_second_track(self, guild_id: int, song_info: dict, error):
+        """Helper method to play the second track in the mashup"""
+        if error:
+            self.logger.error(f"Error in first track: {error}")
+            return
+
+        try:
+            # Create audio source for second song
+            audio_source = discord.FFmpegPCMAudio(
+                song_info['url'],
+                before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                options='-vn -af asetrate=44100,aresample=44100,volume=0.5'
+            )
+
+            # Play second song
+            if guild_id in self.voice_clients and self.voice_clients[guild_id]:
+                self.voice_clients[guild_id].play(
+                    discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                    after=lambda e: asyncio.run_coroutine_threadsafe(
+                        self.song_finished(guild_id, e), self.bot.loop
+                    ) if e else None
+                )
+        except Exception as e:
+            self.logger.error(f"Error playing second track: {e}")
 
     @commands.command(name='normal')
     async def remove_effects(self, ctx):
@@ -992,6 +1123,175 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error removing audio effects: {str(e)}")
             await ctx.send("❌ An error occurred while removing the audio effects.")
 
+
+    @commands.command(name='vplay', aliases=['videoplay'])
+    async def vplay(self, ctx, *, query: str):
+        """Enhanced voice channel play command with automatic connection handling"""
+        if not ctx.author.voice:
+            await ctx.send("❌ You need to be in a voice channel first!")
+            return
+
+        # Create initial search message with loading animation
+        loading_msg = await ctx.send(
+            f"🔍 **Finding your song:** `{query}`\n"
+            "⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜  0%"
+        )
+
+        try:
+            # Search for song
+            results = await self.get_song_results(query)
+            if not results:
+                await loading_msg.edit(content="❌ No songs found!")
+                return
+
+            song_info = results[0]  # Get first result for direct play
+
+            # Connect to voice channel if not already connected
+            if not ctx.voice_client:
+                try:
+                    voice_client = await ctx.author.voice.channel.connect()
+                    self.voice_clients[ctx.guild.id] = voice_client
+                except Exception as e:
+                    self.logger.error(f"Error joining voice channel: {e}")
+                    await loading_msg.edit(content="❌ Could not join the voice channel.")
+                    return
+
+            # Setup FFmpeg options
+            ffmpeg_options = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn'
+            }
+
+            # Create and play audio
+            try:
+                audio_source = discord.FFmpegPCMAudio(song_info['url'], **ffmpeg_options)
+                self.voice_clients[ctx.guild.id].play(
+                    discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                    after=lambda e: asyncio.run_coroutine_threadsafe(
+                        self.song_finished(ctx.guild.id, e), self.bot.loop
+                    ) if e else None
+                )
+
+                # Save current track info
+                start_time = asyncio.get_event_loop().time()
+                self.current_tracks[ctx.guild.id] = {
+                    'title': song_info['title'],
+                    'duration': song_info['duration'],
+                    'thumbnail': song_info['thumbnail'],
+                    'uploader': song_info['uploader'],
+                    'requester': ctx.author,
+                    'start_time': start_time,
+                    'url': song_info['url']
+                }
+
+                # Create Now Playing embed
+                playing_embed = discord.Embed(
+                    title="🎵 Now Playing",
+                    description=f"**{song_info['title']}**\nArtist: **{song_info['uploader']}**",
+                    color=discord.Color.blue()
+                )
+
+                if song_info['thumbnail']:
+                    playing_embed.set_thumbnail(url=song_info['thumbnail'])
+
+                progress_bar = self.create_progress_bar(0, song_info['duration'])
+                playing_embed.add_field(
+                    name="Progress",
+                    value=f"{progress_bar}\nTime: `00:00 / {song_info['duration_string']}`\n"
+                          f"Duration: `{song_info['duration_string']}`",
+                    inline=False
+                )
+
+                playing_embed.add_field(
+                    name="Requested by",
+                    value=ctx.author.mention,
+                    inline=False
+                )
+
+                # Send and start progress updates
+                now_playing_msg = await ctx.send(embed=playing_embed)
+
+                # Start progress update task
+                if ctx.guild.id in self.progress_update_tasks:
+                    self.progress_update_tasks[ctx.guild.id].cancel()
+
+                update_task = asyncio.create_task(
+                    self.update_progress(ctx, now_playing_msg.id, self.current_tracks[ctx.guild.id])
+                )
+                self.progress_update_tasks[ctx.guild.id] = update_task
+
+                # Delete the loading message
+                await loading_msg.delete()
+
+            except Exception as e:
+                self.logger.error(f"Error playing song in vplay: {e}")
+                await loading_msg.edit(content="❌ An error occurred while playing the song.")
+
+        except Exception as e:
+            self.logger.error(f"Error in vplay command: {e}")
+            await loading_msg.edit(content="❌ An error occurred while processing your request.")
+
+    async def get_lyrics(self, song_title: str, artist: str) -> Optional[str]:
+        """Get lyrics for a song using Genius API"""
+        try:
+            if not self.genius:
+                return None
+            song = self.genius.search_song(song_title, artist)
+            if song:
+                return song.lyrics
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting lyrics: {e}")
+            return None
+
+
+    @commands.command(name='getlyrics')
+    async def get_lyrics_command(self, ctx, song_title: str, *, artist: str):
+        """Get lyrics for a specific song"""
+        loading_msg = await ctx.send(f"🔍 Searching lyrics for: {song_title} by {artist}...")
+
+        try:
+            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+
+            if not lyrics:
+                await loading_msg.edit(content=(
+                    "❌ No lyrics found. Please try:\n"
+                    "• Using the exact song title\n"
+                    "• Checking the artist name spelling\n"
+                    "• Using quotation marks for titles with spaces"
+                ))
+                return
+
+            # Clean up lyrics for better formatting
+            lyrics = lyrics.strip()
+            lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Replace multiple newlines with double newline
+
+            # Create embed for song information
+            embed = discord.Embed(
+                title=f"🎵 {song_title}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Artist", value=artist, inline=False)
+
+            # Split lyrics into chunks of 2000 characters (Discord's limit)
+            lyrics_chunks = [lyrics[i:i+2000] for i in range(0, len(lyrics), 2000)]
+
+            # Send first chunk with song info
+            first_chunk_embed = discord.Embed(
+                title=f"🎵 {song_title} - {artist}",
+                description=lyrics_chunks[0],
+                color=discord.Color.blue()
+            )
+            await loading_msg.edit(content=None, embed=first_chunk_embed)
+
+            # Send remaining chunks if any
+            for chunk in lyrics_chunks[1:]:
+                chunk_embed = discord.Embed(description=chunk, color=discord.Color.blue())
+                await ctx.send(embed=chunk_embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in get_lyrics_command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while fetching lyrics.")
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
