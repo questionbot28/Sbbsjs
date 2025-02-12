@@ -111,13 +111,16 @@ class MusicCommands(commands.Cog):
             
             # Search for song URL using Genius API
             # Use the Genius library's search method directly
-            song = self.genius.search_song(song_title, artist)
-            if song:
-                return song.lyrics
+            try:
+                song = self.genius.search_song(song_title, artist)
+                if song:
+                    return song.lyrics
+            except Exception as e:
+                self.logger.error(f"Error searching with Genius library: {str(e)}")
 
             # Fallback to direct API if library search fails
             search_url = f"https://api.genius.com/search?q={song_title} {artist}"
-            headers = {"Authorization": f"Bearer {genius_token}"}
+            headers = {"Authorization": f"Bearer {os.getenv('GENIUS_API_KEY')}"}
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
