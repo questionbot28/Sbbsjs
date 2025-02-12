@@ -118,16 +118,33 @@ class MusicCommands(commands.Cog):
         """Get lyrics for a specific song"""
         loading_msg = await ctx.send(f"🔍 Searching lyrics for: {song_title} by {artist}...")
 
+        self.logger.info(f"Searching lyrics - Title: {song_title}, Artist: {artist}")
+
         try:
+            if not self.genius:
+                await loading_msg.edit(content="❌ Genius API client not initialized. Please check API key.")
+                return
+
             lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+            self.logger.info(f"Lyrics search result: {'Found' if lyrics else 'Not found'}")
 
             if not lyrics:
-                await loading_msg.edit(content=(
-                    "❌ No lyrics found. Please try:\n"
-                    "• Using the exact song title\n"
-                    "• Checking the artist name spelling\n"
-                    "• Using quotation marks for titles with spaces"
-                ))
+                song = await asyncio.to_thread(self.genius.search_song, song_title)
+                if song and song.url:
+                    await loading_msg.edit(content=(
+                        f"📌 Lyrics available at: {song.url}\n\n"
+                        "❌ Full lyrics not available. Please:\n"
+                        "• Use the exact song title\n"
+                        "• Check artist name spelling\n"
+                        "• Use quotation marks for titles with spaces"
+                    ))
+                else:
+                    await loading_msg.edit(content=(
+                        "❌ No lyrics found. Please try:\n"
+                        "• Using the exact song title\n"
+                        "• Checking the artist name spelling\n"
+                        "• Using quotation marks for titles with spaces"
+                    ))
                 return
 
             # Clean up lyrics for better formatting
@@ -210,7 +227,7 @@ class MusicCommands(commands.Cog):
                     break
 
                 await asyncio.sleep(5)  # Update every 5 seconds
-            
+
             # Final update to show completion
             if ctx.voice_client and not ctx.voice_client.is_playing():
                 duration_timestamp = self.format_duration(duration)
@@ -687,6 +704,16 @@ class MusicCommands(commands.Cog):
         loading_msg = await ctx.send("🔍 Searching for lyrics...")
 
         try:
+            # Attempt to split the query into song title and artist
+            parts = query.split(" - ")
+            if len(parts) == 2:
+                song_title, artist = parts
+            else:
+                song_title = query
+                artist = ""
+
+            self.logger.info(f"Searching lyrics - Title: {song_title}, Artist: {artist}")
+
             result = await self.search_song_info(query)
 
             if not result:
