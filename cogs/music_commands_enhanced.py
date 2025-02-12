@@ -1149,5 +1149,153 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in vplay command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while setting up the watch party.")
 
+    @commands.command(name='instant_lyrics')
+    async def instant_lyrics(self, ctx):
+        """Display synchronized lyrics for the current song"""
+        # Check if a song is playing
+        if ctx.guild.id not in self.current_tracks:
+            await ctx.send("❌ No song is currently playing!")
+            return
+
+        current_track = self.current_tracks[ctx.guild.id]
+        song_title = current_track['title']
+        artist = current_track['uploader']
+
+        # Create initial loading message
+        loading_msg = await ctx.send(
+            f"🔍 **Finding synced lyrics for:** `{song_title}`\n"
+            f"👤 Artist: `{artist}`\n"
+            "⌛ Please wait..."
+        )
+
+        try:
+            # Get lyrics using existing method
+            lyrics = await asyncio.to_thread(self.get_lyrics, song_title, artist)
+
+            if not lyrics:
+                await loading_msg.edit(content=(
+                    f"❌ No synced lyrics found for: **{song_title}**\n"
+                    "Try using !getlyrics for static lyrics instead."
+                ))
+                return
+
+            # Clean up lyrics for display
+            lyrics_lines = lyrics.split('\n')
+            lyrics_lines = [line.strip() for line in lyrics_lines if line.strip()]
+
+            # Create initial lyrics display embed
+            lyrics_embed = discord.Embed(
+                title=f"🎵 Now Playing: {song_title}",
+                description=f"👤 Artist: {artist}",
+                color=discord.Color.blue()
+            )
+
+            if current_track['thumbnail']:
+                lyrics_embed.set_thumbnail(url=current_track['thumbnail'])
+
+            # Calculate current position in song
+            current_time = int(asyncio.get_event_loop().time() - current_track['start_time'])
+            total_duration = current_track['duration']
+
+            # Create progress bar
+            progress_bar = self.create_progress_bar(current_time, total_duration)
+
+            # Add progress information
+            lyrics_embed.add_field(
+                name="Progress",
+                value=f"{progress_bar}\n"
+                      f"Time: `{self.format_duration(current_time)} / {self.format_duration(total_duration)}`",
+                inline=False
+            )
+
+            # Add initial lyrics display
+            current_line_index = min(int((current_time / total_duration) * len(lyrics_lines)), len(lyrics_lines) - 1)
+
+            # Show 5 lines of lyrics, with current line highlighted
+            start_idx = max(0, current_line_index - 2)
+            end_idx = min(len(lyrics_lines), start_idx + 5)
+
+            lyrics_display = []
+            for i in range(start_idx, end_idx):
+                line = lyrics_lines[i]
+                if i == current_line_index:
+                    line = f"**→ {line}**"  # Highlight current line
+                else:
+                    line = f"  {line}"
+                lyrics_display.append(line)
+
+            lyrics_embed.add_field(
+                name="📝 Lyrics",
+                value="\n".join(lyrics_display) or "No lyrics available",
+                inline=False
+            )
+
+            # Send initial embed
+            lyrics_msg = await ctx.send(embed=lyrics_embed)
+            await loading_msg.delete()
+
+            # Update lyrics periodically
+            try:
+                while ctx.voice_client and ctx.voice_client.is_playing():
+                    current_time = int(asyncio.get_event_loop().time() - current_track['start_time'])
+                    if current_time >= total_duration:
+                        break
+
+                    # Update progress bar
+                    progress_bar = self.create_progress_bar(current_time, total_duration)
+
+                    # Calculate current lyrics line
+                    current_line_index = min(int((current_time / total_duration) * len(lyrics_lines)), len(lyrics_lines) - 1)
+
+                    # Update lyrics display
+                    start_idx = max(0, current_line_index - 2)
+                    end_idx = min(len(lyrics_lines), start_idx + 5)
+
+                    lyrics_display = []
+                    for i in range(start_idx, end_idx):
+                        line = lyrics_lines[i]
+                        if i == current_line_index:
+                            line = f"**→ {line}**"
+                        else:
+                            line = f"  {line}"
+                        lyrics_display.append(line)
+
+                    # Update embed
+                    lyrics_embed = discord.Embed(
+                        title=f"🎵 Now Playing: {song_title}",
+                        description=f"👤 Artist: {artist}",
+                        color=discord.Color.blue()
+                    )
+
+                    if current_track['thumbnail']:
+                        lyrics_embed.set_thumbnail(url=current_track['thumbnail'])
+
+                    lyrics_embed.add_field(
+                        name="Progress",
+                        value=f"{progress_bar}\n"
+                              f"Time: `{self.format_duration(current_time)} / {self.format_duration(total_duration)}`",
+                        inline=False
+                    )
+
+                    lyrics_embed.add_field(
+                        name="📝 Lyrics",
+                        value="\n".join(lyrics_display) or "No lyrics available",
+                        inline=False
+                    )
+
+                    try:
+                        await lyrics_msg.edit(embed=lyrics_embed)
+                    except discord.HTTPException:
+                        break
+
+                    await asyncio.sleep(2)  # Update every 2 seconds
+
+            except Exception as e:
+                self.logger.error(f"Error updating instant lyrics: {str(e)}")
+
+        except Exception as e:
+            self.logger.error(f"Error in instant_lyrics command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while displaying instant lyrics.")
+
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
