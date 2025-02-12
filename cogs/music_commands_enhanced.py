@@ -1262,11 +1262,29 @@ class MusicCommands(commands.Cog):
         """Get lyrics for a song using Genius API"""
         try:
             if not self.genius:
+                self.logger.error("Genius client not initialized")
                 return None
-            song = await asyncio.to_thread(self.genius.search_song, song_title, artist)
-            if song:
-                return song.lyrics
+                
+            search_term = f"{song_title} {artist}".strip()
+            self.logger.info(f"Searching for lyrics: {search_term}")
+            
+            song = await asyncio.to_thread(
+                self.genius.search_song,
+                search_term,
+                get_full_info=True,
+                sanitize=True
+            )
+            
+            if song and song.lyrics:
+                # Clean up lyrics
+                lyrics = song.lyrics.strip()
+                # Remove Genius-specific text if present
+                lyrics = lyrics.replace('Lyrics', '').replace('Embed', '')
+                return lyrics
+                
+            self.logger.warning(f"No lyrics found for: {search_term}")
             return None
+            
         except Exception as e:
             self.logger.error(f"Error getting lyrics: {e}")
             return None
