@@ -160,22 +160,12 @@ class MusicCommands(commands.Cog):
             self.logger.info(f"Lyrics search result: {'Found' if lyrics else 'Not found'}")
 
             if not lyrics:
-                song = await asyncio.to_thread(self.genius.search_song, song_title)
-                if song and song.url:
-                    await loading_msg.edit(content=(
-                        f"📌 Lyrics available at: {song.url}\n\n"
-                        "❌ Full lyrics not available. Please:\n"
-                        "• Use the exact song title\n"
-                        "• Check artist name spelling\n"
-                        "• Use quotation marks for titles with spaces"
-                    ))
-                else:
-                    await loading_msg.edit(content=(
-                        "❌ No lyrics found. Please try:\n"
-                        "• Using the exact song title\n"
-                        "• Checking the artist name spelling\n"
-                        "• Using quotation marks for titles with spaces"
-                    ))
+                await loading_msg.edit(content=(
+                    "❌ No lyrics found. Please try:\n"
+                    "• Using the exact song title\n"
+                    "• Checking the artist name spelling\n"
+                    "• Using quotation marks for titles with spaces"
+                ))
                 return
 
             # Clean up lyrics for better formatting
@@ -803,7 +793,7 @@ class MusicCommands(commands.Cog):
                 return
 
             embed = discord.Embed(
-                title=f""🎵 {result['title']}",
+                title=f"🎵 {result['title']}",
                 color=discord.Color.blue()
             )
 
