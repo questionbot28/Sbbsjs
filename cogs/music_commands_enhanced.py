@@ -644,20 +644,38 @@ class MusicCommands(commands.Cog):
     async def search_song_info(self, query: str) -> Optional[Dict[str, Any]]:
         """Enhanced song search using multiple sources"""
         try:
-            # Format query
-            search_term = query.strip().replace(" ", "+")
+            # Clean and format query
+            search_term = query.strip().lower()
+            # Remove special characters but keep spaces
+            search_term = re.sub(r'[^\w\s]', '', search_term)
+            # Convert to URL format
+            url_term = search_term.replace(" ", "+")
 
-            # Build URL with proper parameters
-            url = f"https://search.azlyrics.com/search.php?q={search_term}"
+            # Try multiple search URLs
+            urls = [
+                f"https://search.azlyrics.com/search.php?q={url_term}",
+                f"https://search.azlyrics.com/search.php?q={url_term}+lyrics",
+                f"https://search.azlyrics.com/suggest.php?q={url_term}"
+            ]
+
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
             }
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=10) as response:
-                    if response.status != 200:
-                        self.logger.error(f"Search API error: {response.status}")
-                        return None
+                for url in urls:
+                    try:
+                        async with session.get(url, headers=headers, timeout=10) as response:
+                            if response.status != 200:
+                                self.logger.warning(f"Search failed for URL {url}: {response.status}")
+                                continue
+
+                            html = await response.text()
+                            if "Please enable cookies" in html or "Access denied" in html:
+                                self.logger.warning(f"Access restricted for {url}")
+                                continue
 
                     html = await response.text()
                     soup = BeautifulSoup(html, 'html.parser')
