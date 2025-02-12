@@ -1,0 +1,109 @@
+Alright! Since ChartLyrics API provides only a link to the lyrics, we’ll modify the bot to scrape the lyrics from the provided link and return the full text.
+
+
+---
+
+✅ Step 1: Install Required Libraries
+
+Run this command in Replit to install aiohttp and BeautifulSoup:
+
+pip install aiohttp beautifulsoup4
+
+
+---
+
+✅ Step 2: Modify Your !lyrics Command to Get Full Lyrics
+
+Add this code to your bot:
+
+import discord
+from discord.ext import commands
+import aiohttp
+import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup
+
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
+
+async def get_lyrics_chartlyrics(song_name):
+    """Fetch lyrics from ChartLyrics API and scrape full lyrics."""
+    search_url = f"http://api.chartlyrics.com/apiv1.asmx/SearchLyricText?lyricText={song_name}"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(search_url) as response:
+            if response.status == 200:
+                data = await response.text()
+                root = ET.fromstring(data)
+                
+                for lyric in root.findall("SearchLyricResult"):
+                    song_title = lyric.find("Song").text
+                    artist = lyric.find("Artist").text
+                    lyric_url = lyric.find("LyricUrl").text  # ChartLyrics provides a lyrics page link
+
+                    # Fetch full lyrics from the link
+                    full_lyrics = await scrape_lyrics(lyric_url)
+
+                    return f"🎵 **{song_title}** by **{artist}**\n\n```{full_lyrics}```"
+
+    return "❌ Lyrics not found."
+
+async def scrape_lyrics(url):
+    """Scrapes full lyrics from the ChartLyrics page."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                html = await response.text()
+                soup = BeautifulSoup(html, "html.parser")
+                lyrics_div = soup.find("p")  # ChartLyrics stores lyrics inside <p> tag
+                
+                if lyrics_div:
+                    lyrics_text = lyrics_div.get_text("\n").strip()
+                    return lyrics_text[:1900]  # Limit to 1900 characters for Discord
+
+    return "❌ Unable to fetch full lyrics."
+
+@bot.command()
+async def lyrics(ctx, *, song_name):
+    """Fetches full lyrics using ChartLyrics API."""
+    await ctx.send(f"🎶 Searching for lyrics: **{song_name}**...")
+    lyrics_result = await get_lyrics_chartlyrics(song_name)
+    await ctx.send(lyrics_result)
+
+bot.run("your_discord_bot_token")
+
+
+---
+
+🚀 How It Works
+
+1. Searches ChartLyrics API for the song.
+
+
+2. Extracts the lyrics page link.
+
+
+3. Scrapes the full lyrics from that page using BeautifulSoup.
+
+
+4. Sends the full lyrics in Discord (limited to 1900 characters to avoid errors).
+
+
+
+
+---
+
+🔹 Next Steps
+
+1. Replace "your_discord_bot_token" with your actual bot token.
+
+
+2. Run your bot and test it:
+
+!lyrics Shape of You
+
+
+3. If the lyrics are too long, I can help you split them into multiple messages! 🚀🎶
+
+
+
+Let me know if you need any improvements!
+
