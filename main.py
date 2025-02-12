@@ -31,7 +31,7 @@ class EducationalBot(commands.Bot):
             'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands_enhanced',
+            'cogs.music_commands_enhanced',  # Updated music commands cog
             'cogs.staff_commands',
             'cogs.ticket_manager'
         ]
