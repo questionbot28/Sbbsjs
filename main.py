@@ -27,41 +27,37 @@ class EducationalBot(commands.Bot):
             intents=intents,
             help_command=None  # Disable default help command
         )
-        # Use working cogs
         self.initial_extensions = [
-            'cogs.education_manager_new',  # Switch to working manager cog
+            'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands',
+            'cogs.music_commands_enhanced',
             'cogs.staff_commands',
-            'cogs.ticket_manager'  # Add ticket manager for support
+            'cogs.ticket_manager'
         ]
         self.logger = logger
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
         logger.info("Starting bot initialization...")
-
-        # Load extensions with better error handling
         logger.info("Loading extensions...")
+
         for extension in self.initial_extensions:
             try:
-                logger.info(f"Attempting to load extension: {extension}")
+                logger.info(f"Loading extension: {extension}")
                 await self.load_extension(extension)
                 logger.info(f"Successfully loaded extension: {extension}")
             except Exception as e:
-                logger.error(f"Failed to load extension {extension}")
-                logger.error(f"Error details: {str(e)}")
+                logger.error(f"Failed to load extension {extension}: {str(e)}")
                 logger.exception(e)
+                # Don't raise the exception - continue loading other extensions
 
     async def on_ready(self):
         """Called when the bot is ready and connected"""
         logger.info(f'Bot is ready! Logged in as {self.user.name}')
-        # Log all registered commands for debugging
-        commands_list = [f"{cmd.name}" for cmd in self.commands]
+        commands_list = [cmd.name for cmd in self.commands]
         logger.info(f"Registered commands: {', '.join(commands_list)}")
 
-        # Set bot's status
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
@@ -119,13 +115,8 @@ async def main():
 
         logger.info("Starting bot...")
         await bot.start(token)
-    except discord.LoginFailure:
-        logger.error("Failed to login: Invalid Discord token")
-    except discord.PrivilegedIntentsRequired:
-        logger.error("Required privileged intents are not enabled in Discord Developer Portal")
-        logger.error("Please enable 'Message Content Intent' in your bot's Discord Developer Portal")
     except Exception as e:
-        logger.error(f"Error starting bot: {e}")
+        logger.error(f"Error starting bot: {str(e)}")
         logger.exception(e)
 
 if __name__ == "__main__":

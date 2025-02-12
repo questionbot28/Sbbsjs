@@ -1302,6 +1302,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },
+    { name = "beautifulsoup4" },
     { name = "discord-py", extra = ["voice"] },
     { name = "flask" },
     { name = "google-generativeai" },
@@ -1323,6 +1324,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.11.12" },
     { name = "anthropic", specifier = ">=0.45.2" },
+    { name = "beautifulsoup4", specifier = ">=4.13.3" },
     { name = "discord-py", extras = ["voice"], specifier = ">=2.4.0" },
     { name = "flask", specifier = ">=3.1.0" },
     { name = "google-generativeai", specifier = ">=0.8.4" },
