@@ -1,0 +1,89 @@
+If you see XML when opening the ChartLyrics URL, that means the API is working but your bot might not be handling the response correctly. Let's debug and fix it.
+
+
+---
+
+✅ Step 1: Check If Lyrics Are Found
+
+Modify your bot’s code to log the API response and check if it's actually finding lyrics:
+
+import aiohttp
+import xml.etree.ElementTree as ET
+import discord
+from discord.ext import commands
+
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
+
+async def get_lyrics(song_name):
+    url = f"http://api.chartlyrics.com/apiv1.asmx/SearchLyricText?lyricText={song_name}"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status != 200:
+                return "❌ Lyrics feature is currently unavailable."
+
+            data = await response.text()
+            root = ET.fromstring(data)
+
+            # DEBUG: Print the raw XML response (check Replit console)
+            print("API Response:", data)
+
+            first_result = root.find("SearchLyricResult")
+            if first_result is None:
+                return "❌ No lyrics found. Try another song."
+
+            song_title = first_result.find("Song").text or "Unknown Title"
+            artist = first_result.find("Artist").text or "Unknown Artist"
+            lyrics_url = first_result.find("LyricUrl").text
+
+            return f"🎵 **{song_title}** by **{artist}**\n🔗 [Full Lyrics Here]({lyrics_url})"
+
+@bot.command()
+async def lyrics(ctx, *, song_name):
+    await ctx.send(f"🎶 Searching for lyrics: **{song_name}**...")
+    lyrics_result = await get_lyrics(song_name)
+    await ctx.send(lyrics_result)
+
+bot.run("your_discord_bot_token")
+
+
+---
+
+✅ Step 2: Run the Bot & Check Console Logs
+
+Run your bot and use the command:
+
+!lyrics Shape of You
+
+Look at the Replit console output for the "API Response:" message.
+
+If no <SearchLyricResult> is in the XML, the API didn't find lyrics.
+
+
+
+---
+
+✅ Step 3: Improve Error Handling
+
+If the API returns an empty response, update the bot to handle this properly:
+
+if not list(root):
+    return "❌ ChartLyrics API is not returning lyrics for this song. Try another song."
+
+
+---
+
+🔹 What’s Next?
+
+1. Run the bot and check if the API is returning lyrics.
+
+
+2. If the API isn't returning lyrics, it might not have the song in its database.
+
+
+3. If you want full lyrics, we need to scrape them (I can help with that).
+
+
+
+Let me know what you see in the logs! 🚀
+

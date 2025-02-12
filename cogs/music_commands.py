@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import time
 import trafilatura
 import json
+import xml.etree.ElementTree as ET
 
 class MusicCommands(commands.Cog):
     def __init__(self, bot):
@@ -37,7 +38,7 @@ class MusicCommands(commands.Cog):
         self._initialize_clients()
 
     def _initialize_clients(self):
-        """Initialize Genius and Spotify clients with proper error handling"""
+        """Initialize YouTube DL and Spotify clients"""
         # Initialize YouTube-DL options
         self.ydl_opts = {
             'format': 'bestaudio/best',
@@ -53,11 +54,6 @@ class MusicCommands(commands.Cog):
                 'preferredquality': '192'
             }]
         }
-
-        # Initialize Genius API client
-        self.genius_token = os.getenv('GENIUS_API_KEY')
-        if not self.genius_token:
-            self.logger.warning("Genius API key not found. Lyrics feature will be disabled.")
 
         # Initialize Spotify client
         spotify_client_id = os.getenv('SPOTIFY_CLIENT_ID')
@@ -75,6 +71,87 @@ class MusicCommands(commands.Cog):
         else:
             self.sp = None
             self.logger.warning("Spotify credentials not found. Spotify features will be disabled.")
+
+    async def get_lyrics(self, song_name: str) -> str:
+        """Get lyrics using ChartLyrics API"""
+        url = f"http://api.chartlyrics.com/apiv1.asmx/SearchLyricText?lyricText={song_name}"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        self.logger.error(f"ChartLyrics API error: {response.status}")
+                        return "❌ Lyrics service is currently unavailable."
+
+                    data = await response.text()
+                    self.logger.debug(f"ChartLyrics API response: {data}")
+
+                    root = ET.fromstring(data)
+                    search_results = root.findall(".//SearchLyricResult")
+
+                    if not search_results:
+                        return f"❌ No lyrics found for '{song_name}'. Try another song."
+
+                    # Get the first result
+                    first_result = search_results[0]
+                    song_title = first_result.find("Song").text or "Unknown Title"
+                    artist = first_result.find("Artist").text or "Unknown Artist"
+                    lyrics_url = first_result.find("LyricUrl").text
+
+                    # Create a rich embed response
+                    return {
+                        "title": song_title,
+                        "artist": artist,
+                        "url": lyrics_url
+                    }
+
+        except ET.ParseError as e:
+            self.logger.error(f"XML parsing error: {e}")
+            return "❌ Error processing lyrics data."
+        except Exception as e:
+            self.logger.error(f"Error fetching lyrics: {e}")
+            return f"❌ An error occurred while fetching lyrics: {str(e)}"
+
+    @commands.command(name='lyrics')
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def lyrics(self, ctx, *, song_name: str):
+        """Get lyrics for a song using ChartLyrics"""
+        # Send initial searching message
+        status_msg = await ctx.send(f"🔍 Searching for lyrics: **{song_name}**...")
+
+        try:
+            result = await self.get_lyrics(song_name)
+
+            if isinstance(result, str):  # Error message
+                await status_msg.edit(content=result)
+                return
+
+            # Create embed for successful result
+            embed = discord.Embed(
+                title=f"🎵 {result['title']}",
+                color=discord.Color.blue()
+            )
+
+            embed.add_field(
+                name="Artist",
+                value=result['artist'],
+                inline=False
+            )
+
+            embed.add_field(
+                name="Lyrics Link",
+                value=f"[Click here to view lyrics]({result['url']})",
+                inline=False
+            )
+
+            embed.set_footer(text="Lyrics provided by ChartLyrics")
+            await status_msg.edit(content=None, embed=embed)
+
+        except commands.CommandOnCooldown as e:
+            await status_msg.edit(content=f"⏳ Please wait {e.retry_after:.1f}s before using this command again.")
+        except Exception as e:
+            self.logger.error(f"Error in lyrics command: {e}")
+            await status_msg.edit(content=f"❌ An error occurred: {str(e)}")
 
     async def _ensure_voice_client(self, ctx):
         """Ensure bot is connected to voice channel"""
@@ -654,113 +731,9 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in rate limit handler: {e}")
             return False
 
-    async def lyrics(self, ctx, *, song_name: str):
-        """Get lyrics for a song"""
-        try:
-            # Initialize status message
-            embed = discord.Embed(
-                title="🔍 Searching for Lyrics",
-                description=f"Searching for: **{song_name}**",
-                color=discord.Color.blue()
-            )
-            status_msg = await ctx.send(embed=embed)
-
-            # Check if Genius token exists
-            if not self.genius_token:
-                embed.title = "❌ Error"
-                embed.description = "Lyrics feature is not available. Please contact the bot administrator."
-                embed.color = discord.Color.red()
-                await status_msg.edit(embed=embed)
-                return
-
-            try:
-                # Search for lyrics
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        f"https://api.genius.com/search?q={song_name}",
-                        headers={'Authorization': f'Bearer {self.genius_token}'}
-                    ) as response:
-                        if response.status != 200:
-                            embed.title = "❌ Error"
-                            embed.description = "Could not connect to lyrics service."
-                            embed.color = discord.Color.red()
-                            await status_msg.edit(embed=embed)
-                            return
-
-                        try:
-                            data = await response.json()
-                            hits = data.get('response', {}).get('hits', [])
-
-                            if not hits:
-                                embed.title = "❌ No Results"
-                                embed.description = f"Could not find lyrics for '{song_name}'"
-                                embed.color = discord.Color.red()
-                                await status_msg.edit(embed=embed)
-                                return
-
-                            # Get first hit
-                            song_url = hits[0]['result']['url']
-
-                            # Extract lyrics using trafilatura
-                            downloaded = await self.bot.loop.run_in_executor(
-                                None, trafilatura.fetch_url, song_url
-                            )
-
-                            if downloaded:
-                                lyrics = await self.bot.loop.run_in_executor(
-                                    None, trafilatura.extract, downloaded
-                                )
-
-                                if lyrics:
-                                    # Split lyrics into chunks of 4096 characters (Discord embed limit)
-                                    chunks = [lyrics[i:i + 4096] for i in range(0, len(lyrics), 4096)]
-
-                                    # Send first chunk in original embed
-                                    embed.title = f"🎵 Lyrics for {song_name}"
-                                    embed.description = chunks[0]
-                                    embed.color = discord.Color.blue()
-                                    await status_msg.edit(embed=embed)
-
-                                    # Send additional chunks if any
-                                    if len(chunks) > 1:
-                                        for chunk in chunks[1:]:
-                                            await ctx.send(
-                                                embed=discord.Embed(
-                                                    description=chunk,
-                                                    color=discord.Color.blue()
-                                                )
-                                            )
-                                else:
-                                    embed.title = "❌ Error"
-                                    embed.description = "Could not extract lyrics from the page."
-                                    embed.color = discord.Color.red()
-                                    await status_msg.edit(embed=embed)
-                            else:
-                                embed.title = "❌ Error"
-                                embed.description = "Could not download lyrics page."
-                                embed.color = discord.Color.red()
-                                await status_msg.edit(embed=embed)
-
-                        except json.JSONDecodeError:
-                            embed.title = "❌ Error"
-                            embed.description = "Could not decode lyrics data."
-                            embed.color = discord.Color.red()
-                            await status_msg.edit(embed=embed)
-
-            except Exception as e:
-                self.logger.error(f"Error fetching lyrics: {e}")
-                embed.title = "❌ Error"
-                embed.description = f"An error occurred while fetching lyrics: {str(e)}"
-                embed.color = discord.Color.red()
-                await status_msg.edit(embed=embed)
-
-        except Exception as e:
-            self.logger.error(f"Error in lyrics command: {e}")
-            await ctx.send(f"❌ An error occurred while processing your request: {str(e)}")
-
     @commands.command(name='queue')
     async def queue(self, ctx):
-        """Display the current music queue"""
+        """Show the current music queue"""
         if not self.queue:
             embed = discord.Embed(
                 title="🎵 Music Queue",
@@ -770,20 +743,16 @@ class MusicCommands(commands.Cog):
             await ctx.send(embed=embed)
             return
 
+        # Create queue display
+        queue_text = ""
+        for i, track in enumerate(self.queue, 1):
+            queue_text += f"{i}. {track['title']} - {track['artist']}\n"
+
         embed = discord.Embed(
             title="🎵 Music Queue",
-            description=f"There are {len(self.queue)} songs in queue",
+            description=queue_text,
             color=discord.Color.blue()
         )
-
-        for i, song in enumerate(self.queue, 1):
-            duration = f"{int(song['duration_ms']/60000)}:{int((song['duration_ms']/1000)%60):02d}"
-            embed.add_field(
-                name=f"{i}. {song['title']}",
-                value=f"By: {song['artist']}\nDuration: {duration}\nRequested by: {song['requester'].mention}",
-                inline=False
-            )
-
         await ctx.send(embed=embed)
 
     async def _play_next(self, ctx):

@@ -8,7 +8,7 @@ import asyncio
 from keep_alive import keep_alive
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)  
 
 # Setup logging
 logger = setup_logger()
