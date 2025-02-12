@@ -1289,9 +1289,13 @@ class MusicCommands(commands.Cog):
                 ))
                 return
 
-            # Clean up lyrics for better formatting
-            lyrics = lyrics.strip()
-            lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Replace multiple newlines with double newline
+            if isinstance(lyrics, str):
+                # Clean up lyrics for better formatting
+                lyrics = lyrics.strip()
+                lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Replace multiple newlines with double newline
+            else:
+                await loading_msg.edit(content="❌ Error processing lyrics response")
+                return
 
             # Create embed for song information
             embed = discord.Embed(
