@@ -645,12 +645,15 @@ class MusicCommands(commands.Cog):
         """Enhanced song search using multiple sources"""
         try:
             # Clean and format query with various search combinations
-            base_term = query.strip()
+            base_term = query.strip().replace('"', '')  # Remove quotes
             search_terms = [
                 base_term,                          # Original query
                 base_term.lower(),                  # Lowercase
                 base_term.title(),                  # Title case
                 f"{base_term} lyrics",              # With 'lyrics'
+                f"{base_term} YoungBoy",            # With artist name
+                f"YoungBoy NBA {base_term}",        # Artist name first
+                f"YoungBoy Never Broke Again {base_term}", # Full artist name
                 base_term.replace(" ", ""),         # No spaces
                 base_term.replace("'", "")          # Remove apostrophes
             ]
