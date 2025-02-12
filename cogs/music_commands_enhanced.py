@@ -109,21 +109,19 @@ class MusicCommands(commands.Cog):
 
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
             
-            # Search for song URL using Genius API
-            # Use the Genius library's search method directly
-            try:
-                song = self.genius.search_song(song_title, artist)
-                if song:
-                    return song.lyrics
-            except Exception as e:
-                self.logger.error(f"Error searching with Genius library: {str(e)}")
-
-            # Fallback to direct API if library search fails
+            # Use Genius API directly
             search_url = f"https://api.genius.com/search?q={song_title} {artist}"
             headers = {"Authorization": f"Bearer {os.getenv('GENIUS_API_KEY')}"}
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
+                    if response.status == 403:
+                        self.logger.error("Genius API access denied (403 Forbidden)")
+                        return None
+                        
+                    if response.status != 200:
+                        self.logger.error(f"Genius API request failed with status {response.status}")
+                        return None
                     if response.status != 200:
                         return None
                     
