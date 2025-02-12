@@ -1,4 +1,3 @@
-
 import os
 import aiohttp
 import asyncio
@@ -67,3 +66,47 @@ async def test_spotify_musixmatch_api():
 
 if __name__ == "__main__":
     asyncio.run(test_spotify_musixmatch_api())
+
+async def test_musixmatch_api():
+    """Test Musixmatch API integration"""
+    try:
+        # Test song
+        song_name = "Shape of You"
+        artist_name = "Ed Sheeran"
+
+        print(f"\nTesting lyrics fetch for: {song_name} by {artist_name}")
+
+        musixmatch_key = os.getenv('MUSIXMATCH_API_KEY')
+        if not musixmatch_key:
+            print("❌ Musixmatch API key not found in environment variables")
+            return
+
+        # Get lyrics from Musixmatch
+        lyrics_url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
+        params = {
+            "q_track": song_name,
+            "q_artist": artist_name,
+            "apikey": musixmatch_key
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(lyrics_url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if "message" in data and "body" in data["message"]:
+                        lyrics = data["message"]["body"]["lyrics"]["lyrics_body"]
+                        print("\n✅ Found lyrics! First few lines:")
+                        preview = "\n".join(lyrics.split("\n")[:5])
+                        print(f"{preview}...")
+                    else:
+                        print("❌ No lyrics found")
+                else:
+                    print(f"❌ API request failed with status: {response.status}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(test_spotify_musixmatch_api())
+    asyncio.run(test_musixmatch_api())
