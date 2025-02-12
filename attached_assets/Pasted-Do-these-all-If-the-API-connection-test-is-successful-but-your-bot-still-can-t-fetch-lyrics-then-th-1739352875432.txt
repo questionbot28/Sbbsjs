@@ -1,0 +1,70 @@
+Do these all If the API connection test is successful but your bot still can’t fetch lyrics, then the issue might be in how the bot processes the Genius API response.
+
+Next Steps to Debug
+
+✅ 1. Check If Lyrics Exist for the Song
+
+Try running this script manually to fetch the lyrics and see what Genius API returns:
+
+import os
+import requests
+
+GENIUS_API_KEY = os.getenv("GENIUS_API_KEY")
+headers = {"Authorization": f"Bearer {GENIUS_API_KEY}"}
+search_url = "https://api.genius.com/search?q=Shape%20of%20You%20Ed%20Sheeran"
+
+response = requests.get(search_url, headers=headers)
+
+if response.status_code == 200:
+    data = response.json()
+    print("Search Results:", data)
+else:
+    print("Error:", response.status_code, response.text)
+
+If the response contains no results, Genius might not be recognizing the query correctly.
+
+If it returns a valid URL to the song, but your bot still fails, then the problem is in your bot’s lyrics extraction logic.
+
+
+
+---
+
+✅ 2. Check If the Bot Extracts the Lyrics Correctly
+
+If the API returns a song but your bot says "No lyrics found", the issue might be how your bot fetches lyrics from the song page.
+
+Try manually getting lyrics with:
+
+song_url = "https://genius.com/Ed-sheeran-shape-of-you-lyrics"
+lyrics_response = requests.get(song_url, headers=headers)
+print(lyrics_response.text)
+
+If this returns HTML instead of lyrics, your bot might be missing the correct lyrics extraction method.
+
+
+---
+
+✅ 3. Check for Errors in the Bot Logs
+
+Your screenshot shows:
+
+ERROR - Error getting lyrics: 'Coroutine' object has no attribute 'strip'
+
+This means your bot is treating an async function as a normal function.
+
+Try adding await before calling any async functions in your lyrics command:
+
+lyrics = await get_lyrics(song_url)
+lyrics = lyrics.strip()  # Now it should work
+
+
+---
+
+Final Fixes
+
+1️⃣ Run the API test script to confirm Genius returns search results.
+2️⃣ If the bot finds a song but not the lyrics, fix the lyrics extraction.
+3️⃣ If you see a 'Coroutine' object has no attribute 'strip' error, add await before async functions.
+
+Let me know what happens when you test these!
+
