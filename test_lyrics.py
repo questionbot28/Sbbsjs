@@ -1,50 +1,63 @@
+
 import os
-import lyricsgenius
-from typing import Optional
+import aiohttp
+import asyncio
+from typing import Optional, Dict, Any
 
-def test_genius_api():
-    """Test Genius API connectivity and search functionality"""
-    GENIUS_API_KEY = os.getenv("GENIUS_API_KEY")
-
-    if not GENIUS_API_KEY:
-        print("❌ Genius API key not found! Please add it to Secrets.")
-        return None
-
+async def test_jiosaavn_api():
+    """Test JioSaavn API connectivity and search functionality"""
     try:
-        genius = lyricsgenius.Genius(GENIUS_API_KEY)
-        genius.timeout = 15  # Set timeout for requests
-        genius.retries = 3   # Number of retries if request fails
-
         # Test with specific song
         song_name = "Lock"
         artist_name = "Sidhu Moose Wala"
+        search_query = f"{song_name} {artist_name}"
 
-        print(f"\nSearching for: {song_name} by {artist_name}")
+        print(f"\nSearching for: {search_query}")
 
-        song = genius.search_song(song_name, artist_name)
+        # First get song ID from search
+        search_url = f"https://saavn.dev/api/search?query={search_query}"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(search_url) as response:
+                if response.status != 200:
+                    print(f"❌ API request failed: {response.status}")
+                    return None
 
-        if song:
-            print("\n✅ Song found!")
-            print(f"Title: {song.title}")
-            print(f"Artist: {song.artist}")
-            print(f"URL: {song.url}")
+                data = await response.json()
+                if not data.get('results'):
+                    print("❌ No results found")
+                    return None
 
-            if song.lyrics:
-                print("\n✅ Lyrics found!")
-                print("\nFirst few lines:")
-                lyrics_preview = "\n".join(song.lyrics.split("\n")[:5])
-                print(f"{lyrics_preview}...")
-                return song
-            else:
-                print("❌ No lyrics found")
-                return None
-        else:
-            print("❌ Song not found")
-            return None
+                # Get first result
+                song = data['results'][0]
+                print("\n✅ Song found!")
+                print(f"Title: {song.get('title')}")
+                print(f"Artist: {song.get('artist')}")
+                print(f"URL: {song.get('url')}")
+
+                # Try to get lyrics
+                song_id = song.get('id')
+                if song_id:
+                    lyrics_url = f"https://saavn.dev/api/lyrics/{song_id}"
+                    async with session.get(lyrics_url) as lyrics_response:
+                        if lyrics_response.status == 200:
+                            lyrics_data = await lyrics_response.json()
+                            if lyrics_data.get('lyrics'):
+                                print("\n✅ Lyrics found!")
+                                print("\nFirst few lines:")
+                                lyrics_preview = "\n".join(lyrics_data['lyrics'].split("\n")[:5])
+                                print(f"{lyrics_preview}...")
+                                return lyrics_data
+                            else:
+                                print("❌ No lyrics found")
+                                return None
+                        else:
+                            print(f"❌ Failed to fetch lyrics: {lyrics_response.status}")
+                            return None
 
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return None
 
 if __name__ == "__main__":
-    test_genius_api()
+    asyncio.run(test_jiosaavn_api())

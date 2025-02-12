@@ -101,22 +101,47 @@ class MusicCommands(commands.Cog):
             self.logger.warning(f"Could not initialize Genius API client: {str(e)}")
 
     async def get_lyrics(self, song_title: str, artist: str) -> Optional[str]:
-        """Get lyrics for a song using Genius API and web scraping"""
+        """Get lyrics for a song using JioSaavn API"""
         try:
-            if not self.genius:
-                self.logger.error("Genius API client not initialized")
-                return None
-
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
-
-            # Use Genius API directly
-            search_url = f"https://api.genius.com/search?q={song_title} {artist}"
-            headers = {
-                "Authorization": f"Bearer {os.getenv('GENIUS_API_KEY')}",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
+            search_query = f"{song_title} {artist}"
+            
+            async with aiohttp.ClientSession() as session:
+                # First search for the song
+                search_url = f"https://saavn.dev/api/search?query={search_query}"
+                async with session.get(search_url) as response:
+                    if response.status != 200:
+                        self.logger.error(f"Search failed with status: {response.status}")
+                        return None
+                        
+                    data = await response.json()
+                    if not data.get('results'):
+                        return None
+                        
+                    # Get first result
+                    song = data['results'][0]
+                    song_id = song.get('id')
+                    
+                    if not song_id:
+                        return None
+                        
+                    # Get lyrics using song ID
+                    lyrics_url = f"https://saavn.dev/api/lyrics/{song_id}"
+                    async with session.get(lyrics_url) as lyrics_response:
+                        if lyrics_response.status != 200:
+                            return None
+                            
+                        lyrics_data = await lyrics_response.json()
+                        if not lyrics_data.get('lyrics'):
+                            return None
+                            
+                        return {
+                            'title': song.get('title', song_title),
+                            'artist': song.get('artist', artist),
+                            'lyrics': lyrics_data['lyrics'],
+                            'url': song.get('url', ''),
+                            'query': search_query
+                        }
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
