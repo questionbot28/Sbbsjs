@@ -89,7 +89,9 @@ class MusicCommands(commands.Cog):
         try:
             genius_token = os.getenv('GENIUS_API_KEY')
             if genius_token:
-                self.genius = lyricsgenius.Genius(genius_token, timeout=15, retries=3)
+                self.genius = lyricsgenius.Genius(genius_token)
+                self.genius.timeout = 15
+                self.genius.retries = 3
                 self.logger.info("Successfully initialized Genius API client")
             else:
                 self.genius = None
@@ -108,8 +110,14 @@ class MusicCommands(commands.Cog):
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
             
             # Search for song URL using Genius API
+            # Use the Genius library's search method directly
+            song = self.genius.search_song(song_title, artist)
+            if song:
+                return song.lyrics
+
+            # Fallback to direct API if library search fails
             search_url = f"https://api.genius.com/search?q={song_title} {artist}"
-            headers = {"Authorization": f"Bearer {self.genius.auth.access_token}"}
+            headers = {"Authorization": f"Bearer {genius_token}"}
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
