@@ -108,7 +108,7 @@ class MusicCommands(commands.Cog):
                 return None
 
             self.logger.info(f"Searching for lyrics: {song_title} by {artist}")
-            
+
             # Use Genius API directly
             search_url = f"https://api.genius.com/search?q={song_title} {artist}"
             headers = {
@@ -117,49 +117,69 @@ class MusicCommands(commands.Cog):
                 "Accept": "application/json",
                 "Content-Type": "application/json"
             }
-            
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers) as response:
                     if response.status == 403:
                         self.logger.error("Genius API access denied (403 Forbidden)")
                         return None
-                        
+
                     if response.status != 200:
                         self.logger.error(f"Genius API request failed with status {response.status}")
                         return None
                     if response.status != 200:
                         return None
-                    
+
                     data = await response.json()
                     if not data['response']['hits']:
                         return None
-                    
+
                     song_url = data['response']['hits'][0]['result']['url']
-                    
-                    # Scrape lyrics from the Genius page
-                    async with session.get(song_url) as page_response:
+
+                    # Scrape lyrics from the Genius page with improved error handling
+                    async with session.get(song_url, headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+                    }) as page_response:
                         if page_response.status != 200:
+                            self.logger.error(f"Failed to fetch lyrics page: {page_response.status}")
                             return None
-                            
+
                         html = await page_response.text()
                         soup = BeautifulSoup(html, 'html.parser')
-                        
+
                         # Try multiple methods to find lyrics
-                        lyrics_div = soup.find("div", class_="lyrics")  # Old layout
-                        if not lyrics_div:
-                            lyrics_divs = soup.find_all("div", class_="Lyrics__Container")  # New layout
+                        lyrics = None
+
+                        # Method 1: Old layout
+                        lyrics_div = soup.find("div", class_="lyrics")
+                        if lyrics_div:
+                            lyrics = lyrics_div.get_text()
+
+                        # Method 2: New layout with Lyrics__Container
+                        if not lyrics:
+                            lyrics_divs = soup.find_all("div", class_="Lyrics__Container")
                             if lyrics_divs:
                                 lyrics = "\n".join([div.get_text() for div in lyrics_divs])
-                            else:
-                                return f"[Click here to view lyrics]({song_url})"
-                        else:
-                            lyrics = lyrics_div.get_text()
+
+                        # Method 3: Latest layout
+                        if not lyrics:
+                            lyrics_divs = soup.select('[class*="lyrics"], [class*="Lyrics"]')
+                            if lyrics_divs:
+                                lyrics = "\n".join([div.get_text() for div in lyrics_divs])
+
+                        if not lyrics:
+                            self.logger.warning(f"Could not find lyrics in page: {song_url}")
+                            return f"[Click here to view lyrics]({song_url})"
+
+                        lyrics = lyrics.strip()
+
 
                         # Clean up lyrics
                         lyrics = re.sub(r'[\(\[].*?[\)\]]', '', lyrics)  # Remove [Verse], [Chorus] etc
                         lyrics = re.sub(r'\n{3,}', '\n\n', lyrics)  # Remove extra newlines
                         lyrics = lyrics.strip()
-                        
+
                         return lyrics.strip()
 
         except Exception as e:
