@@ -790,6 +790,156 @@ class MusicCommands(commands.Cog):
             self.logger.error(f"Error in song search: {str(e)}")
             return None
 
+    @commands.command(name='volume')
+    async def volume(self, ctx, vol: int):
+        """Adjust the volume (0-200)"""
+        if not ctx.voice_client:
+            await ctx.send("❌ I'm not currently in a voice channel!")
+            return
+
+        if not 0 <= vol <= 200:
+            await ctx.send("❌ Please provide a volume between 0 and 200!")
+            return
+
+        self.volume = vol / 100
+        if ctx.voice_client.source:
+            ctx.voice_client.source.volume = self.volume
+
+        await ctx.send(f"🔊 Volume set to {vol}%")
+
+    @commands.command(name='seek')
+    async def seek(self, ctx, direction: str, seconds: int):
+        """Seek forward/backward in the current song"""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is currently playing!")
+            return
+
+        if direction not in ['forward', 'back']:
+            await ctx.send("❌ Please specify 'forward' or 'back' for direction!")
+            return
+
+        if seconds <= 0:
+            await ctx.send("❌ Please specify a positive number of seconds!")
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.current_tracks:
+            await ctx.send("❌ No track information available!")
+            return
+
+        current_track = self.current_tracks[guild_id]
+        current_position = int(asyncio.get_event_loop().time() - current_track['start_time'])
+
+        if direction == 'forward':
+            new_position = current_position + seconds
+        else:  # back
+            new_position = max(0, current_position - seconds)
+
+        if new_position >= current_track['duration']:
+            await ctx.send("❌ Cannot seek beyond the end of the track!")
+            return
+
+        # Stop current playback
+        ctx.voice_client.stop()
+
+        # Setup FFmpeg options with timestamp
+        ffmpeg_options = {
+            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {new_position}',
+            'options': '-vn'
+        }
+
+        # Create new audio source and play
+        try:
+            audio_source = discord.FFmpegPCMAudio(current_track['url'], **ffmpeg_options)
+            ctx.voice_client.play(
+                discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                after=lambda e: asyncio.run_coroutine_threadsafe(
+                    self.song_finished(ctx.guild.id, e), self.bot.loop
+                ) if e else None
+            )
+
+            # Update start time to account for seeking
+            self.current_tracks[guild_id]['start_time'] = asyncio.get_event_loop().time() - new_position
+
+            await ctx.send(f"⏩ Seeked {direction} by {seconds} seconds!")
+
+        except Exception as e:
+            self.logger.error(f"Error seeking in track: {e}")
+            await ctx.send("❌ An error occurred while seeking!")
+
+    @commands.command(name='bassboost')
+    async def bassboost(self, ctx):
+        """Apply bassboost effect to current song"""
+        await self._apply_effect(ctx, 'bassboost')
+
+    @commands.command(name='8d')
+    async def eight_d(self, ctx):
+        """Apply 8D effect to current song"""
+        await self._apply_effect(ctx, '8d')
+
+    @commands.command(name='nightcore')
+    async def nightcore(self, ctx):
+        """Apply nightcore effect to current song"""
+        await self._apply_effect(ctx, 'nightcore')
+
+    @commands.command(name='slowand_reverb')
+    async def slowand_reverb(self, ctx):
+        """Apply slow + reverb effect to current song"""
+        await self._apply_effect(ctx, 'slowand_reverb')
+
+    @commands.command(name='normal')
+    async def normal(self, ctx):
+        """Remove all audio effects"""
+        await self._apply_effect(ctx, None)
+
+    async def _apply_effect(self, ctx, effect: Optional[str]):
+        """Internal method to apply audio effects"""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            await ctx.send("❌ Nothing is currently playing!")
+            return
+
+        guild_id = ctx.guild.id
+        if guild_id not in self.current_tracks:
+            await ctx.send("❌ No track information available!")
+            return
+
+        current_track = self.current_tracks[guild_id]
+        current_position = int(asyncio.get_event_loop().time() - current_track['start_time'])
+
+        # Stop current playback
+        ctx.voice_client.stop()
+
+        # Setup FFmpeg options with timestamp and effect
+        ffmpeg_options = {
+            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -ss {current_position}',
+            'options': '-vn'
+        }
+
+        if effect and effect in self.audio_filters:
+            ffmpeg_options['options'] = f"-vn -af {self.audio_filters[effect]}"
+
+        # Create new audio source and play
+        try:
+            audio_source = discord.FFmpegPCMAudio(current_track['url'], **ffmpeg_options)
+            ctx.voice_client.play(
+                discord.PCMVolumeTransformer(audio_source, volume=self.volume),
+                after=lambda e: asyncio.run_coroutine_threadsafe(
+                    self.song_finished(ctx.guild.id, e), self.bot.loop
+                ) if e else None
+            )
+
+            # Update start time to maintain progress
+            self.current_tracks[guild_id]['start_time'] = asyncio.get_event_loop().time() - current_position
+
+            if effect:
+                await ctx.send(f"🎵 Applied {effect} effect!")
+            else:
+                await ctx.send("🎵 Removed all effects!")
+
+        except Exception as e:
+            self.logger.error(f"Error applying effect: {e}")
+            await ctx.send("❌ An error occurred while applying the effect!")
+
     async def test_api_connection(self) -> bool:
         """Test the Musixmatch API connection and key validity"""
         try:
@@ -1281,6 +1431,57 @@ class MusicCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error getting lyrics: {str(e)}")
             await ctx.send("❌ Could not fetch lyrics at this time.")
+
+    async def test_api_connection(self) -> bool:
+        """Test the Musixmatch API connection and key validity"""
+        try:
+            # Test endpoint that requires less permissions
+            test_url = "https://api.musixmatch.com/ws/1.1/chart.tracks.get"
+            params = {
+                'apikey': self.musixmatch_api_key,
+                'page': 1,
+                'page_size': 1,
+                'country': 'us',
+                'format': 'json'
+            }
+            headers = {
+                'User-Agent': 'EducationalBot/1.0',
+                'Accept': 'application/json'
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(test_url, params=params, headers=headers, timeout=10) as response:
+                    response_text = await response.text()
+                    self.logger.info(f"API Test Response: {response_text[:200]}...")  # Log first 200 chars
+
+                    if response.status != 200:
+                        self.logger.error(f"API test failed with status {response.status}")
+                        return False
+
+                    try:
+                        data = json.loads(response_text)
+                        status_code = data['message']['header']['status_code']
+
+                        if status_code != 200:
+                            self.logger.error(f"API test failed with code {status_code}")
+                            return False
+
+                        self.logger.info("API test successful!")
+                        return True
+
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Failed to parse API response: {str(e)}")
+                        return False
+                    except KeyError as e:
+                        self.logger.error(f"Unexpected API response format: {str(e)}")
+                        return False
+
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Network error during API test: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error during API test: {str(e)}")
+            return False
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))

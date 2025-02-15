@@ -24,7 +24,7 @@ class InviteManager(commands.Cog):
         """Check if command is used in allowed channels"""
         allowed_channels = [self.bot_channel_id, self.staff_cmd_channel_id]
         if ctx.channel.id not in allowed_channels:
-            await ctx.send("❌ This command can only be used in the bot commands or staff commands channels!")
+            await ctx.send(f"❌ This command can only be used in <#{self.bot_channel_id}> or <#{self.staff_cmd_channel_id}>!")
             return False
         return True
 
@@ -351,32 +351,25 @@ class InviteManager(commands.Cog):
 
         try:
             self.logger.info(f"Generating leaderboard for guild {ctx.guild.name}")
-            self.logger.debug(f"Current invite data: {self.invites}")
 
             if not self.invites:
-                self.logger.warning("No invite data available")
                 embed = discord.Embed(
                     title="🏆 EduSphere Invite Leaderboard 🏆",
-                    description=(
-                        "No invites tracked yet! Start inviting friends to climb the ranks! 🚀\n\n"
-                        "Use `/invite` to get your personal invite link!"
-                    ),
+                    description="No invites tracked yet! Start inviting friends to climb the ranks! 🚀",
                     color=discord.Color.gold()
                 )
                 await ctx.send(embed=embed)
                 return
 
             # Sort invites by valid invites (total - leaves - fakes)
-            sorted_invites = sorted(
-                [
-                    (uid, data) for uid, data in self.invites.items()
-                    if ctx.guild.get_member(uid) is not None  # Only include current members
-                ],
-                key=lambda x: x[1]['count'] - x[1].get('leaves', 0) - x[1].get('fakes', 0),
-                reverse=True
-            )
+            sorted_invites = []
+            for user_id, data in self.invites.items():
+                member = ctx.guild.get_member(user_id)
+                if member:  # Only include current members
+                    valid_invites = data['count'] - data.get('leaves', 0) - data.get('fakes', 0)
+                    sorted_invites.append((user_id, valid_invites, data))
 
-            self.logger.debug(f"Sorted invites data: {sorted_invites}")
+            sorted_invites.sort(key=lambda x: x[1], reverse=True)
 
             embed = discord.Embed(
                 title="🏆 EduSphere Invite Leaderboard 🏆",
@@ -395,14 +388,10 @@ class InviteManager(commands.Cog):
 
             # Top 3 with special formatting
             medals = ["👑", "🥈", "🥉"]
-            for i, (user_id, data) in enumerate(sorted_invites[:3]):
+            for i, (user_id, valid_invites, data) in enumerate(sorted_invites[:3]):
                 member = ctx.guild.get_member(user_id)
                 if member:
-                    valid_invites = data['count'] - data.get('leaves', 0) - data.get('fakes', 0)
                     success_rate = (valid_invites / data['count'] * 100) if data['count'] > 0 else 0
-
-                    self.logger.debug(f"Processing top member {member.name} with {valid_invites} valid invites")
-
                     field_value = (
                         f"✨ **{valid_invites}** Valid Invites\n"
                         f"📊 Total: {data['count']} | ❌ Left: {data.get('leaves', 0)}\n"
@@ -417,12 +406,10 @@ class InviteManager(commands.Cog):
             # Rest of top 10
             if len(sorted_invites) > 3:
                 remaining = []
-                for i, (user_id, data) in enumerate(sorted_invites[3:10], 4):
+                for i, (user_id, valid_invites, _) in enumerate(sorted_invites[3:10], 4):
                     member = ctx.guild.get_member(user_id)
                     if member:
-                        valid_invites = data['count'] - data.get('leaves', 0) - data.get('fakes', 0)
                         remaining.append(f"`#{i}` {member.display_name} • **{valid_invites}** invites")
-                        self.logger.debug(f"Added member {member.name} to remaining list at position {i}")
 
                 if remaining:
                     embed.add_field(
@@ -431,16 +418,21 @@ class InviteManager(commands.Cog):
                         inline=False
                     )
 
-            # Add user's rank
-            total_inviters = len(sorted_invites)
+            # Add user's rank if not in top 10
             user_rank = next(
-                (i+1 for i, (uid, _) in enumerate(sorted_invites) if uid == ctx.author.id),
-                total_inviters + 1
+                (i+1 for i, (uid, _, _) in enumerate(sorted_invites) if uid == ctx.author.id),
+                len(sorted_invites) + 1
             )
+            if user_rank > 10:
+                user_data = self.invites[ctx.author.id]
+                valid_invites = user_data['count'] - user_data.get('leaves', 0) - user_data.get('fakes', 0)
+                embed.add_field(
+                    name="📊 Your Stats",
+                    value=f"Your Rank: #{user_rank}\nValid Invites: {valid_invites}",
+                    inline=False
+                )
 
-            self.logger.debug(f"User {ctx.author.name} rank: {user_rank}/{total_inviters}")
-
-            embed.set_footer(text=f"Your Rank: #{user_rank} of {total_inviters} • Updated every 30 seconds")
+            embed.set_footer(text=f"Updated every 30 seconds • Total Inviters: {len(sorted_invites)}")
             await ctx.send(embed=embed)
             self.logger.info(f"Successfully displayed leaderboard in {ctx.guild.name}")
 

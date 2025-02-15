@@ -35,7 +35,8 @@ class EducationalBot(commands.Bot):
             'cogs.music_commands_enhanced',  # Music cog
             'cogs.staff_commands',
             'cogs.ticket_manager',
-            'cogs.invite_manager'  # Added invite manager cog
+            'cogs.invite_manager',  # Added invite manager cog
+            'cogs.ai_chat'  # Added AI chat cog
         ]
         self.logger = logger
 
