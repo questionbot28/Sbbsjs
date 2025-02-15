@@ -4,7 +4,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
 function initializeUI() {
     fetchTrendingSongs();
-    fetchRecommendedSongs();
+    fetchNewReleases();
+    fetchIndianSongs();
+    fetchPunjabiSongs();
+    fetchHindiSongs();
     setupEventListeners();
 }
 
@@ -28,23 +31,83 @@ async function fetchTrendingSongs() {
     }
 }
 
-async function fetchRecommendedSongs() {
-    const recommended = document.getElementById("recommended-songs");
+async function fetchNewReleases() {
+    const newReleases = document.getElementById("new-releases");
     try {
-        recommended.innerHTML = '<div class="loading">Loading recommended songs...</div>';
-        const response = await fetch('/api/recommended');  // Use new recommended endpoint
-        if (!response.ok) throw new Error('Failed to fetch recommended songs');
+        newReleases.innerHTML = '<div class="loading">Loading new releases...</div>';
+        const response = await fetch('/api/new-releases');
+        if (!response.ok) throw new Error('Failed to fetch new releases');
 
-        const recommendedSongs = await response.json();
-        if (recommendedSongs.length === 0) {
-            recommended.innerHTML = '<div class="error">No recommended songs available</div>';
+        const songs = await response.json();
+        if (songs.length === 0) {
+            newReleases.innerHTML = '<div class="error">No new releases available</div>';
             return;
         }
 
-        recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
+        newReleases.innerHTML = songs.map(song => createSongCard(song)).join('');
     } catch (error) {
-        console.error("Error fetching recommended songs:", error);
-        recommended.innerHTML = '<div class="error">Failed to load recommended songs</div>';
+        console.error("Error fetching new releases:", error);
+        newReleases.innerHTML = '<div class="error">Failed to load new releases</div>';
+    }
+}
+
+async function fetchIndianSongs() {
+    const indianSongs = document.getElementById("indian-songs");
+    try {
+        indianSongs.innerHTML = '<div class="loading">Loading Indian songs...</div>';
+        const response = await fetch('/api/indian');
+        if (!response.ok) throw new Error('Failed to fetch Indian songs');
+
+        const songs = await response.json();
+        if (songs.length === 0) {
+            indianSongs.innerHTML = '<div class="error">No Indian songs available</div>';
+            return;
+        }
+
+        indianSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
+    } catch (error) {
+        console.error("Error fetching Indian songs:", error);
+        indianSongs.innerHTML = '<div class="error">Failed to load Indian songs</div>';
+    }
+}
+
+async function fetchPunjabiSongs() {
+    const punjabiSongs = document.getElementById("punjabi-songs");
+    try {
+        punjabiSongs.innerHTML = '<div class="loading">Loading Punjabi songs...</div>';
+        const response = await fetch('/api/punjabi');
+        if (!response.ok) throw new Error('Failed to fetch Punjabi songs');
+
+        const songs = await response.json();
+        if (songs.length === 0) {
+            punjabiSongs.innerHTML = '<div class="error">No Punjabi songs available</div>';
+            return;
+        }
+
+        punjabiSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
+    } catch (error) {
+        console.error("Error fetching Punjabi songs:", error);
+        punjabiSongs.innerHTML = '<div class="error">Failed to load Punjabi songs</div>';
+    }
+}
+
+async function fetchHindiSongs() {
+    const hindiSongs = document.getElementById("hindi-songs");
+    try {
+        hindiSongs.innerHTML = '<div class="loading">Loading Hindi songs...</div>';
+        const response = await fetch('/api/hindi');
+        if (!response.ok) throw new Error('Failed to fetch Hindi songs');
+
+        const songs = await response.json();
+        if (songs.length === 0) {
+            hindiSongs.innerHTML = '<div class="error">No Hindi songs available</div>';
+            return;
+        }
+
+        hindiSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
+    } catch (error) {
+        console.error("Error fetching Hindi songs:", error);
+        hindiSongs.innerHTML = '<div class="error">Failed to load Hindi songs</div>';
     }
 }
 
