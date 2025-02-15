@@ -105,6 +105,30 @@ class AIChatEnhanced(commands.Cog):
             self.logger.error(f"Error in summarize command: {str(e)}")
             await ctx.send("❌ An error occurred. Please try again.")
 
+    @commands.command(name="translate")
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def translate(self, ctx, text: str, to_lang: str):
+        """Translate text to specified language"""
+        if not await self._check_channel(ctx):
+            return
+
+        try:
+            prompt = f"Translate this text: '{text}' to {to_lang} language. Only provide the translation, nothing else."
+            response = self.model.generate_content(prompt)
+            
+            embed = discord.Embed(
+                title="🌍 Translation",
+                color=discord.Color.blue()
+            )
+            
+            embed.add_field(name="Original", value=text, inline=False)
+            embed.add_field(name=f"Translated to {to_lang}", value=response.text, inline=False)
+            
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in translate command: {str(e)}")
+            await ctx.send("❌ An error occurred. Please try again.")
+
     @commands.command(name="code")
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def code(self, ctx, language: str, *, prompt: str):
