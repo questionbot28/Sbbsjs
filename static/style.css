@@ -1,14 +1,51 @@
 body {
+    display: flex;
+    font-family: Arial, sans-serif;
     background-color: #181818;
     color: white;
-    font-family: Arial, sans-serif;
     margin: 0;
-    padding: 0;
 }
 
 .container {
-    max-width: 800px;
-    margin: 0 auto;
+    display: flex;
+    width: 100%;
+}
+
+.sidebar {
+    width: 25%;
+    padding: 20px;
+    background: #121212;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+#searchInput {
+    width: 90%;
+    padding: 8px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 4px;
+    background: #282828;
+    color: white;
+}
+
+#songList {
+    list-style: none;
+    padding: 0;
+}
+
+#songList li {
+    padding: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#songList li:hover {
+    background: #282828;
+}
+
+.main-content {
+    flex: 1;
     padding: 20px;
 }
 
@@ -17,6 +54,29 @@ body {
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 20px;
+}
+
+.now-playing {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.song-info {
+    flex-grow: 1;
+    text-align: left;
+    margin-left: 15px;
+}
+
+.song-title {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.song-artist {
+    color: #b3b3b3;
+    font-size: 0.9em;
 }
 
 .progress-bar {
@@ -38,7 +98,7 @@ body {
 
 .volume-slider {
     -webkit-appearance: none;
-    width: 100%;
+    width: 100px;
     height: 4px;
     border-radius: 2px;
     background: #404040;
@@ -59,6 +119,14 @@ body {
 .volume-slider::-webkit-slider-thumb:hover {
     transform: scale(1.2);
     background: #1ed760;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
 }
 
 button {
@@ -97,33 +165,8 @@ button:hover {
     border-bottom: none;
 }
 
-.now-playing {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.song-info {
-    flex-grow: 1;
-    text-align: left;
-    margin-left: 15px;
-}
-
-.song-title {
-    font-size: 1.2em;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.song-artist {
-    color: #b3b3b3;
-    font-size: 0.9em;
-}
-
-.controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin: 20px 0;
+.language-controls {
+    margin-top: 20px;
+    padding: 10px;
+    border-top: 1px solid #404040;
 }

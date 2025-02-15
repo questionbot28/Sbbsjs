@@ -5,52 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎵 Music Bot Control Panel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.3/socket.io.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
-        <div id="player">
-            <h1 class="text-2xl font-bold mb-4">Music Bot 🎵</h1>
-            <div class="now-playing">
-                <img id="thumbnail" src="https://via.placeholder.com/150" 
-                     alt="Album Art" 
-                     class="w-24 h-24 rounded-lg shadow-lg">
-                <div class="song-info">
-                    <div class="song-title" id="song-title">No song playing</div>
-                    <div class="song-artist" id="song-artist">Unknown artist</div>
+        <div class="sidebar">
+            <h2>🎵 Music Bot</h2>
+            <input type="text" id="searchInput" placeholder="Search for songs..." oninput="searchSongs()">
+            <ul id="songList">
+                <!-- Songs will be dynamically added here -->
+            </ul>
+        </div>
+
+        <div class="main-content">
+            <div id="player">
+                <div class="now-playing">
+                    <img id="thumbnail" src="https://via.placeholder.com/150" 
+                         alt="Album Art" 
+                         class="w-24 h-24 rounded-lg shadow-lg">
+                    <div class="song-info">
+                        <div class="song-title" id="song-title">No song playing</div>
+                        <div class="song-artist" id="song-artist">Unknown artist</div>
+                    </div>
+                </div>
+
+                <div class="progress-bar">
+                    <div id="progress" class="progress" style="width: 0%"></div>
+                </div>
+
+                <div class="controls">
+                    <button onclick="prevSong()">⏮️</button>
+                    <button onclick="playPause()" id="playPauseBtn">▶️</button>
+                    <button onclick="skipSong()">⏭️</button>
+                    <input type="range" 
+                           class="volume-slider" 
+                           min="0" 
+                           max="100" 
+                           value="50"
+                           onchange="setVolume(this.value)"
+                           id="volume-control">
+                    <span id="volume-icon">🔊</span>
+                </div>
+
+                <button id="likeButton" onclick="likeSong()">❤️ Like</button>
+
+                <div class="language-controls">
+                    <button onclick="changeLanguage('en')">🇬🇧 English</button>
+                    <button onclick="changeLanguage('fr')">🇫🇷 French</button>
+                    <button onclick="changeLanguage('es')">🇪🇸 Spanish</button>
                 </div>
             </div>
 
-            <div class="progress-bar">
-                <div id="progress" class="progress" style="width: 0%"></div>
-            </div>
-
-            <div class="controls">
-                <button onclick="skipSong()">
-                    ⏭ Skip
-                </button>
-                <input type="range" 
-                       class="volume-slider" 
-                       min="0" 
-                       max="100" 
-                       value="50"
-                       onchange="setVolume(this.value)"
-                       id="volume-control">
-                <span id="volume-icon">🔊</span>
-            </div>
-
-            <div class="language-controls">
-                <button onclick="changeLanguage('en')">🇬🇧 English</button>
-                <button onclick="changeLanguage('fr')">🇫🇷 French</button>
-                <button onclick="changeLanguage('es')">🇪🇸 Spanish</button>
-            </div>
-        </div>
-
-        <div class="queue-list">
-            <h2 class="text-xl font-bold mb-4">Queue</h2>
-            <div id="queue-items">
-                <!-- Queue items will be inserted here -->
+            <div class="queue-list">
+                <h2>Queue</h2>
+                <div id="queue-items">
+                    <!-- Queue items will be inserted here -->
+                </div>
             </div>
         </div>
     </div>
@@ -59,6 +69,7 @@
         const socket = io();
         let progressInterval;
         let currentLanguage = 'en';
+        let isPlaying = false;
 
         socket.on("connect", () => {
             console.log("Connected to server");
@@ -69,6 +80,7 @@
             document.getElementById("song-artist").innerText = data.artist;
             document.getElementById("thumbnail").src = data.thumbnail || "https://via.placeholder.com/150";
             updateProgress(data.progress, data.duration);
+            updatePlayPauseButton(true);
         });
 
         socket.on("update_queue", (queue) => {
@@ -89,8 +101,31 @@
             });
         });
 
+        function searchSongs() {
+            let input = document.getElementById("searchInput").value.toLowerCase();
+            let items = document.querySelectorAll("#queue-items .queue-item");
+            items.forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(input) ? "" : "none";
+            });
+        }
+
+        function playPause() {
+            isPlaying = !isPlaying;
+            updatePlayPauseButton(isPlaying);
+            socket.emit("playPause", isPlaying);
+        }
+
+        function updatePlayPauseButton(playing) {
+            const btn = document.getElementById("playPauseBtn");
+            btn.innerText = playing ? "⏸️" : "▶️";
+        }
+
         function skipSong() {
             socket.emit("skipSong");
+        }
+
+        function prevSong() {
+            socket.emit("prevSong");
         }
 
         function setVolume(volume) {
@@ -103,6 +138,13 @@
             if (volume == 0) icon.innerText = "🔇";
             else if (volume < 50) icon.innerText = "🔉";
             else icon.innerText = "🔊";
+        }
+
+        function likeSong() {
+            const btn = document.getElementById("likeButton");
+            const isLiked = btn.innerText.includes("❤️");
+            btn.innerHTML = isLiked ? "🤍 Like" : "❤️ Liked";
+            socket.emit("likeSong", !isLiked);
         }
 
         function changeLanguage(lang) {
