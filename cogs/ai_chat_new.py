@@ -10,7 +10,7 @@
 
             embed.add_field(
                 name="💡 Share Your Opinion",
-                value="Type !opinion <your argument> to join the debate!",
+                value="Join the debate by sharing your thoughts!",
                 inline=False
             )
 
@@ -29,9 +29,9 @@
         if not await self._check_channel(ctx):
             return
 
-        try:
-            loading_msg = await ctx.send("💻 Analyzing your code...")
+        loading_msg = await ctx.send("💻 Analyzing your code...")
 
+        try:
             prompt = f"""Analyze this code and provide:
             1. Code improvements
             2. Bug fixes if any
