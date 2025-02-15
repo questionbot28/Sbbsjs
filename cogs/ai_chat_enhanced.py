@@ -54,10 +54,13 @@ class AIChatEnhanced(commands.Cog):
         async with ctx.typing():
             try:
                 response = self.model.generate_content(question)
-                await ctx.reply(response.text[:2000])
+                if response and response.text:
+                    await ctx.reply(response.text[:2000])
+                else:
+                    await ctx.send("❌ No response received. Please try again.")
             except Exception as e:
                 self.logger.error(f"Error in ask command: {str(e)}")
-                await ctx.send("❌ An error occurred. Please try again.")
+                await ctx.send(f"❌ An error occurred: {str(e)}")
 
     @commands.command(name="explain")
     @commands.cooldown(1, 15, commands.BucketType.user)
@@ -70,6 +73,9 @@ class AIChatEnhanced(commands.Cog):
         try:
             prompt = f"Explain this topic in detail but concisely: {topic}"
             response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                await loading_msg.edit(content="❌ No response received. Please try again.")
+                return
             
             embed = discord.Embed(
                 title=f"📚 {topic}",
