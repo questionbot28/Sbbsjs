@@ -9,8 +9,8 @@
             )
 
             embed.add_field(
-                name="💡 Share Your Opinion",
-                value="Join the debate by sharing your thoughts!",
+                name="💡 Join The Discussion",
+                value="Share your thoughts and let's debate!",
                 inline=False
             )
 
@@ -20,7 +20,7 @@
 
         except Exception as e:
             self.logger.error(f"Error in debate command: {str(e)}")
-            await ctx.send("❌ An error occurred while generating the debate. Please try again.")
+            await loading_msg.edit(content="❌ An error occurred while generating the debate. Please try again.")
 
     @commands.command(name="codinghelp")
     @commands.cooldown(1, 5, commands.BucketType.user)
