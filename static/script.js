@@ -1,27 +1,22 @@
 document.addEventListener("DOMContentLoaded", function() {
-    // Initialize the web UI
     initializeUI();
 });
 
 function initializeUI() {
-    // Fetch trending & recommended songs
     fetchTrendingSongs();
     fetchRecommendedSongs();
-
-    // Set up event listeners
     setupEventListeners();
 }
 
 async function fetchTrendingSongs() {
     const trending = document.getElementById("trending-songs");
     try {
-        // Temporary static data until backend is connected
         const trendingSongs = [
-            { title: "Shape of You", artist: "Ed Sheeran", image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96" },
-            { title: "Blinding Lights", artist: "The Weeknd", image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36" },
-            { title: "Stay", artist: "Kid Laroi & Justin Bieber", image: "https://i.scdn.co/image/ab67616d0000b273e85259a1cae29a8d91f2093d" },
-            { title: "Bad Guy", artist: "Billie Eilish", image: "https://i.scdn.co/image/ab67616d0000b2732a038d3bf875d23e4aeaa84e" },
-            { title: "Good 4 U", artist: "Olivia Rodrigo", image: "https://i.scdn.co/image/ab67616d0000b273a91c10fe9472d9bd89802e5a" }
+            { title: "Ryde or Die", artist: "Chinna, Manni Sandhu, Karam Brar", image: "https://i.scdn.co/image/ab67616d0000b273d6540036d05fb1abf72d4186" },
+            { title: "Gandasa", artist: "Jassa Dhillon, Karam Brar", image: "https://i.scdn.co/image/ab67616d0000b273a91c10fe9472d9bd89802e5a" },
+            { title: "295", artist: "Sidhu Moose Wala", image: "https://i.scdn.co/image/ab67616d0000b273e6f407c7f3a0ec98845e4431" },
+            { title: "Same Beef", artist: "Bohemia, Sidhu Moose Wala", image: "https://i.scdn.co/image/ab67616d0000b273e6b0c0daf8995a7cbb2f9b05" },
+            { title: "Dollar", artist: "Sidhu Moose Wala", image: "https://i.scdn.co/image/ab67616d0000b273e7a913a1b83367de2c540088" }
         ];
 
         trending.innerHTML = trendingSongs.map(song => createSongCard(song)).join('');
@@ -34,13 +29,12 @@ async function fetchTrendingSongs() {
 async function fetchRecommendedSongs() {
     const recommended = document.getElementById("recommended-songs");
     try {
-        // Temporary static data until backend is connected
         const recommendedSongs = [
-            { title: "As It Was", artist: "Harry Styles", image: "https://i.scdn.co/image/ab67616d0000b2732e8ed79e177ff6011076f5f0" },
-            { title: "Anti-Hero", artist: "Taylor Swift", image: "https://i.scdn.co/image/ab67616d0000b273bb54dde68cd23e2a268ae0f5" },
-            { title: "About Damn Time", artist: "Lizzo", image: "https://i.scdn.co/image/ab67616d0000b273b56f0e5a7eac1c1dda144acd" },
-            { title: "Heat Waves", artist: "Glass Animals", image: "https://i.scdn.co/image/ab67616d0000b2739e495fb707973f3390850eea" },
-            { title: "Shivers", artist: "Ed Sheeran", image: "https://i.scdn.co/image/ab67616d0000b273ef24c3fdbf856340d55cfeb2" }
+            { title: "Machreya", artist: "Gulab Sidhu, Diamond", image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36" },
+            { title: "Baller", artist: "Shubh", image: "https://i.scdn.co/image/ab67616d0000b273bb54dde68cd23e2a268ae0f5" },
+            { title: "Excuses", artist: "AP Dhillon, Gurinder Gill", image: "https://i.scdn.co/image/ab67616d0000b273b56f0e5a7eac1c1dda144acd" },
+            { title: "Brown Munde", artist: "AP Dhillon", image: "https://i.scdn.co/image/ab67616d0000b2739e495fb707973f3390850eea" },
+            { title: "Elevated", artist: "Shubh", image: "https://i.scdn.co/image/ab67616d0000b273ef24c3fdbf856340d55cfeb2" }
         ];
 
         recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
@@ -54,7 +48,7 @@ function createSongCard(song) {
     return `
         <div class="song-card" onclick="openPlayer('${song.title}', '${song.artist}', '${song.image}')">
             <img src="${song.image}" alt="${song.title}" onerror="this.src='https://community.spotify.com/t5/image/serverpage/image-id/55829iC2AD64ADB887E2A5';">
-            <p>${song.title} - ${song.artist}</p>
+            <p>${song.title}</p>
         </div>
     `;
 }
@@ -64,9 +58,17 @@ function openPlayer(title, artist, image) {
     document.getElementById("playerArtist").textContent = artist;
     document.getElementById("playerImage").src = image;
     document.getElementById("playerOverlay").style.display = "flex";
+
+    // Reset audio source when opening new song
+    const audioPlayer = document.getElementById("audioPlayer");
+    audioPlayer.pause();
+    // TODO: Set actual audio source when connected to backend
+    // audioPlayer.src = audioUrl;
 }
 
 function closePlayer() {
+    const audioPlayer = document.getElementById("audioPlayer");
+    audioPlayer.pause();
     document.getElementById("playerOverlay").style.display = "none";
 }
 
@@ -98,7 +100,7 @@ function setupEventListeners() {
 
 function searchSongs(query) {
     console.log(`Searching for: ${query}`);
-    // TODO: Implement actual search functionality
+    // TODO: Implement search functionality
 }
 
 function updateVolume(value) {

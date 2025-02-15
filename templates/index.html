@@ -10,7 +10,9 @@
     <header>
         <input type="text" id="searchBar" placeholder="Search for songs...">
         <nav>
-            <button class="nav-btn active">Home</button>
+            <button class="nav-btn">Home</button>
+            <button class="nav-btn">Trending</button>
+            <button class="nav-btn">Recommended</button>
             <button class="nav-btn">Settings</button>
         </nav>
     </header>
@@ -35,19 +37,13 @@
 
     <div id="playerOverlay">
         <div class="player">
-            <button onclick="closePlayer()" class="close-btn">⬇</button>
+            <button onclick="closePlayer()">⬇</button>
             <img id="playerImage" src="" alt="Song Image">
             <h2 id="playerTitle">Song Name</h2>
             <p id="playerArtist">Artist Name</p>
-            <div class="progress-bar">
-                <div class="progress" style="width: 0%"></div>
-            </div>
-            <div class="player-controls">
-                <button onclick="previousTrack()" class="control-btn">⏮</button>
-                <button onclick="togglePlay()" id="playPauseBtn" class="control-btn">▶</button>
-                <button onclick="nextTrack()" class="control-btn">⏭</button>
-                <input type="range" class="volume-slider" min="0" max="100" value="100">
-            </div>
+            <audio id="audioPlayer" controls>
+                <source src="" type="audio/mp3">
+            </audio>
         </div>
     </div>
 
