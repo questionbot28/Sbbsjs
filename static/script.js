@@ -11,13 +11,15 @@ function initializeUI() {
 async function fetchTrendingSongs() {
     const trending = document.getElementById("trending-songs");
     try {
-        const trendingSongs = [
-            { title: "Ryde or Die", artist: "Chinna, Manni Sandhu, Karam Brar", videoId: "YxWlaYCA8MU" },
-            { title: "Gandasa", artist: "Jassa Dhillon, Karam Brar", videoId: "lq_ZdzHG_8k" },
-            { title: "295", artist: "Sidhu Moose Wala", videoId: "n_FCrCQ6-bA" },
-            { title: "Same Beef", artist: "Bohemia, Sidhu Moose Wala", videoId: "iC0hovmu1rw" },
-            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "87xE4s2gZ0k" }
-        ];
+        trending.innerHTML = '<div class="loading">Loading trending songs...</div>';
+        const response = await fetch('/api/trending');
+        if (!response.ok) throw new Error('Failed to fetch trending songs');
+
+        const trendingSongs = await response.json();
+        if (trendingSongs.length === 0) {
+            trending.innerHTML = '<div class="error">No trending songs available</div>';
+            return;
+        }
 
         trending.innerHTML = trendingSongs.map(song => createSongCard(song)).join('');
     } catch (error) {
@@ -29,15 +31,20 @@ async function fetchTrendingSongs() {
 async function fetchRecommendedSongs() {
     const recommended = document.getElementById("recommended-songs");
     try {
-        const recommendedSongs = [
-            { title: "Machreya", artist: "Gulab Sidhu, Diamond", videoId: "D2QYyr9tF70" },
-            { title: "Baller", artist: "Shubh", videoId: "6wkWBxMtKic" },
-            { title: "Excuses", artist: "AP Dhillon, Gurinder Gill", videoId: "vX2cDW8LUWk" },
-            { title: "Brown Munde", artist: "AP Dhillon", videoId: "VNwah1GtYrk" },
-            { title: "Elevated", artist: "Shubh", videoId: "BM8B1Xp0BG8" }
-        ];
+        recommended.innerHTML = '<div class="loading">Loading recommended songs...</div>';
+        // For now, we'll use the same trending endpoint for recommendations
+        const response = await fetch('/api/trending');
+        if (!response.ok) throw new Error('Failed to fetch recommended songs');
 
-        recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
+        const recommendedSongs = await response.json();
+        if (recommendedSongs.length === 0) {
+            recommended.innerHTML = '<div class="error">No recommended songs available</div>';
+            return;
+        }
+
+        // Shuffle the array to get different songs than trending
+        const shuffled = [...recommendedSongs].sort(() => Math.random() - 0.5);
+        recommended.innerHTML = shuffled.map(song => createSongCard(song)).join('');
     } catch (error) {
         console.error("Error fetching recommended songs:", error);
         recommended.innerHTML = '<div class="error">Failed to load recommended songs</div>';
@@ -54,6 +61,7 @@ function createSongCard(song) {
         <div class="song-card" onclick="openPlayer('${song.title}', '${song.artist}', '${thumbnailUrl}')">
             <img src="${thumbnailUrl}" alt="${song.title}" onerror="this.src='https://via.placeholder.com/150?text=No+Thumbnail';">
             <p>${song.title}</p>
+            <p class="artist">${song.artist}</p>
         </div>
     `;
 }
@@ -102,11 +110,12 @@ async function searchSongs(query) {
     searchResults.innerHTML = '<div class="loading">Searching...</div>';
 
     try {
-        // Sample search results with actual video IDs
-        const results = [
-            { title: "295", artist: "Sidhu Moose Wala", videoId: "n_FCrCQ6-bA" },
-            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "87xE4s2gZ0k" }
-        ].filter(song => 
+        // TODO: Replace with actual YouTube API search
+        const response = await fetch('/api/trending');
+        if (!response.ok) throw new Error('Failed to fetch songs');
+
+        const songs = await response.json();
+        const results = songs.filter(song => 
             song.title.toLowerCase().includes(query.toLowerCase()) ||
             song.artist.toLowerCase().includes(query.toLowerCase())
         );

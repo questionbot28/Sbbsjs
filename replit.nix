@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.libev
     pkgs.iana-etc
     pkgs.ffmpeg-full
     pkgs.openssl

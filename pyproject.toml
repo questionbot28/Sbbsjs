@@ -30,4 +30,5 @@ dependencies = [
     "flask-cors>=5.0.0",
     "python-socketio>=5.12.1",
     "eventlet>=0.39.0",
+    "gevent>=24.11.1",
 ]
