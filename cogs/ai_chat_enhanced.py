@@ -17,8 +17,27 @@ class AIChatEnhanced(commands.Cog):
 
     async def _check_channel(self, ctx):
         """Check if command is used in allowed channel"""
+        if isinstance(ctx.channel, discord.DMChannel):
+            return True
         allowed_channels = ['ai-chat', 'bot-commands']
         return ctx.channel.name in allowed_channels
+
+    @commands.command(name="aihelp")
+    async def aihelp(self, ctx):
+        """Show AI commands help"""
+        embed = discord.Embed(
+            title="🤖 AI Commands Help",
+            description="Here are the available AI commands:",
+            color=discord.Color.blue()
+        )
+        
+        commands = """
+        `!debate <topic>` - Start a debate on any topic
+        `!debate` - Get a random debate topic
+        """
+        
+        embed.add_field(name="Available Commands", value=commands, inline=False)
+        await ctx.send(embed=embed)
 
     @commands.command(name="debate")
     @commands.cooldown(1, 30, commands.BucketType.user)
