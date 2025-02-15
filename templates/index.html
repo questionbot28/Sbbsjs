@@ -148,7 +148,7 @@
         }
 
         function changeLanguage(lang) {
-            fetch("/language", {
+            fetch("/api/language", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({
