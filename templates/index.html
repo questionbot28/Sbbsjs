@@ -50,25 +50,11 @@
                 <h2 id="playerTitle">Song Name</h2>
                 <p id="playerArtist">Artist Name</p>
             </div>
-            <div class="progress-container">
-                <span id="currentTime">0:00</span>
-                <div class="progress-bar">
-                    <div class="progress"></div>
-                </div>
-                <span id="duration">0:00</span>
-            </div>
             <div class="player-controls">
                 <button onclick="previousTrack()" class="control-btn">⏮</button>
                 <button onclick="togglePlay()" id="playPauseBtn" class="control-btn play-btn">▶</button>
                 <button onclick="nextTrack()" class="control-btn">⏭</button>
             </div>
-            <div class="volume-control">
-                <span class="volume-icon">🔊</span>
-                <input type="range" class="volume-slider" min="0" max="100" value="100">
-            </div>
-            <audio id="audioPlayer" controls>
-                <source src="" type="audio/mp3">
-            </audio>
         </div>
     </div>
 
