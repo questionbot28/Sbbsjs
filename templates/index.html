@@ -7,53 +7,40 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <div class="container">
+        <h1>Music Bot UI</h1>
 
-    <header>
-        <input type="text" id="searchBar" placeholder="Search for songs...">
-        <nav>
-            <button class="nav-btn">Home</button>
-            <button class="nav-btn">Settings</button>
-        </nav>
-    </header>
+        <div class="categories">
+            <div class="category">
+                <h2>Mood Playlists</h2>
+                <ul>
+                    <li><a href="#" data-playlist="happy">Happy Songs</a></li>
+                    <li><a href="#" data-playlist="sad">Sad Songs</a></li>
+                    <li><a href="#" data-playlist="chill">Chill Songs</a></li>
+                    <li><a href="#" data-playlist="energetic">Energetic Songs</a></li>
+                    <li><a href="#" data-playlist="focus">Focus Songs</a></li>
+                </ul>
+            </div>
 
-    <main>
-        <section class="category">
-            <h2>Trending</h2>
-            <div class="song-slider">
-                <div class="song-card" onclick="openPlayer('Trending Song 1', 'Artist 1', 'song1.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Trending Song 1</p>
-                </div>
-                <div class="song-card" onclick="openPlayer('Trending Song 2', 'Artist 2', 'song2.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Trending Song 2</p>
+            <div class="category">
+                <h2>Now Playing</h2>
+                <div id="now-playing">
+                    <div id="song-info">
+                        <p id="current-song">No song playing</p>
+                        <p id="artist">-</p>
+                    </div>
+                    <div id="progress-bar">
+                        <div id="progress"></div>
+                    </div>
+                    <div id="controls">
+                        <button id="play-pause">Play</button>
+                        <button id="skip">Skip</button>
+                        <input type="range" id="volume" min="0" max="100" value="50">
+                    </div>
                 </div>
             </div>
-        </section>
-
-        <section class="category">
-            <h2>Recommended</h2>
-            <div class="song-slider">
-                <div class="song-card" onclick="openPlayer('Recommended Song 1', 'Artist 3', 'song3.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Recommended Song 1</p>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <div id="playerOverlay">
-        <div class="player">
-            <button onclick="closePlayer()">⬇</button>
-            <img id="playerImage" src="" alt="Song Image">
-            <h2 id="playerTitle">Song Name</h2>
-            <p id="playerArtist">Artist Name</p>
-            <audio id="audioPlayer" controls>
-                <source src="song.mp3" type="audio/mp3">
-            </audio>
         </div>
     </div>
-
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
