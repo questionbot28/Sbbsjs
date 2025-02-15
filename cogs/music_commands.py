@@ -95,12 +95,9 @@ class MusicCommands(commands.Cog):
             if len(parts) == 2:
                 song_title = parts[0].strip()
                 artist = parts[1].strip()
-                result = await self.get_lyrics(song_title) #This line was changed from self.search_song_info(song_title)
+                result = await self.get_lyrics(song_title)
             else:
-                result = await self.get_lyrics(query) #This line was changed from self.search_song_info(query)
-
-        try:
-            result = await self.get_lyrics(song_name)
+                result = await self.get_lyrics(query)
 
             if isinstance(result, str):  # Error message
                 error_embed = discord.Embed(
@@ -108,7 +105,7 @@ class MusicCommands(commands.Cog):
                     description=result,
                     color=discord.Color.red()
                 )
-                await status_msg.edit(embed=error_embed)
+                await loading_msg.edit(embed=error_embed)
                 return
 
             # Create embed for successful result
@@ -131,10 +128,10 @@ class MusicCommands(commands.Cog):
             )
 
             embed.set_footer(text="Lyrics provided by ChartLyrics")
-            await status_msg.edit(embed=embed)
+            await loading_msg.edit(embed=embed)
 
         except commands.CommandOnCooldown as e:
-            await status_msg.edit(content=f"⏳ Please wait {e.retry_after:.1f}s before using this command again.")
+            await loading_msg.edit(content=f"⏳ Please wait {e.retry_after:.1f}s before using this command again.")
         except Exception as e:
             self.logger.error(f"Error in lyrics command: {e}")
             error_embed = discord.Embed(
@@ -142,7 +139,7 @@ class MusicCommands(commands.Cog):
                 description=f"An unexpected error occurred: {str(e)}",
                 color=discord.Color.red()
             )
-            await status_msg.edit(embed=error_embed)
+            await loading_msg.edit(embed=error_embed)
 
 async def setup(bot):
     """Setup function for the cog"""
