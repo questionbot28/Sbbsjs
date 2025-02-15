@@ -11,13 +11,12 @@ function initializeUI() {
 async function fetchTrendingSongs() {
     const trending = document.getElementById("trending-songs");
     try {
-        // This will be replaced with actual YouTube data when backend is connected
         const trendingSongs = [
-            { title: "Ryde or Die", artist: "Chinna, Manni Sandhu, Karam Brar", videoId: "dQw4w9WgXcQ" },
-            { title: "Gandasa", artist: "Jassa Dhillon, Karam Brar", videoId: "dQw4w9WgXcQ" },
-            { title: "295", artist: "Sidhu Moose Wala", videoId: "dQw4w9WgXcQ" },
-            { title: "Same Beef", artist: "Bohemia, Sidhu Moose Wala", videoId: "dQw4w9WgXcQ" },
-            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "dQw4w9WgXcQ" }
+            { title: "Ryde or Die", artist: "Chinna, Manni Sandhu, Karam Brar", videoId: "YxWlaYCA8MU" },
+            { title: "Gandasa", artist: "Jassa Dhillon, Karam Brar", videoId: "lq_ZdzHG_8k" },
+            { title: "295", artist: "Sidhu Moose Wala", videoId: "n_FCrCQ6-bA" },
+            { title: "Same Beef", artist: "Bohemia, Sidhu Moose Wala", videoId: "iC0hovmu1rw" },
+            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "87xE4s2gZ0k" }
         ];
 
         trending.innerHTML = trendingSongs.map(song => createSongCard(song)).join('');
@@ -30,13 +29,12 @@ async function fetchTrendingSongs() {
 async function fetchRecommendedSongs() {
     const recommended = document.getElementById("recommended-songs");
     try {
-        // This will be replaced with actual YouTube data when backend is connected
         const recommendedSongs = [
-            { title: "Machreya", artist: "Gulab Sidhu, Diamond", videoId: "dQw4w9WgXcQ" },
-            { title: "Baller", artist: "Shubh", videoId: "dQw4w9WgXcQ" },
-            { title: "Excuses", artist: "AP Dhillon, Gurinder Gill", videoId: "dQw4w9WgXcQ" },
-            { title: "Brown Munde", artist: "AP Dhillon", videoId: "dQw4w9WgXcQ" },
-            { title: "Elevated", artist: "Shubh", videoId: "dQw4w9WgXcQ" }
+            { title: "Machreya", artist: "Gulab Sidhu, Diamond", videoId: "D2QYyr9tF70" },
+            { title: "Baller", artist: "Shubh", videoId: "6wkWBxMtKic" },
+            { title: "Excuses", artist: "AP Dhillon, Gurinder Gill", videoId: "vX2cDW8LUWk" },
+            { title: "Brown Munde", artist: "AP Dhillon", videoId: "VNwah1GtYrk" },
+            { title: "Elevated", artist: "Shubh", videoId: "BM8B1Xp0BG8" }
         ];
 
         recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
@@ -104,10 +102,10 @@ async function searchSongs(query) {
     searchResults.innerHTML = '<div class="loading">Searching...</div>';
 
     try {
-        // TODO: Replace with actual YouTube API call
+        // Sample search results with actual video IDs
         const results = [
-            { title: "295", artist: "Sidhu Moose Wala", videoId: "dQw4w9WgXcQ" },
-            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "dQw4w9WgXcQ" }
+            { title: "295", artist: "Sidhu Moose Wala", videoId: "n_FCrCQ6-bA" },
+            { title: "Dollar", artist: "Sidhu Moose Wala", videoId: "87xE4s2gZ0k" }
         ].filter(song => 
             song.title.toLowerCase().includes(query.toLowerCase()) ||
             song.artist.toLowerCase().includes(query.toLowerCase())
