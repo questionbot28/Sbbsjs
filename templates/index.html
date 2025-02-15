@@ -6,90 +6,44 @@
     <title>🎵 Music Bot Control Panel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.3/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .progress-bar {
-            transition: width 0.5s ease-in-out;
-        }
-        .volume-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            height: 8px;
-            border-radius: 4px;
-            background: #4B5563;
-            outline: none;
-        }
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #3B82F6;
-            cursor: pointer;
-            transition: background 0.2s ease-in-out;
-        }
-        .volume-slider::-webkit-slider-thumb:hover {
-            background: #2563EB;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <div class="max-w-md mx-auto bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-            <!-- Header -->
-            <div class="p-6 text-center">
-                <h1 class="text-2xl font-bold mb-2">🎵 Discord Music Bot</h1>
-                <p class="text-gray-400">Control Panel</p>
-            </div>
-
-            <!-- Now Playing -->
-            <div class="p-6 border-t border-gray-700">
-                <div class="flex items-center space-x-4">
-                    <img id="thumbnail" src="https://via.placeholder.com/150" 
-                         class="w-24 h-24 rounded-lg shadow-lg object-cover">
-                    <div class="flex-1">
-                        <h2 class="text-xl font-semibold" id="song-title">No song playing</h2>
-                        <p class="text-gray-400" id="song-artist">Unknown artist</p>
-                    </div>
-                </div>
-
-                <!-- Progress Bar -->
-                <div class="mt-4 space-y-2">
-                    <div class="relative w-full h-2 bg-gray-700 rounded-full">
-                        <div id="progress-bar" 
-                             class="progress-bar absolute h-full bg-blue-500 rounded-full" 
-                             style="width: 0%">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Controls -->
-                <div class="mt-6 flex items-center justify-between">
-                    <button onclick="skipSong()" 
-                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200 flex items-center">
-                        <span class="mr-2">⏭</span> Skip
-                    </button>
-                    <div class="flex-1 mx-4">
-                        <input type="range" 
-                               class="volume-slider w-full" 
-                               min="0" 
-                               max="100" 
-                               value="50" 
-                               onchange="setVolume(this.value)">
-                    </div>
-                    <div class="text-gray-400">
-                        <span>🔊</span>
-                    </div>
+<body>
+    <div class="container">
+        <div id="player">
+            <div class="now-playing">
+                <img id="thumbnail" src="https://via.placeholder.com/150" 
+                     alt="Album Art" 
+                     class="w-24 h-24 rounded-lg shadow-lg">
+                <div class="song-info">
+                    <div class="song-title" id="song-title">No song playing</div>
+                    <div class="song-artist" id="song-artist">Unknown artist</div>
                 </div>
             </div>
 
-            <!-- Queue Info -->
-            <div class="p-6 border-t border-gray-700">
-                <h3 class="text-lg font-semibold mb-2">Queue</h3>
-                <div id="queue-list" class="space-y-2 text-sm text-gray-400">
-                    <!-- Queue items will be inserted here -->
-                    <p class="text-center">Queue is empty</p>
-                </div>
+            <div class="progress-bar">
+                <div id="progress" class="progress" style="width: 0%"></div>
+            </div>
+
+            <div class="controls">
+                <button onclick="skipSong()">
+                    ⏭ Skip
+                </button>
+                <input type="range" 
+                       class="volume-slider" 
+                       min="0" 
+                       max="100" 
+                       value="50"
+                       onchange="setVolume(this.value)"
+                       id="volume-control">
+                <span id="volume-icon">🔊</span>
+            </div>
+        </div>
+
+        <div class="queue-list">
+            <h2 class="text-xl font-bold mb-4">Queue</h2>
+            <div id="queue-items">
+                <!-- Queue items will be inserted here -->
             </div>
         </div>
     </div>
@@ -115,11 +69,19 @@
 
         function setVolume(volume) {
             socket.emit("setVolume", parseInt(volume));
+            updateVolumeIcon(volume);
+        }
+
+        function updateVolumeIcon(volume) {
+            const icon = document.getElementById("volume-icon");
+            if (volume == 0) icon.innerText = "🔇";
+            else if (volume < 50) icon.innerText = "🔉";
+            else icon.innerText = "🔊";
         }
 
         function updateProgress(progress, duration) {
             clearInterval(progressInterval);
-            const progressBar = document.getElementById("progress-bar");
+            const progressBar = document.getElementById("progress");
             const updateProgressBar = () => {
                 const percentage = (progress / duration) * 100;
                 progressBar.style.width = `${Math.min(percentage, 100)}%`;
