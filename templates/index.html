@@ -7,11 +7,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
     <header>
         <input type="text" id="searchBar" placeholder="Search for songs...">
         <nav>
-            <button class="nav-btn">Home</button>
+            <button class="nav-btn active">Home</button>
             <button class="nav-btn">Settings</button>
         </nav>
     </header>
@@ -19,38 +18,36 @@
     <main>
         <section class="category">
             <h2>Trending</h2>
-            <div class="song-slider">
-                <div class="song-card" onclick="openPlayer('Trending Song 1', 'Artist 1', 'song1.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Trending Song 1</p>
-                </div>
-                <div class="song-card" onclick="openPlayer('Trending Song 2', 'Artist 2', 'song2.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Trending Song 2</p>
-                </div>
+            <div id="trending-songs" class="song-slider">
+                <!-- Songs will be populated by JavaScript -->
+                <div class="loading">Loading trending songs...</div>
             </div>
         </section>
 
         <section class="category">
             <h2>Recommended</h2>
-            <div class="song-slider">
-                <div class="song-card" onclick="openPlayer('Recommended Song 1', 'Artist 3', 'song3.jpg')">
-                    <img src="https://via.placeholder.com/180" alt="Song Image">
-                    <p>Recommended Song 1</p>
-                </div>
+            <div id="recommended-songs" class="song-slider">
+                <!-- Songs will be populated by JavaScript -->
+                <div class="loading">Loading recommended songs...</div>
             </div>
         </section>
     </main>
 
     <div id="playerOverlay">
         <div class="player">
-            <button onclick="closePlayer()">⬇</button>
+            <button onclick="closePlayer()" class="close-btn">⬇</button>
             <img id="playerImage" src="" alt="Song Image">
             <h2 id="playerTitle">Song Name</h2>
             <p id="playerArtist">Artist Name</p>
-            <audio id="audioPlayer" controls>
-                <source src="song.mp3" type="audio/mp3">
-            </audio>
+            <div class="progress-bar">
+                <div class="progress" style="width: 0%"></div>
+            </div>
+            <div class="player-controls">
+                <button onclick="previousTrack()" class="control-btn">⏮</button>
+                <button onclick="togglePlay()" id="playPauseBtn" class="control-btn">▶</button>
+                <button onclick="nextTrack()" class="control-btn">⏭</button>
+                <input type="range" class="volume-slider" min="0" max="100" value="100">
+            </div>
         </div>
     </div>
 

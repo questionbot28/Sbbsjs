@@ -1,3 +1,17 @@
+/* Adding loading and error states */
+.loading, .error {
+    padding: 20px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    width: 100%;
+}
+
+.error {
+    color: #ff4444;
+}
+
+/* Rest of the existing styles remain unchanged */
 body {
     font-family: Arial, sans-serif;
     background-color: #121212;
@@ -41,6 +55,10 @@ nav {
     transition: background-color 0.2s;
 }
 
+.nav-btn.active {
+    background-color: #1db954;
+}
+
 .nav-btn:hover {
     background-color: #282828;
 }
@@ -55,29 +73,51 @@ nav {
     overflow-x: auto;
     gap: 10px;
     padding: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #1db954 #282828;
+}
+
+.song-slider::-webkit-scrollbar {
+    height: 8px;
+}
+
+.song-slider::-webkit-scrollbar-track {
+    background: #282828;
+    border-radius: 4px;
+}
+
+.song-slider::-webkit-scrollbar-thumb {
+    background: #1db954;
+    border-radius: 4px;
 }
 
 .song-card {
-    width: 150px;
+    min-width: 150px;
     background: #222;
     padding: 10px;
     cursor: pointer;
     border-radius: 8px;
-    transition: background-color 0.3s;
+    transition: transform 0.3s, background-color 0.3s;
 }
 
 .song-card:hover {
     background: #282828;
+    transform: scale(1.05);
 }
 
 .song-card img {
     width: 100%;
     border-radius: 10px;
+    aspect-ratio: 1;
+    object-fit: cover;
 }
 
 .song-card p {
     margin: 8px 0;
     font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #playerOverlay {
@@ -91,20 +131,32 @@ nav {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    z-index: 1001;
 }
 
 .player {
     text-align: center;
     padding: 20px;
+    background: #282828;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
 }
 
-.player button {
+.close-btn {
     background: none;
     border: none;
     color: white;
     font-size: 24px;
     cursor: pointer;
     margin-bottom: 20px;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+    background-color: #333;
 }
 
 .player img {
@@ -112,11 +164,30 @@ nav {
     max-width: 300px;
     border-radius: 10px;
     margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-audio {
-    width: 80%;
-    max-width: 400px;
+.player-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+    background-color: #333;
 }
 
 /* Responsive styles */
@@ -127,11 +198,10 @@ audio {
     }
 
     .song-card {
-        width: 120px;
+        min-width: 120px;
     }
 }
 
-/* Progress bar - Retained from original */
 .progress-bar {
     width: 100%;
     height: 4px;
@@ -149,7 +219,6 @@ audio {
     transition: width 0.1s linear;
 }
 
-/* Volume control - Retained from original */
 .volume-slider {
     width: 100px;
     height: 4px;
