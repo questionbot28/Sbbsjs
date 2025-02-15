@@ -17,9 +17,15 @@ now_playing = {
     "thumbnail": "https://via.placeholder.com/150"
 }
 
-@app.route("/")
+@app.route('/')
 def index():
+    """Main web UI route"""
     return render_template("index.html")
+
+@app.route('/alive')
+def alive():
+    """Keep-alive endpoint"""
+    return "I'm alive!"
 
 @socketio.on("connect")
 def handle_connect():
@@ -57,7 +63,7 @@ def update_now_playing(song_info):
 def run_web():
     """Run the Flask application"""
     try:
-        port = int(os.getenv('PORT', 5000))
+        port = int(os.getenv('PORT', 8080))
         socketio.run(app, host="0.0.0.0", port=port)
     except Exception as e:
         logger.error(f"Error running web server: {e}")

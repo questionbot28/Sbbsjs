@@ -26,4 +26,5 @@ dependencies = [
     "oauthlib>=3.2.2",
     "async-timeout>=5.0.1",
     "flask-wtf>=1.2.2",
+    "flask-socketio>=5.5.1",
 ]

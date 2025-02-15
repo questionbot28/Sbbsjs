@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import logging
 from utils.logger import setup_logger
 import asyncio
-from keep_alive import keep_alive
 from server import start_web_server
 
 # Load environment variables with override to ensure Glitch env vars take precedence
@@ -123,12 +122,8 @@ class EducationalBot(commands.Bot):
             self.logger.error(f"Error sending welcome message: {str(e)}")
             self.logger.exception(e)
 
-
 async def main():
     try:
-        # Keep the web server alive
-        keep_alive()
-
         # Start the web UI server
         start_web_server()
 

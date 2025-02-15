@@ -7,7 +7,8 @@ import aiohttp
 import xml.etree.ElementTree as ET
 from async_timeout import timeout
 from collections import deque
-from server import update_now_playing  # Add this import at the top
+import os #added import for os.getenv
+from server import update_now_playing
 
 class MusicPlayer:
     def __init__(self, ctx):
@@ -22,7 +23,7 @@ class MusicPlayer:
         self.loop = False
         self.shuffle = False
         self.autoplay = False
-        self.update_web_ui()  # Add this line
+        self.update_web_ui()
 
         ctx.bot.loop.create_task(self.player_loop())
 
@@ -33,7 +34,7 @@ class MusicPlayer:
                 song_info = {
                     "title": self.current['title'],
                     "artist": self.current['requester'].name,
-                    "progress": 0,  # Reset progress for new song
+                    "progress": 0,
                     "duration": self.current['duration'],
                     "thumbnail": self.current.get('thumbnail', "https://via.placeholder.com/150")
                 }
@@ -70,7 +71,7 @@ class MusicPlayer:
                 self.queue = deque(queue_list)
 
             try:
-                async with timeout(300):  # 5 minutes timeout
+                async with timeout(300):
                     self.current = await self.queue.popleft()
             except asyncio.TimeoutError:
                 return self.bot.loop.create_task(self.stop())
@@ -84,7 +85,7 @@ class MusicPlayer:
                 )
                 self.guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
                 await self.channel.send(f"🎵 Now playing: **{self.current['title']}**")
-                self.update_web_ui()  # Add this line to update web UI
+                self.update_web_ui()
                 await self.next.wait()
             except Exception as e:
                 self.bot.logger.error(f"Player error: {e}")
@@ -374,7 +375,7 @@ class MusicCommands(commands.Cog):
 
                     except ET.ParseError as e:
                         self.logger.error(f"XML parsing error: {e}")
-                        self.logger.error(f"Raw XML data: {data[:200]}...")  # Log first 200 chars
+                        self.logger.error(f"Raw XML data: {data[:200]}...")
                         return "❌ Error processing lyrics data. Try a different song name."
 
         except aiohttp.ClientError as e:
@@ -400,7 +401,7 @@ class MusicCommands(commands.Cog):
             else:
                 result = await self.get_lyrics(query)
 
-            if isinstance(result, str):  # Error message
+            if isinstance(result, str):
                 error_embed = discord.Embed(
                     title="Lyrics Search Result",
                     description=result,
@@ -440,6 +441,73 @@ class MusicCommands(commands.Cog):
                 color=discord.Color.red()
             )
             await loading_msg.edit(embed=error_embed)
+
+    @commands.command(name='webui')
+    async def webui(self, ctx):
+        """Get the web UI URL for controlling music playback"""
+        try:
+            embed = discord.Embed(
+                title="🎵 Music Bot Web UI",
+                description="Control your music through our fancy web interface!",
+                color=discord.Color.blue()
+            )
+
+            web_url = f"https://{os.getenv('REPLIT_DEV_DOMAIN')}"
+            embed.add_field(
+                name="🌐 Web Interface URL",
+                value=f"[Click here to open]({web_url})",
+                inline=False
+            )
+
+            features = (
+                "✨ **Features:**\n"
+                "• Live song progress\n"
+                "• Volume control\n"
+                "• Skip button\n"
+                "• Current song info\n"
+                "• Album artwork"
+            )
+            embed.add_field(name="Features", value=features, inline=False)
+
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error showing web UI info: {e}")
+            await ctx.send("❌ An error occurred while getting web UI information.")
+
+    @commands.Cog.listener()
+    async def on_socket_response(self, msg):
+        """Handle web UI socket events"""
+        try:
+            if msg.get("t") == "VOICE_STATE_UPDATE":
+                player = self.players.get(int(msg["d"]["guild_id"]))
+                if player:
+                    player.update_web_ui()
+        except Exception as e:
+            self.logger.error(f"Error handling socket response: {e}")
+
+    async def set_volume_web(self, ctx, volume: int):
+        """Set volume from web UI"""
+        try:
+            if not ctx.voice_client:
+                return False
+
+            volume = max(0, min(100, volume))
+            ctx.voice_client.source.volume = volume / 100
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting volume from web: {e}")
+            return False
+
+    async def handle_skip_web(self, ctx):
+        """Handle skip request from web UI"""
+        try:
+            if not ctx.voice_client or not ctx.voice_client.is_playing():
+                return False
+            ctx.voice_client.stop()
+            return True
+        except Exception as e:
+            self.logger.error(f"Error handling web skip: {e}")
+            return False
 
 async def setup(bot):
     await bot.add_cog(MusicCommands(bot))
