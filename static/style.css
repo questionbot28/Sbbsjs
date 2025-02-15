@@ -20,6 +20,10 @@ body {
     cursor: pointer;
 }
 
+.nav-options span.active {
+    color: #1db954;
+}
+
 #search {
     padding: 8px;
     border-radius: 20px;
@@ -27,14 +31,18 @@ body {
 }
 
 /* Main Content */
+#content {
+    padding: 20px;
+}
+
 .song-slider {
     display: flex;
     overflow-x: auto;
     padding: 10px;
+    gap: 15px;
 }
 
 .song {
-    margin-right: 15px;
     cursor: pointer;
     background-color: #282828;
     padding: 10px;
@@ -59,54 +67,25 @@ body {
     font-size: 14px;
 }
 
-/* Music Player */
-#music-player {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background-color: #181818;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
+/* Responsive design */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .nav-options {
+        display: flex;
+        gap: 10px;
+    }
+
+    #search {
+        width: 100%;
+        max-width: 300px;
+    }
 }
 
-.hidden {
-    display: none;
-}
-
-
-/* Now playing section */
-#now-playing {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-#song-thumbnail {
-    width: 60px;
-    height: 60px;
-    border-radius: 4px;
-}
-
-#song-info h3 {
-    margin: 0;
-    font-size: 16px;
-}
-
-#song-info p {
-    margin: 5px 0;
-    font-size: 14px;
-    color: #b3b3b3;
-}
-
-/* Audio player styling */
-#audio-player {
-    flex-grow: 1;
-    margin: 0 20px;
-}
-
-/* Sidebar styles - Kept from original, might need adjustments based on layout*/
+/* Sidebar styles */
 .sidebar {
     width: 240px;
     background-color: #000000;
@@ -152,43 +131,14 @@ body {
 }
 
 
-/* Main content area - Kept from original, might need adjustments based on layout*/
+/* Main content area */
 .main-content {
     flex: 1;
     padding: 24px;
     background: linear-gradient(to bottom, #404040, #121212);
 }
 
-/* Player styles -  Potentially redundant now, but kept for potential future use*/
-#player {
-    background-color: #181818;
-    border-radius: 8px;
-    padding: 24px;
-    margin-bottom: 24px;
-}
-
-.now-playing {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.song-info {
-    flex: 1;
-}
-
-.song-title {
-    font-size: 24px;
-    font-weight: bold;
-    margin-bottom: 8px;
-}
-
-.song-artist {
-    color: #b3b3b3;
-}
-
-/* Progress bar - Kept from original*/
+/* Progress bar */
 .progress-bar {
     width: 100%;
     height: 4px;
@@ -206,7 +156,7 @@ body {
     transition: width 0.1s linear;
 }
 
-/* Controls - Kept from original*/
+/* Controls */
 .controls {
     display: flex;
     align-items: center;
@@ -229,7 +179,7 @@ body {
     transform: scale(1.1);
 }
 
-/* Volume control - Kept from original*/
+/* Volume control */
 .volume-slider {
     width: 100px;
     height: 4px;
@@ -247,7 +197,7 @@ body {
     cursor: pointer;
 }
 
-/* Queue styles - Kept from original*/
+/* Queue styles */
 .queue-list {
     background-color: #181818;
     border-radius: 8px;
@@ -272,7 +222,7 @@ body {
     background-color: #323232;
 }
 
-/* Language controls - Kept from original*/
+/* Language controls */
 .language-controls {
     display: flex;
     gap: 8px;
@@ -295,7 +245,7 @@ body {
     background-color: #323232;
 }
 
-/* Like button - Kept from original*/
+/* Like button */
 #likeButton {
     background-color: transparent;
     border: 1px solid #404040;
@@ -311,7 +261,7 @@ body {
     color: #1db954;
 }
 
-/* Responsive design - Kept from original*/
+/* Responsive design */
 @media (max-width: 768px) {
     .container {
         flex-direction: column;
