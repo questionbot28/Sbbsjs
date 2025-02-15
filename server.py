@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 
 # Configure logging with more detailed format
@@ -17,12 +17,17 @@ CORS(app)  # Enable CORS for all routes
 @app.route('/')
 def index():
     logger.info("Received request for index route")
-    return jsonify({"message": "Server is running!"})
+    return render_template('index.html')
 
 @app.route('/health')
 def health():
     logger.info("Received request for health check")
     return jsonify({"status": "healthy"})
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    logger.info(f"Serving static file: {filename}")
+    return send_from_directory('static', filename)
 
 if __name__ == '__main__':
     try:

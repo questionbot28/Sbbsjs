@@ -3,293 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 Music Bot Control Panel</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.3/socket.io.js"></script>
+    <title>MusicBot UI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="sidebar">
-            <h2>🎵 Music Bot</h2>
-            <nav class="nav-menu">
-                <a href="#home" class="nav-item active" onclick="showSection('home')">Home</a>
-                <a href="#search" class="nav-item" onclick="showSection('search')">Search</a>
-                <a href="#queue" class="nav-item" onclick="showSection('queue')">Queue</a>
-                <a href="#settings" class="nav-item" onclick="showSection('settings')">Settings</a>
-            </nav>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+        <h1>MusicBot</h1>
+        <div class="nav-options">
+            <span id="home">Home</span>
+            <span id="trending">Trending</span>
+            <span id="recommended">Recommended</span>
+            <span id="settings">Settings</span>
         </div>
+        <input type="text" id="search" placeholder="Search for songs...">
+    </nav>
 
-        <div class="main-content">
-            <!-- Home Section -->
-            <section id="home" class="content-section active">
-                <h2>Trending Music</h2>
-                <div id="trending-songs" class="song-grid">
-                    <!-- Trending songs will be loaded here -->
-                </div>
-            </section>
+    <!-- Main Content -->
+    <div id="content">
+        <div id="home-section">
+            <h2>Trending Songs</h2>
+            <div class="song-slider" id="trending-songs"></div>
 
-            <!-- Search Section -->
-            <section id="search" class="content-section">
-                <h2>Search Music</h2>
-                <div class="search-container">
-                    <input type="text" id="searchInput" placeholder="Search for songs..." onkeyup="searchSongs(event)">
-                    <div id="search-results" class="song-grid">
-                        <!-- Search results will be displayed here -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- Queue Section -->
-            <section id="queue" class="content-section">
-                <h2>Queue</h2>
-                <div id="queue-items">
-                    <!-- Queue items will be inserted here -->
-                </div>
-            </section>
-
-            <!-- Settings Section -->
-            <section id="settings" class="content-section">
-                <h2>Settings</h2>
-                <div class="settings-container">
-                    <div class="setting-item">
-                        <label>Theme</label>
-                        <select id="theme-select" onchange="updateTheme(this.value)">
-                            <option value="dark">Dark</option>
-                            <option value="light">Light</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label>Language</label>
-                        <div class="language-controls">
-                            <button onclick="changeLanguage('en')">🇬🇧 English</button>
-                            <button onclick="changeLanguage('fr')">🇫🇷 French</button>
-                            <button onclick="changeLanguage('es')">🇪🇸 Spanish</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Player Section -->
-            <div id="player" class="player-container">
-                <div class="now-playing">
-                    <img id="thumbnail" src="https://via.placeholder.com/150" 
-                         alt="Album Art" 
-                         class="w-24 h-24 rounded-lg shadow-lg">
-                    <div class="song-info">
-                        <div class="song-title" id="song-title">No song playing</div>
-                        <div class="song-artist" id="song-artist">Unknown artist</div>
-                    </div>
-                </div>
-
-                <div class="progress-bar">
-                    <div id="progress" class="progress" style="width: 0%"></div>
-                </div>
-
-                <div class="controls">
-                    <button onclick="prevSong()">⏮️</button>
-                    <button onclick="playPause()" id="playPauseBtn">▶️</button>
-                    <button onclick="skipSong()">⏭️</button>
-                    <input type="range" 
-                           class="volume-slider" 
-                           min="0" 
-                           max="100" 
-                           value="50"
-                           onchange="setVolume(this.value)"
-                           id="volume-control">
-                    <span id="volume-icon">🔊</span>
-                </div>
-
-                <button id="likeButton" onclick="likeSong()">❤️ Like</button>
-            </div>
+            <h2>Recommended for You</h2>
+            <div class="song-slider" id="recommended-songs"></div>
         </div>
     </div>
 
-    <script>
-        const socket = io();
-        let progressInterval;
-        let currentLanguage = 'en';
-        let isPlaying = false;
+    <!-- Music Player (Hidden Initially) -->
+    <div id="music-player" class="hidden">
+        <div id="now-playing">
+            <img id="song-thumbnail" src="" alt="Song Thumbnail">
+            <div id="song-info">
+                <h3 id="song-title"></h3>
+                <p id="song-artist"></p>
+            </div>
+        </div>
+        <audio id="audio-player" controls></audio>
+    </div>
 
-        // Socket.IO Event Handlers
-        socket.on("connect", () => {
-            console.log("Connected to server");
-            loadTrendingSongs();
-        });
-
-        socket.on("nowPlaying", (data) => {
-            document.getElementById("song-title").innerText = data.title;
-            document.getElementById("song-artist").innerText = data.artist;
-            document.getElementById("thumbnail").src = data.thumbnail || "https://via.placeholder.com/150";
-            updateProgress(data.progress, data.duration);
-            updatePlayPauseButton(data.is_playing);
-        });
-
-        socket.on("update_queue", (queue) => {
-            updateQueueDisplay(queue);
-        });
-
-        // Navigation Functions
-        function showSection(sectionId) {
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-
-            document.getElementById(sectionId).classList.add('active');
-            document.querySelector(`[href="#${sectionId}"]`).classList.add('active');
-        }
-
-        // API Functions
-        async function loadTrendingSongs() {
-            try {
-                const response = await fetch('/api/trending');
-                const songs = await response.json();
-                const trendingContainer = document.getElementById('trending-songs');
-                trendingContainer.innerHTML = songs.map(song => `
-                    <div class="song-card">
-                        <img src="${song.thumbnail}" alt="${song.title}">
-                        <h3>${song.title}</h3>
-                        <button onclick="playSong('${song.videoId}')">Play</button>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading trending songs:', error);
-            }
-        }
-
-        let searchTimeout;
-        async function searchSongs(event) {
-            clearTimeout(searchTimeout);
-            const query = event.target.value;
-            if (query.length < 2) return;
-
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-                    const songs = await response.json();
-                    const searchResults = document.getElementById('search-results');
-                    searchResults.innerHTML = songs.map(song => `
-                        <div class="song-card">
-                            <img src="${song.thumbnail}" alt="${song.title}">
-                            <h3>${song.title}</h3>
-                            <button onclick="playSong('${song.videoId}')">Play</button>
-                        </div>
-                    `).join('');
-                } catch (error) {
-                    console.error('Error searching songs:', error);
-                }
-            }, 500);
-        }
-
-        // Player Controls
-        function playPause() {
-            isPlaying = !isPlaying;
-            updatePlayPauseButton(isPlaying);
-            socket.emit("playPause", isPlaying);
-        }
-
-        function updatePlayPauseButton(playing) {
-            const btn = document.getElementById("playPauseBtn");
-            btn.innerText = playing ? "⏸️" : "▶️";
-            isPlaying = playing;
-        }
-
-        function skipSong() {
-            socket.emit("skipSong");
-        }
-
-        function prevSong() {
-            socket.emit("prevSong");
-        }
-
-        function setVolume(volume) {
-            socket.emit("setVolume", parseInt(volume));
-            updateVolumeIcon(volume);
-        }
-
-        function updateVolumeIcon(volume) {
-            const icon = document.getElementById("volume-icon");
-            if (volume == 0) icon.innerText = "🔇";
-            else if (volume < 50) icon.innerText = "🔉";
-            else icon.innerText = "🔊";
-        }
-
-        function likeSong() {
-            const btn = document.getElementById("likeButton");
-            const isLiked = btn.innerText.includes("❤️");
-            btn.innerHTML = isLiked ? "🤍 Like" : "❤️ Liked";
-            socket.emit("likeSong", !isLiked);
-        }
-
-        function changeLanguage(lang) {
-            fetch("/api/settings", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: "default_user",
-                    language: lang
-                })
-            }).then(res => res.json())
-              .then(data => {
-                  currentLanguage = lang;
-                  // You could update UI text based on language here
-              })
-              .catch(err => console.error("Error changing language:", err));
-        }
-
-        function updateTheme(theme) {
-            fetch("/api/settings", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: "default_user",
-                    theme: theme
-                })
-            }).then(res => res.json())
-              .catch(err => console.error("Error updating theme:", err));
-
-            document.body.classList.toggle('light-theme', theme === 'light');
-        }
-
-        function updateQueueDisplay(queue) {
-            const queueList = document.getElementById("queue-items");
-            queueList.innerHTML = "";
-            if (queue.length === 0) {
-                queueList.innerHTML = "<p class='text-gray-500'>Queue is empty</p>";
-                return;
-            }
-            queue.forEach((song, index) => {
-                const item = document.createElement("div");
-                item.className = "queue-item";
-                item.innerHTML = `
-                    <span>${index + 1}. ${song.title || song}</span>
-                    <span>${song.artist || ''}</span>
-                `;
-                queueList.appendChild(item);
-            });
-        }
-
-        function updateProgress(progress, duration) {
-            clearInterval(progressInterval);
-            const progressBar = document.getElementById("progress");
-            const updateProgressBar = () => {
-                const percentage = (progress / duration) * 100;
-                progressBar.style.width = `${Math.min(percentage, 100)}%`;
-                progress++;
-            };
-            updateProgressBar();
-            progressInterval = setInterval(updateProgressBar, 1000);
-        }
-
-        // Clean up on page unload
-        window.onbeforeunload = () => {
-            clearInterval(progressInterval);
-        };
-
-        // Initial load
-        loadTrendingSongs();
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

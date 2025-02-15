@@ -1,19 +1,112 @@
-/* Reset and base styles */
 body {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: Arial, sans-serif;
     background-color: #121212;
     color: white;
+    margin: 0;
+    padding: 0;
 }
 
-.container {
+/* Navbar */
+.navbar {
     display: flex;
-    width: 100%;
-    min-height: 100vh;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: #181818;
 }
 
-/* Sidebar styles */
+.nav-options span {
+    margin: 0 10px;
+    cursor: pointer;
+}
+
+#search {
+    padding: 8px;
+    border-radius: 20px;
+    border: none;
+}
+
+/* Main Content */
+.song-slider {
+    display: flex;
+    overflow-x: auto;
+    padding: 10px;
+}
+
+.song {
+    margin-right: 15px;
+    cursor: pointer;
+    background-color: #282828;
+    padding: 10px;
+    border-radius: 8px;
+    transition: background-color 0.3s;
+    min-width: 200px;
+}
+
+.song:hover {
+    background-color: #383838;
+}
+
+.song img {
+    width: 180px;
+    height: 180px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.song p {
+    margin: 8px 0;
+    font-size: 14px;
+}
+
+/* Music Player */
+#music-player {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background-color: #181818;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+}
+
+.hidden {
+    display: none;
+}
+
+
+/* Now playing section */
+#now-playing {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#song-thumbnail {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+}
+
+#song-info h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+#song-info p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #b3b3b3;
+}
+
+/* Audio player styling */
+#audio-player {
+    flex-grow: 1;
+    margin: 0 20px;
+}
+
+/* Sidebar styles - Kept from original, might need adjustments based on layout*/
 .sidebar {
     width: 240px;
     background-color: #000000;
@@ -58,14 +151,15 @@ body {
     background-color: #282828;
 }
 
-/* Main content area */
+
+/* Main content area - Kept from original, might need adjustments based on layout*/
 .main-content {
     flex: 1;
     padding: 24px;
     background: linear-gradient(to bottom, #404040, #121212);
 }
 
-/* Player styles */
+/* Player styles -  Potentially redundant now, but kept for potential future use*/
 #player {
     background-color: #181818;
     border-radius: 8px;
@@ -94,7 +188,7 @@ body {
     color: #b3b3b3;
 }
 
-/* Progress bar */
+/* Progress bar - Kept from original*/
 .progress-bar {
     width: 100%;
     height: 4px;
@@ -112,7 +206,7 @@ body {
     transition: width 0.1s linear;
 }
 
-/* Controls */
+/* Controls - Kept from original*/
 .controls {
     display: flex;
     align-items: center;
@@ -135,7 +229,7 @@ body {
     transform: scale(1.1);
 }
 
-/* Volume control */
+/* Volume control - Kept from original*/
 .volume-slider {
     width: 100px;
     height: 4px;
@@ -153,7 +247,7 @@ body {
     cursor: pointer;
 }
 
-/* Queue styles */
+/* Queue styles - Kept from original*/
 .queue-list {
     background-color: #181818;
     border-radius: 8px;
@@ -178,7 +272,7 @@ body {
     background-color: #323232;
 }
 
-/* Language controls */
+/* Language controls - Kept from original*/
 .language-controls {
     display: flex;
     gap: 8px;
@@ -201,7 +295,7 @@ body {
     background-color: #323232;
 }
 
-/* Like button */
+/* Like button - Kept from original*/
 #likeButton {
     background-color: transparent;
     border: 1px solid #404040;
@@ -217,7 +311,7 @@ body {
     color: #1db954;
 }
 
-/* Responsive design */
+/* Responsive design - Kept from original*/
 @media (max-width: 768px) {
     .container {
         flex-direction: column;
