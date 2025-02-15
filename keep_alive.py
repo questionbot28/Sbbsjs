@@ -9,7 +9,14 @@ def home():
     return "I'm alive!"
 
 def run():
-    app.run(host="0.0.0.0", port=8080)
+    try:
+        app.run(host="0.0.0.0", port=8081)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"Error: Port 8081 is already in use.  Try a different port.")
+        else:
+            print(f"An unexpected error occurred: {e}")
+
 
 def keep_alive():
     # Add initial delay before starting the web server

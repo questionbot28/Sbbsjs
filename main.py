@@ -19,7 +19,7 @@ intents = discord.Intents.default()
 intents.message_content = True  # Required for detecting commands
 intents.guilds = True  # Required for guild-related functionality
 intents.voice_states = True  # Required for voice features
-intents.messages = True  # Required for message commands
+intents.members = True #Needed for on_member_join event
 
 class EducationalBot(commands.Bot):
     def __init__(self):
@@ -39,6 +39,9 @@ class EducationalBot(commands.Bot):
             'cogs.ai_chat_commands'  # Using only the main AI chat commands
         ]
         self.logger = logger
+        self.welcome_channel_id = 1337410430699569232
+        self.help_channel_id = 1337414736802742393
+        self.roles_channel_id = 1337427674347339786
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
@@ -100,6 +103,25 @@ class EducationalBot(commands.Bot):
             logger.error(f"Unhandled command error: {error}")
             await ctx.send("❌ An error occurred while processing your command.")
             logger.exception(error)
+
+    async def on_member_join(self, member):
+        """Send welcome message when a new member joins"""
+        try:
+            welcome_channel = self.get_channel(self.welcome_channel_id)
+            if welcome_channel:
+                welcome_message = (
+                    f"🎉 Welcome, {member.mention}! Glad to have you in EduSphere – "
+                    f"Learn, Share, Grow! 📚✨\n\n"
+                    f"🤝 Need help? Ask in <#{self.help_channel_id}>\n"
+                    f"🔰 Get your class role in <#{self.roles_channel_id}>\n\n"
+                    f"Say hi and introduce yourself! 🚀"
+                )
+                await welcome_channel.send(welcome_message)
+                self.logger.info(f"Sent welcome message to {member.name} in {welcome_channel.name}")
+        except Exception as e:
+            self.logger.error(f"Error sending welcome message: {str(e)}")
+            self.logger.exception(e)
+
 
 async def main():
     try:

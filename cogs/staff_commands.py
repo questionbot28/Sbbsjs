@@ -12,9 +12,9 @@ class StaffCommands(commands.Cog):
         self.owner_role_id = 1337415762947604521
         self.mod_role_id = 1337415926164750386
         self.helper_role_id = 1337416072382386187
-        self.announcement_channel_id = 1337410366401151038
         self.staff_cmd_channel_id = 1338360696873680999
         self.mod_log_channel_id = 1337415561537257582
+        # Removed announcement_channel_id as it's not needed here
 
     def is_staff(self, member: discord.Member) -> bool:
         """Check if a member has any staff role"""
@@ -94,8 +94,6 @@ class StaffCommands(commands.Cog):
         # Channel Management Section
         channel_commands = (
             "**📢 Channel Controls**\n\n"
-            "• **!announce** `-r <role> <message>` - Make an announcement with role ping\n"
-            "  Example: `!announce -r @everyone New update!`\n"
             "• **!clear** `<amount>` - Clear specified number of messages\n"
         )
         help_embed.add_field(
@@ -113,84 +111,6 @@ class StaffCommands(commands.Cog):
             "Used !staffhelp command",
             f"Channel: {ctx.channel.mention}"
         )
-
-    @commands.command(name='announce')
-    async def announce(self, ctx, *, content: str):
-        """Make a server announcement with role ping support
-        Usage: !announce -r @role Your announcement message"""
-        if not self.is_staff(ctx.author):
-            await ctx.send("❌ You don't have permission to use this command!")
-            return
-
-        try:
-            announcement_channel = self.bot.get_channel(self.announcement_channel_id)
-            if not announcement_channel:
-                await ctx.send("❌ Announcement channel not found!")
-                return
-
-            # Parse role mention if present
-            if content.startswith('-r '):
-                try:
-                    # Split content into role mention and message
-                    _, role_mention, *message_parts = content.split(maxsplit=2)
-                    message = message_parts[0] if message_parts else ""
-
-                    # Convert role mention to actual role
-                    if role_mention.startswith('<@&') and role_mention.endswith('>'):
-                        role_id = int(role_mention[3:-1])
-                        role = ctx.guild.get_role(role_id)
-                        if role:
-                            ping = role.mention
-                        else:
-                            await ctx.send("❌ Invalid role mention!")
-                            return
-                    else:
-                        await ctx.send("❌ Please provide a valid role mention!")
-                        return
-                except Exception as e:
-                    await ctx.send("❌ Invalid command format! Use: !announce -r @role Your message")
-                    return
-            else:
-                ping = ""
-                message = content
-
-            # Create announcement embed
-            announcement_embed = discord.Embed(
-                title="📢 EduSphere Announcement",
-                description=message,
-                color=discord.Color.blue()
-            )
-
-            announcement_embed.set_author(
-                name=ctx.author.display_name,
-                icon_url=ctx.author.avatar.url if ctx.author.avatar else None
-            )
-
-            # Send announcement
-            sent_message = None
-            if ping:
-                sent_message = await announcement_channel.send(ping, embed=announcement_embed)
-            else:
-                sent_message = await announcement_channel.send(embed=announcement_embed)
-
-            # Log the announcement
-            await self.log_staff_action(
-                ctx.author,
-                "Made an announcement",
-                f"Channel: {announcement_channel.mention}\nMessage: {message[:100]}{'...' if len(message) > 100 else ''}"
-            )
-
-            # Send confirmation
-            confirm_embed = discord.Embed(
-                title="✅ Announcement Sent!",
-                description=f"Your announcement has been sent to {announcement_channel.mention}",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=confirm_embed)
-
-        except Exception as e:
-            self.logger.error(f"Error making announcement: {e}")
-            await ctx.send("❌ An error occurred while making the announcement.")
 
     @commands.command(name='clear')
     @commands.has_permissions(manage_messages=True)
