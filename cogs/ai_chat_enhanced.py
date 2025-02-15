@@ -3,6 +3,8 @@ import discord
 from discord.ext import commands
 import json
 import logging
+import os
+import random
 import google.generativeai as genai
 
 class AIChatEnhanced(commands.Cog):
