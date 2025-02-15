@@ -24,4 +24,6 @@ dependencies = [
     "beautifulsoup4>=4.13.3",
     "flask-login>=0.6.3",
     "oauthlib>=3.2.2",
+    "async-timeout>=5.0.1",
+    "flask-wtf>=1.2.2",
 ]

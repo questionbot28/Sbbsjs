@@ -6,8 +6,9 @@ import logging
 from utils.logger import setup_logger
 import asyncio
 from keep_alive import keep_alive
+from server import start_web_server
 
-# Load environment variables
+# Load environment variables with override to ensure Glitch env vars take precedence
 load_dotenv(override=True)  
 
 # Setup logging
@@ -32,11 +33,11 @@ class EducationalBot(commands.Bot):
             'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands_enhanced',  # Music cog
+            'cogs.music_commands',  # Using the updated music commands
             'cogs.staff_commands',
             'cogs.ticket_manager',
-            'cogs.invite_manager',  # Added invite manager cog
-            'cogs.ai_chat_commands'  # Using only the main AI chat commands
+            'cogs.invite_manager',
+            'cogs.ai_chat_commands'
         ]
         self.logger = logger
         self.welcome_channel_id = 1337410430699569232
@@ -128,17 +129,27 @@ async def main():
         # Keep the web server alive
         keep_alive()
 
+        # Start the web UI server
+        start_web_server()
+
         # Initialize bot
         bot = EducationalBot()
 
-        # Get token
+        # Get token with better error handling
         token = os.getenv('DISCORD_TOKEN')
         if not token:
             logger.error("No Discord token found in environment variables!")
+            logger.info("Please make sure DISCORD_TOKEN is set in your Glitch .env file")
             return
 
         logger.info("Starting bot...")
+        # Add debug logging for token presence
+        logger.info("Token exists and attempting to connect...")
         await bot.start(token)
+
+    except discord.LoginFailure as e:
+        logger.error(f"Failed to log in: Invalid token. Please check your DISCORD_TOKEN in Glitch's .env")
+        logger.exception(e)
     except Exception as e:
         logger.error(f"Error starting bot: {str(e)}")
         logger.exception(e)
