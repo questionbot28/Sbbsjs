@@ -1,77 +1,4 @@
-import discord
-from discord.ext import commands
-import logging
-from typing import Optional
-import google.generativeai as genai
-import os
-import json
-
-class AIChatNew(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger('discord_bot')
-        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-pro')
-
-    async def _check_channel(self, ctx) -> bool:
-        """Check if command is used in allowed channel"""
-        allowed_channels = [1234567890]  # Replace with actual channel IDs
-        if ctx.channel.id not in allowed_channels:
-            await ctx.send("❌ Please use this command in the designated channel!")
-            return False
-        return True
-
-    @commands.command(name="debate")
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def debate(self, ctx, *, topic: str = None):
-        """Start an AI-powered debate on a topic"""
-        if not await self._check_channel(ctx):
-            return
-
-        if topic is None:
-            await ctx.send("❌ Please provide a topic to debate! Usage: !debate <topic>")
-            return
-
-        if topic.lower() == "random":
-            topics = [
-                "Should homework be abolished?",
-                "Is AI beneficial for education?",
-                "Should mobile phones be allowed in schools?",
-                "Are online classes better than traditional classes?",
-                "Should exams be replaced with projects?"
-            ]
-            import random
-            topic = random.choice(topics)
-
-        try:
-            prompt = f"""Generate a balanced debate for the topic: {topic}
-            Provide:
-            1. Supporting arguments (pros)
-            2. Opposing arguments (cons)
-            Format as JSON:
-            {{
-                "pros": "list of supporting points",
-                "cons": "list of opposing points"
-            }}"""
-
-            response = self.model.generate_content(prompt)
-            try:
-                debate_data = json.loads(response.text)
-            except json.JSONDecodeError:
-                # Fallback if response is not valid JSON
-                lines = response.text.split('\n')
-                pros = "\n".join([l for l in lines if "pro" in l.lower() or "support" in l.lower()])
-                cons = "\n".join([l for l in lines if "con" in l.lower() or "oppose" in l.lower()])
-                debate_data = {"pros": pros, "cons": cons}
-
-            embed = discord.Embed(
-                title=f"🎙️ Great AI Debate: {topic}",
-                color=discord.Color.blue()
-            )
-
-            embed.add_field(
-                name="🔵 Supporting Arguments",
-                value=f"```{debate_data['pros']}```",
+{debate_data['pros']}```",
                 inline=False
             )
 
@@ -262,13 +189,4 @@ class AIChatNew(commands.Cog):
                             table += f"├{'─' * 25}┼{'─' * 25}┤\n"
 
                 table = table[:-len(f"├{'─' * 25}┼{'─' * 25}┤\n")]  # Remove last separator
-                table += f"└{'─' * 25}┴{'─' * 25}┘\n```"
-
-                await ctx.send(table)
-
-        except Exception as e:
-            self.logger.error(f"Error in compare command: {str(e)}")
-            await ctx.send("❌ An error occurred while comparing topics. Please try again.")
-
-async def setup(bot):
-    await bot.add_cog(AIChatNew(bot))
+                table += f"└{'─' * 25}┴{'─' * 25}┘\n
