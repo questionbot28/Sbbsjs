@@ -32,7 +32,7 @@ async function fetchRecommendedSongs() {
     const recommended = document.getElementById("recommended-songs");
     try {
         recommended.innerHTML = '<div class="loading">Loading recommended songs...</div>';
-        const response = await fetch('/api/trending');
+        const response = await fetch('/api/recommended');  // Use new recommended endpoint
         if (!response.ok) throw new Error('Failed to fetch recommended songs');
 
         const recommendedSongs = await response.json();
@@ -41,9 +41,7 @@ async function fetchRecommendedSongs() {
             return;
         }
 
-        // Shuffle the array to get different songs than trending
-        const shuffled = [...recommendedSongs].sort(() => Math.random() - 0.5);
-        recommended.innerHTML = shuffled.map(song => createSongCard(song)).join('');
+        recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
     } catch (error) {
         console.error("Error fetching recommended songs:", error);
         recommended.innerHTML = '<div class="error">Failed to load recommended songs</div>';
@@ -92,7 +90,6 @@ function togglePlay() {
     playPauseBtn.textContent = isPlaying ? '⏸' : '▶';
 
     // Here you would typically integrate with YouTube's iframe API
-    // For now, we'll just toggle the button
     console.log(`${isPlaying ? 'Playing' : 'Paused'} video: ${currentVideoId}`);
 }
 

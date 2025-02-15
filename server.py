@@ -7,6 +7,7 @@ from flask import Flask, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 import json
 import requests
+from datetime import datetime, timedelta
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -19,9 +20,26 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# Cache for storing API responses
+cache = {
+    'trending': {'data': None, 'timestamp': None},
+    'recommended': {'data': None, 'timestamp': None}
+}
+
+def is_cache_valid(cache_type):
+    """Check if cache is still valid (less than 5 minutes old)"""
+    if not cache[cache_type]['timestamp']:
+        return False
+    age = datetime.now() - cache[cache_type]['timestamp']
+    return age < timedelta(minutes=5)
+
 def fetch_youtube_trending():
     """Fetch trending music from YouTube Data API"""
     try:
+        # Check cache first
+        if is_cache_valid('trending'):
+            return cache['trending']['data']
+
         api_key = os.environ.get('YOUTUBE_API_KEY')
         if not api_key:
             logger.error("YouTube API key not found in environment variables")
@@ -33,6 +51,7 @@ def fetch_youtube_trending():
             'chart': 'mostPopular',
             'videoCategoryId': '10',  # Music category
             'maxResults': '10',
+            'regionCode': 'US',  # US trending
             'key': api_key
         }
 
@@ -54,7 +73,7 @@ def fetch_youtube_trending():
                         'views': item['statistics'].get('viewCount', '0')
                     }
                     songs.append(song_info)
-                    logger.info(f"Added song: {song_info['title']}")
+                    logger.info(f"Added trending song: {song_info['title']}")
                 except KeyError as e:
                     logger.error(f"Missing key in YouTube API response: {e}")
                     continue
@@ -62,28 +81,82 @@ def fetch_youtube_trending():
                     logger.error(f"Error processing video data: {e}")
                     continue
 
+            # Update cache
+            cache['trending'] = {
+                'data': songs,
+                'timestamp': datetime.now()
+            }
+
             return songs
         else:
             logger.error(f"YouTube API request failed: {response.status_code} - {response.text}")
-            # Return sample data as fallback
-            return [
-                {
-                    "title": "Example Song 1",
-                    "artist": "Artist 1",
-                    "videoId": "dQw4w9WgXcQ",
-                    "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
-                    "views": "1000000"
-                },
-                {
-                    "title": "Example Song 2",
-                    "artist": "Artist 2",
-                    "videoId": "9bZkp7q19f0",
-                    "thumbnail": "https://i.ytimg.com/vi/9bZkp7q19f0/hqdefault.jpg",
-                    "views": "2000000"
-                }
-            ]
+            return []
+
     except Exception as e:
         logger.error(f"Error fetching trending songs: {str(e)}")
+        return []
+
+def fetch_youtube_recommended():
+    """Fetch recommended music from YouTube Data API"""
+    try:
+        # Check cache first
+        if is_cache_valid('recommended'):
+            return cache['recommended']['data']
+
+        api_key = os.environ.get('YOUTUBE_API_KEY')
+        if not api_key:
+            logger.error("YouTube API key not found in environment variables")
+            return []
+
+        url = "https://www.googleapis.com/youtube/v3/videos"
+        params = {
+            'part': 'snippet,statistics',
+            'chart': 'mostPopular',
+            'videoCategoryId': '10',  # Music category
+            'maxResults': '10',
+            'regionCode': 'GB',  # UK trending for variety
+            'key': api_key
+        }
+
+        logger.info("Fetching recommended music videos from YouTube API")
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            songs = []
+
+            for item in data.get('items', []):
+                try:
+                    snippet = item['snippet']
+                    song_info = {
+                        'title': snippet['title'],
+                        'artist': snippet['channelTitle'],
+                        'videoId': item['id'],
+                        'thumbnail': snippet['thumbnails']['high']['url'],
+                        'views': item['statistics'].get('viewCount', '0')
+                    }
+                    songs.append(song_info)
+                    logger.info(f"Added recommended song: {song_info['title']}")
+                except KeyError as e:
+                    logger.error(f"Missing key in YouTube API response: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error processing video data: {e}")
+                    continue
+
+            # Update cache
+            cache['recommended'] = {
+                'data': songs,
+                'timestamp': datetime.now()
+            }
+
+            return songs
+        else:
+            logger.error(f"YouTube API request failed: {response.status_code} - {response.text}")
+            return []
+
+    except Exception as e:
+        logger.error(f"Error fetching recommended songs: {str(e)}")
         return []
 
 @app.route('/api/trending')
@@ -98,15 +171,22 @@ def get_trending():
         logger.error(f"Error in trending endpoint: {str(e)}")
         return jsonify([]), 500
 
+@app.route('/api/recommended')
+def get_recommended():
+    """API endpoint to get recommended songs"""
+    try:
+        logger.info("Fetching recommended songs...")
+        songs = fetch_youtube_recommended()
+        logger.info(f"Fetched {len(songs)} recommended songs")
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in recommended endpoint: {str(e)}")
+        return jsonify([]), 500
+
 @app.route('/')
 def index():
     logger.info("Received request for index route")
     return render_template('index.html')
-
-@app.route('/health')
-def health():
-    logger.info("Received request for health check")
-    return jsonify({"status": "healthy"})
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
