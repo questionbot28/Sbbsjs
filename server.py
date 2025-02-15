@@ -1,4 +1,7 @@
 import os
+import eventlet
+eventlet.monkey_patch()  # Must be called before other imports
+
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO
 from flask_cors import CORS
@@ -20,25 +23,30 @@ template_folder = Path('templates')
 static_folder.mkdir(parents=True, exist_ok=True)
 template_folder.mkdir(parents=True, exist_ok=True)
 
-logger.debug(f"Static folder path: {static_folder.absolute()}")
-logger.debug(f"Template folder path: {template_folder.absolute()}")
-
 app = Flask(__name__, 
            static_folder=str(static_folder), 
            template_folder=str(template_folder))
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configure CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "allow_headers": ["Content-Type"],
+        "methods": ["GET", "POST", "OPTIONS"]
+    }
+})
 
 try:
-    socketio = SocketIO(app, 
-                       cors_allowed_origins="*", 
-                       logger=True, 
-                       engineio_logger=True,
-                       async_mode='threading')
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        logger=True,
+        engineio_logger=True
+    )
     logger.info("SocketIO initialized successfully")
 except Exception as e:
     logger.error(f"Error initializing SocketIO: {e}")
-    exit(1) #Exit if SocketIO fails to initialize
-
+    raise
 
 # Store current song info and user preferences
 now_playing = {
@@ -58,7 +66,7 @@ YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY')
 def health_check():
     """Basic health check endpoint"""
     logger.debug("Health check endpoint accessed")
-    return "Server is running!", 200
+    return jsonify({"status": "healthy"}), 200
 
 @app.route('/')
 def index():
@@ -68,7 +76,7 @@ def index():
         return render_template("index.html")
     except Exception as e:
         logger.error(f"Error serving index page: {e}")
-        return f"Error: {str(e)}", 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/<path:path>')
 def serve(path):
@@ -266,12 +274,13 @@ def run_web():
     try:
         port = int(os.getenv('PORT', 3000))
         logger.info(f"Starting web server on port {port}")
-        socketio.run(app, 
-                    host="0.0.0.0", 
-                    port=port,
-                    debug=True,
-                    use_reloader=False,
-                    log_output=True)
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=port,
+            debug=True,
+            use_reloader=False
+        )
     except Exception as e:
         logger.error(f"Error running web server: {e}")
         raise
@@ -281,3 +290,4 @@ if __name__ == "__main__":
         run_web()
     except Exception as e:
         logger.error(f"Failed to start web server: {e}")
+        raise
