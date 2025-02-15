@@ -29,7 +29,8 @@ now_playing = {
     "artist": "",
     "progress": 0,
     "duration": 100,
-    "thumbnail": "https://via.placeholder.com/150"
+    "thumbnail": "https://via.placeholder.com/150",
+    "is_playing": False
 }
 
 user_preferences = {}  # Stores user settings like language
@@ -104,6 +105,66 @@ def handle_disconnect():
     """Handle client disconnection"""
     logger.info("Client disconnected from websocket")
 
+@socketio.on("playPause")
+def handle_play_pause(is_playing):
+    """Handle play/pause requests from web UI"""
+    try:
+        global now_playing
+        now_playing["is_playing"] = is_playing
+        logger.info(f"Play/Pause state changed to: {is_playing}")
+        socketio.emit("playbackStateChanged", {"is_playing": is_playing})
+    except Exception as e:
+        logger.error(f"Error in handle_play_pause: {e}")
+
+@socketio.on("skipSong")
+def handle_skip():
+    """Handle skip song requests"""
+    try:
+        logger.info("Skip song requested")
+        if hasattr(app, "music_bot"):
+            app.music_bot.skip()
+    except Exception as e:
+        logger.error(f"Error in handle_skip: {e}")
+
+@socketio.on("prevSong")
+def handle_previous():
+    """Handle previous song requests"""
+    try:
+        logger.info("Previous song requested")
+        if hasattr(app, "music_bot"):
+            app.music_bot.previous()
+    except Exception as e:
+        logger.error(f"Error in handle_previous: {e}")
+
+@socketio.on("setVolume")
+def handle_volume(volume):
+    """Handle volume change requests"""
+    try:
+        logger.info(f"Volume change requested: {volume}")
+        if hasattr(app, "music_bot"):
+            app.music_bot.set_volume(volume)
+    except Exception as e:
+        logger.error(f"Error in handle_volume: {e}")
+
+@socketio.on("likeSong")
+def handle_like(liked):
+    """Handle song like/unlike requests"""
+    try:
+        logger.info(f"Song {'liked' if liked else 'unliked'}")
+        # Implement like functionality here
+        socketio.emit("likeUpdated", {"liked": liked})
+    except Exception as e:
+        logger.error(f"Error in handle_like: {e}")
+
+def update_now_playing(song_info):
+    """Update current song information and notify clients"""
+    try:
+        global now_playing
+        now_playing.update(song_info)
+        socketio.emit("nowPlaying", now_playing)
+    except Exception as e:
+        logger.error(f"Error in update_now_playing: {e}")
+
 def run_web():
     """Run the Flask application"""
     try:
@@ -112,6 +173,18 @@ def run_web():
         socketio.run(app, host="0.0.0.0", port=port, use_reloader=False)
     except Exception as e:
         logger.error(f"Error running web server: {e}")
+        raise
+
+def start_web_server():
+    """Start the web server in a separate thread"""
+    try:
+        web_thread = threading.Thread(target=run_web)
+        web_thread.daemon = True
+        web_thread.start()
+        logger.info("Web server thread started successfully")
+        return web_thread
+    except Exception as e:
+        logger.error(f"Error starting web server thread: {e}")
         raise
 
 if __name__ == "__main__":
