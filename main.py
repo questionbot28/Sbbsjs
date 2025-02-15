@@ -36,7 +36,7 @@ class EducationalBot(commands.Bot):
             'cogs.staff_commands',
             'cogs.ticket_manager',
             'cogs.invite_manager',  # Added invite manager cog
-            'cogs.ai_chat_commands'  # Using new AI chat commands
+            'cogs.ai_chat_commands'  # Using only the main AI chat commands
         ]
         self.logger = logger
 

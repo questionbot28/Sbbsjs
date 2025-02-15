@@ -1,4 +1,90 @@
-{code}
+import discord
+from discord.ext import commands
+import logging
+import re
+import random
+import os
+from openai import OpenAI
+import google.generativeai as genai
+
+class AIChatCommands(commands.Cog):
+    """AI-powered chat commands for educational assistance"""
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = logging.getLogger('discord_bot')
+        self.ai_channel_id = 1340150404775940210  # AI commands channel
+
+        # Initialize OpenAI
+        self.openai = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+        # Initialize Google Gemini
+        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+        self.gemini = genai.GenerativeModel('gemini-pro')
+
+    async def _check_channel(self, ctx):
+        """Check if command is used in the AI chat channel"""
+        return ctx.channel.id == self.ai_channel_id
+
+    @commands.command(name="aihelp")
+    async def ai_help(self, ctx):
+        """Show AI command help menu"""
+        if not await self._check_channel(ctx):
+            await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
+            return
+
+        embed = discord.Embed(
+            title="🤖 AI Assistant Commands",
+            description="Your AI-powered learning companion!",
+            color=discord.Color.blue()
+        )
+
+        # General Commands
+        general_commands = """
+        🔹 `!ask <question>` - Ask AI any question
+        🔹 `!explain <topic>` - Get detailed explanation
+        🔹 `!compare <topic1> vs <topic2>` - Compare two topics
+        🔹 `!debate <topic>` - Generate debate arguments
+        """
+        embed.add_field(name="📚 General Learning", value=general_commands, inline=False)
+
+        # Coding Commands
+        coding_commands = """
+        💻 `!codegen <prompt>` - Generate code
+        💻 `!codehelp <code>` - Get code explanations
+        """
+        embed.add_field(name="💻 Coding Help", value=coding_commands, inline=False)
+
+        # Writing Commands
+        writing_commands = """
+        📝 `!essay <topic>` - Generate essay outline
+        🌍 `!translate <text> to <language>` - Translate text
+        """
+        embed.add_field(name="✍️ Writing Assistance", value=writing_commands, inline=False)
+
+        # Problem Solving
+        problem_solving = """
+        🔢 `!solve <problem>` - Solve problems step by step
+        """
+        embed.add_field(name="🎯 Problem Solving", value=problem_solving, inline=False)
+
+        embed.set_footer(text="💡 All AI commands must be used in the AI chat channel")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="codehelp")
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def codehelp(self, ctx, *, code: str):
+        """Get AI help with code"""
+        if not await self._check_channel(ctx):
+            await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
+            return
+
+        loading_msg = await ctx.send("🔍 Analyzing your code...")
+
+        try:
+            prompt = f"""Analyze this code and provide detailed feedback:
+            ```
+            {code}
             ```
 
             Format your response as:
@@ -16,12 +102,10 @@
             """
 
             response = self.gemini.generate_content(prompt)
-
             if not response or not response.text:
                 await loading_msg.edit(content="❌ Failed to analyze code. Please try again.")
                 return
 
-            # Create code help embed
             embed = discord.Embed(
                 title="💻 Code Analysis",
                 color=discord.Color.blue()
@@ -51,7 +135,6 @@
                     )
 
             embed.set_footer(text="💡 Tip: Use !codegen to generate improved code")
-
             await loading_msg.delete()
             await ctx.send(embed=embed)
 
@@ -59,10 +142,89 @@
             self.logger.error(f"Error in codehelp command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while analyzing the code.")
 
+    @commands.command(name="solve")
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def solve(self, ctx, *, problem: str):
+        """Solve problems with step-by-step explanation"""
+        if not await self._check_channel(ctx):
+            await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
+            return
+
+        loading_msg = await ctx.send("🤔 Analyzing your problem...")
+
+        try:
+            prompt = f"""Solve this problem with detailed steps:
+            Problem: {problem}
+
+            Format your response as:
+            📌 Problem Analysis:
+            [Analyze the key aspects of the problem]
+
+            🔢 Step-by-Step Solution:
+            1. [First step]
+            2. [Second step]
+            3. [Additional steps as needed]
+
+            ✅ Final Answer:
+            [Provide the final solution]
+
+            💡 Additional Notes:
+            • [Any relevant tips or explanations]
+            • [Common mistakes to avoid]
+            """
+
+            response = self.gemini.generate_content(prompt)
+            if not response or not response.text:
+                await loading_msg.edit(content="❌ Failed to solve the problem. Please try again.")
+                return
+
+            embed = discord.Embed(
+                title="🎯 Problem Solution",
+                description=f"Problem: {problem}",
+                color=discord.Color.blue()
+            )
+
+            content = response.text
+            sections = content.split('\n\n')
+
+            for section in sections:
+                if '📌 Problem Analysis:' in section:
+                    embed.add_field(
+                        name="📌 Analysis",
+                        value=section.replace('📌 Problem Analysis:', '').strip(),
+                        inline=False
+                    )
+                elif '🔢 Step-by-Step Solution:' in section:
+                    embed.add_field(
+                        name="🔢 Solution Steps",
+                        value=section.replace('🔢 Step-by-Step Solution:', '').strip(),
+                        inline=False
+                    )
+                elif '✅ Final Answer:' in section:
+                    embed.add_field(
+                        name="✅ Answer",
+                        value=section.replace('✅ Final Answer:', '').strip(),
+                        inline=False
+                    )
+                elif '💡 Additional Notes:' in section:
+                    embed.add_field(
+                        name="💡 Notes",
+                        value=section.replace('💡 Additional Notes:', '').strip(),
+                        inline=False
+                    )
+
+            embed.set_footer(text="💡 Tip: Use !ask for follow-up questions")
+            await loading_msg.delete()
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in solve command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while solving the problem.")
+
     @commands.command(name="codegen")
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def codegen(self, ctx, *, prompt: str):
-        """Generate code based on user prompt"""
+        """Generate code based on description"""
         if not await self._check_channel(ctx):
             await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
             return
@@ -70,9 +232,9 @@
         loading_msg = await ctx.send("💻 Generating code...")
 
         try:
-            # Use OpenAI for code generation
+            # Using GPT-4 for superior code generation
             response = self.openai.chat.completions.create(
-                model="gpt-4",  # Using GPT-4 for better code generation
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert programmer. Generate clean, well-documented code with explanations."},
                     {"role": "user", "content": f"Generate code for: {prompt}. Include comments and explanation."}
@@ -98,7 +260,6 @@
                 else:
                     explanation += part + '\n'
 
-            # Create code embed
             embed = discord.Embed(
                 title="💻 Generated Code",
                 description=f"Here's the code for: {prompt}",
@@ -136,7 +297,6 @@
             await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
             return
 
-        # Check for correct format
         match = re.match(r'(.+?)\s+to\s+(\w+)$', text, re.IGNORECASE)
         if not match:
             await ctx.send("❌ Please use the format: `!translate <text> to <language>`")
@@ -161,7 +321,6 @@
                 await loading_msg.edit(content="❌ Translation failed. Please try again.")
                 return
 
-            # Create translation embed
             embed = discord.Embed(
                 title="🌍 Translation",
                 color=discord.Color.blue()
@@ -215,7 +374,6 @@
             try:
                 response = self.gemini.generate_content(question)
                 if response and response.text:
-                    # Create response embed
                     embed = discord.Embed(
                         title="🤔 Answer",
                         description=response.text[:4096],
@@ -265,7 +423,6 @@
                 await loading_msg.edit(content="❌ Explanation failed. Please try again.")
                 return
 
-            # Create explanation embed
             embed = discord.Embed(
                 title=f"📚 {topic}",
                 color=discord.Color.blue()
@@ -309,6 +466,96 @@
             self.logger.error(f"Error in explain command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while generating the explanation.")
 
+    @commands.command(name="essay")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def essay(self, ctx, *, topic: str):
+        """Generate an essay outline"""
+        if not await self._check_channel(ctx):
+            await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
+            return
+
+        loading_msg = await ctx.send("📝 Generating essay outline...")
+
+        try:
+            prompt = f"""Create a detailed essay outline for the topic: {topic}
+
+            Format your response as:
+            📌 Introduction:
+            • Hook
+            • Background
+            • Thesis statement
+
+            📑 Body Paragraphs:
+            1. Main Point 1:
+               • Supporting evidence
+               • Examples
+            2. Main Point 2:
+               • Supporting evidence
+               • Examples
+            3. Main Point 3:
+               • Supporting evidence
+               • Examples
+
+            🎯 Conclusion:
+            • Restate thesis
+            • Summarize main points
+            • Closing statement
+
+            📚 Suggested Sources:
+            • Academic references
+            • Relevant citations
+            """
+
+            response = self.gemini.generate_content(prompt)
+
+            if not response or not response.text:
+                await loading_msg.edit(content="❌ Failed to generate essay outline. Please try again.")
+                return
+
+            embed = discord.Embed(
+                title="📝 Essay Outline",
+                description=f"Topic: {topic}",
+                color=discord.Color.blue()
+            )
+
+            content = response.text
+            sections = content.split('\n\n')
+
+            for section in sections:
+                if '📌 Introduction:' in section:
+                    embed.add_field(
+                        name="📌 Introduction",
+                        value=section.replace('📌 Introduction:', '').strip(),
+                        inline=False
+                    )
+                elif '📑 Body Paragraphs:' in section:
+                    embed.add_field(
+                        name="📑 Body Paragraphs",
+                        value=section.replace('📑 Body Paragraphs:', '').strip(),
+                        inline=False
+                    )
+                elif '🎯 Conclusion:' in section:
+                    embed.add_field(
+                        name="🎯 Conclusion",
+                        value=section.replace('🎯 Conclusion:', '').strip(),
+                        inline=False
+                    )
+                elif '📚 Suggested Sources:' in section:
+                    embed.add_field(
+                        name="📚 Suggested Sources",
+                        value=section.replace('📚 Suggested Sources:', '').strip(),
+                        inline=False
+                    )
+
+            embed.set_footer(text="💡 Tip: Use !ask for specific questions about your essay")
+
+            await loading_msg.delete()
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in essay command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while generating the essay outline.")
+
     @commands.command(name="compare")
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def compare(self, ctx, *, topics: str):
@@ -317,7 +564,6 @@
             await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
             return
 
-        # Extract topics using regex
         match = re.match(r'(.+?)\s+(?:vs|versus)\s+(.+)', topics, re.IGNORECASE)
         if not match:
             await ctx.send("❌ Please use the format: `!compare <topic1> vs <topic2>`")
@@ -356,7 +602,6 @@
                 await loading_msg.edit(content="❌ Comparison failed. Please try again.")
                 return
 
-            # Create comparison embed
             embed = discord.Embed(
                 title=f"⚖️ Comparing: {topic1} vs {topic2}",
                 color=discord.Color.blue()
@@ -446,7 +691,6 @@
                 await loading_msg.edit(content="❌ No response received. Please try again.")
                 return
 
-            # Parse the response
             content = response.text
             try:
                 supporting = content.split('Supporting Arguments:')[1].split('Opposing Arguments:')[0].strip()
@@ -456,7 +700,6 @@
                 supporting = "Error parsing supporting arguments"
                 opposing = "Error parsing opposing arguments"
 
-            # Create embed
             embed = discord.Embed(
                 title=f"🗣️ Debate Topic: {topic}",
                 color=discord.Color.blue()
@@ -470,4 +713,17 @@
 
             embed.add_field(
                 name="🔴 Opposing Arguments",
-                value=f"```{opposing[:1000]}
+                value=f"```{opposing[:1000]}```",
+                inline=False
+            )
+
+            await loading_msg.delete()
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error in debate command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while generating the debate topic.")
+
+
+async def setup(bot):
+    await bot.add_cog(AIChatCommands(bot))
