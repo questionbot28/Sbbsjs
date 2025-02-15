@@ -75,31 +75,51 @@ nav {
 }
 
 .song-card {
-    min-width: 150px;
+    min-width: 200px;
     background: #222;
-    padding: 10px;
+    padding: 15px;
     cursor: pointer;
     border-radius: 8px;
-    transition: transform 0.3s;
+    transition: transform 0.3s, background-color 0.3s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .song-card:hover {
     transform: scale(1.05);
+    background: #2a2a2a;
 }
 
 .song-card img {
     width: 100%;
-    border-radius: 10px;
-    aspect-ratio: 1;
+    border-radius: 8px;
+    aspect-ratio: 16/9;
     object-fit: cover;
 }
 
-.song-card p {
-    margin: 8px 0;
+.song-card .song-title {
+    margin: 8px 0 4px 0;
     font-size: 14px;
+    font-weight: bold;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.song-card .artist {
+    margin: 0;
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.song-card .views {
+    margin: 0;
+    font-size: 12px;
+    color: #666;
 }
 
 #playerOverlay {
