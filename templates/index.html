@@ -11,6 +11,7 @@
 <body>
     <div class="container">
         <div id="player">
+            <h1 class="text-2xl font-bold mb-4">Music Bot 🎵</h1>
             <div class="now-playing">
                 <img id="thumbnail" src="https://via.placeholder.com/150" 
                      alt="Album Art" 
@@ -38,6 +39,12 @@
                        id="volume-control">
                 <span id="volume-icon">🔊</span>
             </div>
+
+            <div class="language-controls">
+                <button onclick="changeLanguage('en')">🇬🇧 English</button>
+                <button onclick="changeLanguage('fr')">🇫🇷 French</button>
+                <button onclick="changeLanguage('es')">🇪🇸 Spanish</button>
+            </div>
         </div>
 
         <div class="queue-list">
@@ -51,6 +58,7 @@
     <script>
         const socket = io();
         let progressInterval;
+        let currentLanguage = 'en';
 
         socket.on("connect", () => {
             console.log("Connected to server");
@@ -61,6 +69,24 @@
             document.getElementById("song-artist").innerText = data.artist;
             document.getElementById("thumbnail").src = data.thumbnail || "https://via.placeholder.com/150";
             updateProgress(data.progress, data.duration);
+        });
+
+        socket.on("update_queue", (queue) => {
+            const queueList = document.getElementById("queue-items");
+            queueList.innerHTML = "";
+            if (queue.length === 0) {
+                queueList.innerHTML = "<p class='text-gray-500'>Queue is empty</p>";
+                return;
+            }
+            queue.forEach((song, index) => {
+                const item = document.createElement("div");
+                item.className = "queue-item";
+                item.innerHTML = `
+                    <span>${index + 1}. ${song.title || song}</span>
+                    <span>${song.artist || ''}</span>
+                `;
+                queueList.appendChild(item);
+            });
         });
 
         function skipSong() {
@@ -77,6 +103,22 @@
             if (volume == 0) icon.innerText = "🔇";
             else if (volume < 50) icon.innerText = "🔉";
             else icon.innerText = "🔊";
+        }
+
+        function changeLanguage(lang) {
+            fetch("/language", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    user_id: "default_user",
+                    language: lang
+                })
+            }).then(res => res.json())
+              .then(data => {
+                  currentLanguage = lang;
+                  // You could update UI text based on language here
+              })
+              .catch(err => console.error("Error changing language:", err));
         }
 
         function updateProgress(progress, duration) {
