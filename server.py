@@ -39,7 +39,8 @@ def handle_connect():
 def skip_song():
     try:
         logger.info("Skip request from Web UI")
-        # Add code to make the bot skip the song
+        if hasattr(app, "music_bot"):
+            app.music_bot.handle_skip_web()
     except Exception as e:
         logger.error(f"Error in skip_song: {e}")
 
@@ -47,7 +48,8 @@ def skip_song():
 def set_volume(volume):
     try:
         logger.info(f"Volume changed to {volume}")
-        # Add code to set bot volume
+        if hasattr(app, "music_bot"):
+            app.music_bot.set_volume_web(volume)
     except Exception as e:
         logger.error(f"Error in set_volume: {e}")
 
@@ -57,6 +59,7 @@ def update_now_playing(song_info):
         global now_playing
         now_playing.update(song_info)
         socketio.emit("nowPlaying", now_playing)
+        logger.info(f"Updated now playing: {song_info['title']}")
     except Exception as e:
         logger.error(f"Error updating now playing: {e}")
 
