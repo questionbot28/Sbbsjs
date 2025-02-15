@@ -17,11 +17,11 @@ async function fetchTrendingSongs() {
     try {
         // Temporary static data until backend is connected
         const trendingSongs = [
-            { title: "Shape of You", artist: "Ed Sheeran", image: "https://via.placeholder.com/180" },
-            { title: "Blinding Lights", artist: "The Weeknd", image: "https://via.placeholder.com/180" },
-            { title: "Stay", artist: "Kid Laroi & Justin Bieber", image: "https://via.placeholder.com/180" },
-            { title: "Bad Guy", artist: "Billie Eilish", image: "https://via.placeholder.com/180" },
-            { title: "Good 4 U", artist: "Olivia Rodrigo", image: "https://via.placeholder.com/180" }
+            { title: "Shape of You", artist: "Ed Sheeran", image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96" },
+            { title: "Blinding Lights", artist: "The Weeknd", image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36" },
+            { title: "Stay", artist: "Kid Laroi & Justin Bieber", image: "https://i.scdn.co/image/ab67616d0000b273e85259a1cae29a8d91f2093d" },
+            { title: "Bad Guy", artist: "Billie Eilish", image: "https://i.scdn.co/image/ab67616d0000b2732a038d3bf875d23e4aeaa84e" },
+            { title: "Good 4 U", artist: "Olivia Rodrigo", image: "https://i.scdn.co/image/ab67616d0000b273a91c10fe9472d9bd89802e5a" }
         ];
 
         trending.innerHTML = trendingSongs.map(song => createSongCard(song)).join('');
@@ -36,11 +36,11 @@ async function fetchRecommendedSongs() {
     try {
         // Temporary static data until backend is connected
         const recommendedSongs = [
-            { title: "As It Was", artist: "Harry Styles", image: "https://via.placeholder.com/180" },
-            { title: "Anti-Hero", artist: "Taylor Swift", image: "https://via.placeholder.com/180" },
-            { title: "About Damn Time", artist: "Lizzo", image: "https://via.placeholder.com/180" },
-            { title: "Heat Waves", artist: "Glass Animals", image: "https://via.placeholder.com/180" },
-            { title: "Shivers", artist: "Ed Sheeran", image: "https://via.placeholder.com/180" }
+            { title: "As It Was", artist: "Harry Styles", image: "https://i.scdn.co/image/ab67616d0000b2732e8ed79e177ff6011076f5f0" },
+            { title: "Anti-Hero", artist: "Taylor Swift", image: "https://i.scdn.co/image/ab67616d0000b273bb54dde68cd23e2a268ae0f5" },
+            { title: "About Damn Time", artist: "Lizzo", image: "https://i.scdn.co/image/ab67616d0000b273b56f0e5a7eac1c1dda144acd" },
+            { title: "Heat Waves", artist: "Glass Animals", image: "https://i.scdn.co/image/ab67616d0000b2739e495fb707973f3390850eea" },
+            { title: "Shivers", artist: "Ed Sheeran", image: "https://i.scdn.co/image/ab67616d0000b273ef24c3fdbf856340d55cfeb2" }
         ];
 
         recommended.innerHTML = recommendedSongs.map(song => createSongCard(song)).join('');
@@ -53,7 +53,7 @@ async function fetchRecommendedSongs() {
 function createSongCard(song) {
     return `
         <div class="song-card" onclick="openPlayer('${song.title}', '${song.artist}', '${song.image}')">
-            <img src="${song.image}" alt="${song.title}">
+            <img src="${song.image}" alt="${song.title}" onerror="this.src='https://community.spotify.com/t5/image/serverpage/image-id/55829iC2AD64ADB887E2A5';">
             <p>${song.title} - ${song.artist}</p>
         </div>
     `;
