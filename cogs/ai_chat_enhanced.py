@@ -27,17 +27,107 @@ class AIChatEnhanced(commands.Cog):
         """Show AI commands help"""
         embed = discord.Embed(
             title="🤖 AI Commands Help",
-            description="Here are the available AI commands:",
+            description="Here are all available AI commands:",
             color=discord.Color.blue()
         )
         
         commands = """
         `!debate <topic>` - Start a debate on any topic
         `!debate` - Get a random debate topic
+        `!ask <question>` - Ask AI any question
+        `!explain <topic>` - Get detailed explanation
+        `!summarize <text>` - Summarize long text
+        `!translate <text> <language>` - Translate text
+        `!code <language> <prompt>` - Generate code
         """
         
         embed.add_field(name="Available Commands", value=commands, inline=False)
         await ctx.send(embed=embed)
+
+    @commands.command(name="ask")
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def ask(self, ctx, *, question: str):
+        """Ask AI any question"""
+        if not await self._check_channel(ctx):
+            return
+            
+        async with ctx.typing():
+            try:
+                response = self.model.generate_content(question)
+                await ctx.reply(response.text[:2000])
+            except Exception as e:
+                self.logger.error(f"Error in ask command: {str(e)}")
+                await ctx.send("❌ An error occurred. Please try again.")
+
+    @commands.command(name="explain")
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def explain(self, ctx, *, topic: str):
+        """Get detailed explanation of a topic"""
+        if not await self._check_channel(ctx):
+            return
+
+        loading_msg = await ctx.send("🤔 Generating explanation...")
+        try:
+            prompt = f"Explain this topic in detail but concisely: {topic}"
+            response = self.model.generate_content(prompt)
+            
+            embed = discord.Embed(
+                title=f"📚 {topic}",
+                description=response.text[:4096],
+                color=discord.Color.green()
+            )
+            
+            await loading_msg.delete()
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in explain command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred. Please try again.")
+
+    @commands.command(name="summarize")
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def summarize(self, ctx, *, text: str):
+        """Summarize long text"""
+        if not await self._check_channel(ctx):
+            return
+
+        try:
+            prompt = f"Summarize this text concisely: {text}"
+            response = self.model.generate_content(prompt)
+            
+            embed = discord.Embed(
+                title="📝 Summary",
+                description=response.text[:2000],
+                color=discord.Color.blue()
+            )
+            
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in summarize command: {str(e)}")
+            await ctx.send("❌ An error occurred. Please try again.")
+
+    @commands.command(name="code")
+    @commands.cooldown(1, 20, commands.BucketType.user)
+    async def code(self, ctx, language: str, *, prompt: str):
+        """Generate code based on prompt"""
+        if not await self._check_channel(ctx):
+            return
+
+        loading_msg = await ctx.send("💻 Generating code...")
+        try:
+            prompt = f"Write {language} code for: {prompt}. Provide brief explanation."
+            response = self.model.generate_content(prompt)
+            
+            embed = discord.Embed(
+                title=f"💻 Generated {language.capitalize()} Code",
+                description=f"```{language}\n{response.text[:2000]}```",
+                color=discord.Color.green()
+            )
+            
+            await loading_msg.delete()
+            await ctx.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Error in code command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred. Please try again.")
 
     @commands.command(name="debate")
     @commands.cooldown(1, 30, commands.BucketType.user)
@@ -50,7 +140,6 @@ class AIChatEnhanced(commands.Cog):
 
         try:
             if topic is None:
-                # Generate random topic if none provided
                 topics = ["Technology in Education", "Homework", "School Uniforms", 
                          "Distance Learning", "Standardized Testing"]
                 topic = random.choice(topics)
@@ -65,7 +154,6 @@ class AIChatEnhanced(commands.Cog):
             response = self.model.generate_content(prompt)
             debate_text = response.text
 
-            # Parse the response into structured data
             debate_data = {
                 'title': topic,
                 'pros': debate_text.split('Pros:')[1].split('Cons:')[0].strip(),
