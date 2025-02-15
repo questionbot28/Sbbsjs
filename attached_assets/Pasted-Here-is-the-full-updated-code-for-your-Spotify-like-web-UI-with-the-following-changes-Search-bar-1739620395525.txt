@@ -1,0 +1,206 @@
+Here is the full updated code for your Spotify-like web UI with the following changes:
+
+✅ Search bar at the top
+✅ Categories (Trending, Recommended, Settings) below search bar
+✅ Scrollable sliding menu for songs
+✅ No play button under songs
+✅ Full-screen player UI when a song is clicked
+
+index.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Bot UI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <input type="text" id="searchBar" placeholder="Search for songs...">
+        <nav>
+            <button class="nav-btn">Home</button>
+            <button class="nav-btn">Trending</button>
+            <button class="nav-btn">Recommended</button>
+            <button class="nav-btn">Settings</button>
+        </nav>
+    </header>
+
+    <main>
+        <section class="category">
+            <h2>Trending</h2>
+            <div class="song-slider">
+                <div class="song-card" onclick="openPlayer('Ryde or Die', 'Chinna, Manni Sandhu, Karam Brar', 'song1.jpg')">
+                    <img src="song1.jpg" alt="Song Image">
+                    <p>Ryde or Die</p>
+                </div>
+                <div class="song-card" onclick="openPlayer('Gandasa', 'Jassa Dhillon, Karam Brar', 'song2.jpg')">
+                    <img src="song2.jpg" alt="Song Image">
+                    <p>Gandasa</p>
+                </div>
+                <!-- Add more songs here -->
+            </div>
+        </section>
+
+        <section class="category">
+            <h2>Recommended</h2>
+            <div class="song-slider">
+                <div class="song-card" onclick="openPlayer('Machreya', 'Gulab Sidhu, Diamond', 'song3.jpg')">
+                    <img src="song3.jpg" alt="Song Image">
+                    <p>Machreya</p>
+                </div>
+                <!-- Add more songs here -->
+            </div>
+        </section>
+    </main>
+
+    <div id="playerOverlay">
+        <div class="player">
+            <button onclick="closePlayer()">⬇</button>
+            <img id="playerImage" src="" alt="Song Image">
+            <h2 id="playerTitle">Song Name</h2>
+            <p id="playerArtist">Artist Name</p>
+            <audio id="audioPlayer" controls>
+                <source src="song.mp3" type="audio/mp3">
+            </audio>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+
+---
+
+style.css
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #121212;
+    color: white;
+    text-align: center;
+    margin: 0;
+}
+
+header {
+    background-color: #000;
+    padding: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+#searchBar {
+    width: 90%;
+    padding: 10px;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+nav {
+    display: flex;
+    justify-content: space-around;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.category {
+    margin: 20px;
+}
+
+.song-slider {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 10px;
+}
+
+.song-card {
+    width: 150px;
+    background: #222;
+    padding: 10px;
+    cursor: pointer;
+}
+
+.song-card img {
+    width: 100%;
+    border-radius: 10px;
+}
+
+#playerOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.player img {
+    width: 80%;
+    max-width: 300px;
+    border-radius: 10px;
+}
+
+audio {
+    width: 80%;
+}
+
+
+---
+
+script.js
+
+function openPlayer(title, artist, image) {
+    document.getElementById("playerTitle").textContent = title;
+    document.getElementById("playerArtist").textContent = artist;
+    document.getElementById("playerImage").src = image;
+    document.getElementById("playerOverlay").style.display = "flex";
+}
+
+function closePlayer() {
+    document.getElementById("playerOverlay").style.display = "none";
+}
+
+
+---
+
+How it Works
+
+1. Homepage UI
+
+The search bar is at the top.
+
+Below the search bar, Home, Trending, Recommended, and Settings buttons are there.
+
+Songs are shown in a scrollable sliding menu under each category.
+
+
+
+2. Playing a Song
+
+Clicking on a song removes the old UI and opens a full-screen player UI like in your reference image.
+
+The song details and image appear with a play button.
+
+
+
+
+
+---
+
+Now, host the website for free on GitHub Pages or Vercel, and your bot will have a professional web UI! Let me know if you need help with that.
+

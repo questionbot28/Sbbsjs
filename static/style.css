@@ -2,143 +2,136 @@ body {
     font-family: Arial, sans-serif;
     background-color: #121212;
     color: white;
+    text-align: center;
     margin: 0;
-    padding: 0;
 }
 
-/* Navbar */
-.navbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px;
-    background-color: #181818;
+header {
+    background-color: #000;
+    padding: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
-.nav-options span {
-    margin: 0 10px;
-    cursor: pointer;
-}
-
-.nav-options span.active {
-    color: #1db954;
-}
-
-#search {
-    padding: 8px;
+#searchBar {
+    width: 90%;
+    padding: 10px;
+    font-size: 16px;
+    margin-bottom: 10px;
     border-radius: 20px;
     border: none;
+    background-color: #242424;
+    color: white;
 }
 
-/* Main Content */
-#content {
-    padding: 20px;
+nav {
+    display: flex;
+    justify-content: space-around;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 20px;
+    transition: background-color 0.2s;
+}
+
+.nav-btn:hover {
+    background-color: #282828;
+}
+
+.category {
+    margin: 20px;
+    text-align: left;
 }
 
 .song-slider {
     display: flex;
     overflow-x: auto;
+    gap: 10px;
     padding: 10px;
-    gap: 15px;
 }
 
-.song {
-    cursor: pointer;
-    background-color: #282828;
+.song-card {
+    width: 150px;
+    background: #222;
     padding: 10px;
+    cursor: pointer;
     border-radius: 8px;
     transition: background-color 0.3s;
-    min-width: 200px;
 }
 
-.song:hover {
-    background-color: #383838;
+.song-card:hover {
+    background: #282828;
 }
 
-.song img {
-    width: 180px;
-    height: 180px;
-    border-radius: 4px;
-    object-fit: cover;
+.song-card img {
+    width: 100%;
+    border-radius: 10px;
 }
 
-.song p {
+.song-card p {
     margin: 8px 0;
     font-size: 14px;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-    .navbar {
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .nav-options {
-        display: flex;
-        gap: 10px;
-    }
-
-    #search {
-        width: 100%;
-        max-width: 300px;
-    }
-}
-
-/* Sidebar styles */
-.sidebar {
-    width: 240px;
-    background-color: #000000;
-    padding: 24px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.sidebar h2 {
-    color: #fff;
-    margin: 0;
-    font-size: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #282828;
-}
-
-#searchInput {
+#playerOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 12px;
-    border-radius: 4px;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.player {
+    text-align: center;
+    padding: 20px;
+}
+
+.player button {
+    background: none;
     border: none;
-    background-color: #242424;
     color: white;
-    margin: 16px 0;
-}
-
-#songList {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-#songList li {
-    padding: 12px;
+    font-size: 24px;
     cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    margin-bottom: 20px;
 }
 
-#songList li:hover {
-    background-color: #282828;
+.player img {
+    width: 80%;
+    max-width: 300px;
+    border-radius: 10px;
+    margin-bottom: 20px;
 }
 
-
-/* Main content area */
-.main-content {
-    flex: 1;
-    padding: 24px;
-    background: linear-gradient(to bottom, #404040, #121212);
+audio {
+    width: 80%;
+    max-width: 400px;
 }
 
-/* Progress bar */
+/* Responsive styles */
+@media (max-width: 768px) {
+    .nav-btn {
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+
+    .song-card {
+        width: 120px;
+    }
+}
+
+/* Progress bar - Retained from original */
 .progress-bar {
     width: 100%;
     height: 4px;
@@ -156,30 +149,7 @@ body {
     transition: width 0.1s linear;
 }
 
-/* Controls */
-.controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    margin: 24px 0;
-}
-
-.controls button {
-    background: none;
-    border: none;
-    color: #fff;
-    font-size: 24px;
-    cursor: pointer;
-    transition: transform 0.2s;
-    padding: 8px;
-}
-
-.controls button:hover {
-    transform: scale(1.1);
-}
-
-/* Volume control */
+/* Volume control - Retained from original */
 .volume-slider {
     width: 100px;
     height: 4px;
@@ -195,84 +165,4 @@ body {
     background-color: #fff;
     border-radius: 50%;
     cursor: pointer;
-}
-
-/* Queue styles */
-.queue-list {
-    background-color: #181818;
-    border-radius: 8px;
-    padding: 20px;
-}
-
-.queue-list h2 {
-    margin: 0 0 16px 0;
-    color: #fff;
-}
-
-.queue-item {
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    background-color: #282828;
-}
-
-.queue-item:hover {
-    background-color: #323232;
-}
-
-/* Language controls */
-.language-controls {
-    display: flex;
-    gap: 8px;
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid #282828;
-}
-
-.language-controls button {
-    background-color: #282828;
-    border: none;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.language-controls button:hover {
-    background-color: #323232;
-}
-
-/* Like button */
-#likeButton {
-    background-color: transparent;
-    border: 1px solid #404040;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-#likeButton:hover {
-    border-color: #1db954;
-    color: #1db954;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-    .container {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-        padding: 16px;
-    }
-
-    .controls {
-        gap: 16px;
-    }
 }

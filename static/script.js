@@ -32,22 +32,33 @@ function fetchRecommendedSongs() {
     `;
 }
 
-// Navigation handling
-document.querySelectorAll('.nav-options span').forEach(span => {
-    span.addEventListener('click', function() {
-        // Remove active class from all spans
-        document.querySelectorAll('.nav-options span').forEach(s => 
-            s.classList.remove('active'));
-        // Add active class to clicked span
+function openPlayer(title, artist, image) {
+    document.getElementById("playerTitle").textContent = title;
+    document.getElementById("playerArtist").textContent = artist;
+    document.getElementById("playerImage").src = image;
+    document.getElementById("playerOverlay").style.display = "flex";
+}
+
+function closePlayer() {
+    document.getElementById("playerOverlay").style.display = "none";
+    document.getElementById("audioPlayer").pause();
+}
+
+// Handle navigation button clicks
+document.querySelectorAll('.nav-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        // Remove active class from all buttons
+        document.querySelectorAll('.nav-btn').forEach(btn => 
+            btn.classList.remove('active'));
+        // Add active class to clicked button
         this.classList.add('active');
 
-        // Handle navigation (can be expanded later)
-        console.log(`Navigated to ${this.id}`);
+        console.log(`Navigated to ${this.textContent}`);
     });
 });
 
-// Search handling
-document.getElementById('search').addEventListener('keyup', function(e) {
+// Handle search
+document.getElementById('searchBar').addEventListener('keyup', function(e) {
     if (e.key === 'Enter') {
         console.log(`Searching for: ${this.value}`);
         // TODO: Implement search functionality
