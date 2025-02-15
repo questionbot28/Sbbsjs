@@ -12,14 +12,71 @@ class InviteManager(commands.Cog):
         self.invites: Dict[int, Dict] = {}  # {user_id: {count: int, created_at: datetime, leaves: int, fakes: int, history: list}}
         self.guild_invites = {}  # Store guild invites for tracking
         self.invite_history = {}  # {invite_code: {inviter_id: int, joined_users: list, left_users: list}}
+        # Channel IDs
+        self.welcome_channel_id = 1337410366401151038  # Welcome channel
+        self.help_channel_id = 1337414736802742393    # Help channel
+        self.roles_channel_id = 1337427674347339786   # Roles channel
+        # Command channels
+        self.bot_channel_id = 1337414600853032991     # Bot commands channel
+        self.staff_cmd_channel_id = 1338360696873680999  # Staff commands channel
+
+    async def _check_command_channel(self, ctx):
+        """Check if command is used in allowed channels"""
+        allowed_channels = [self.bot_channel_id, self.staff_cmd_channel_id]
+        if ctx.channel.id not in allowed_channels:
+            await ctx.send("❌ This command can only be used in the bot commands or staff commands channels!")
+            return False
+        return True
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Cache invites when bot is ready"""
+        try:
+            await self.cache_invites()
+            self.logger.info("Successfully cached guild invites")
+            # Debug log the current invite data
+            for user_id, data in self.invites.items():
+                self.logger.info(f"Loaded invite data for user {user_id}: {data}")
+        except Exception as e:
+            self.logger.error(f"Error caching invites: {e}")
 
     async def cache_invites(self):
         """Cache all guild invites on startup"""
         for guild in self.bot.guilds:
             try:
-                self.guild_invites[guild.id] = await guild.invites()
+                invites = await guild.invites()
+                self.guild_invites[guild.id] = invites
+                self.logger.info(f"Cached {len(invites)} invites for guild {guild.name}")
+
+                # Initialize invite history for existing invites with more detailed tracking
+                for invite in invites:
+                    if invite.inviter:  # Make sure inviter exists
+                        if invite.code not in self.invite_history:
+                            self.invite_history[invite.code] = {
+                                'inviter_id': invite.inviter.id,
+                                'joined_users': [],
+                                'left_users': [],
+                                'created_at': invite.created_at,
+                                'channel_id': invite.channel.id if invite.channel else None
+                            }
+                            # Add to invites tracking if not exists
+                            if invite.inviter.id not in self.invites:
+                                self.invites[invite.inviter.id] = {
+                                    'count': invite.uses,
+                                    'leaves': 0,
+                                    'fakes': 0,
+                                    'created_at': datetime.now(),
+                                    'history': []
+                                }
+                            else:
+                                # Update existing inviter's count if needed
+                                self.invites[invite.inviter.id]['count'] = max(
+                                    self.invites[invite.inviter.id]['count'],
+                                    invite.uses
+                                )
             except Exception as e:
                 self.logger.error(f"Failed to cache invites for guild {guild.name}: {e}")
+                self.logger.exception(e)
 
     def _get_time_based_invites(self, user_id: int) -> dict:
         """Get time-based invite statistics for a user"""
@@ -35,11 +92,6 @@ class InviteManager(commands.Cog):
             'last_3_days': last_3_days,
             'last_week': last_week
         }
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        """Cache invites when bot is ready"""
-        await self.cache_invites()
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite):
@@ -73,44 +125,87 @@ class InviteManager(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        """Track which invite was used when a member joins"""
+        """Track which invite was used when a member joins and send welcome message"""
         try:
+            self.logger.info(f"Member {member.name} joined - checking invite used")
             invites_before = self.guild_invites.get(member.guild.id, [])
             invites_after = await member.guild.invites()
+
+            # Update guild invites cache
             self.guild_invites[member.guild.id] = invites_after
 
-            # Find used invite
-            for invite in invites_before:
-                matched_invite = next((inv for inv in invites_after if inv.id == invite.id), None)
-                if matched_invite and matched_invite.uses > invite.uses:
-                    inviter_id = invite.inviter.id
-                    if inviter_id not in self.invites:
-                        self.invites[inviter_id] = {
-                            'count': 0,
-                            'leaves': 0,
-                            'fakes': 0,
-                            'created_at': datetime.now(),
-                            'history': []
-                        }
+            # Send welcome message first
+            welcome_channel = self.bot.get_channel(self.welcome_channel_id)
+            if welcome_channel:
+                help_channel = self.bot.get_channel(self.help_channel_id)
+                roles_channel = self.bot.get_channel(self.roles_channel_id)
 
-                    # Update inviter stats
-                    self.invites[inviter_id]['count'] += 1
-                    self.invites[inviter_id]['history'].append(datetime.now())
+                welcome_message = (
+                    f"🎉 Welcome, {member.mention}! Glad to have you in EduSphere – Learn, Share, Grow! 📚✨\n\n"
+                    f"🤝 Need help? Ask in {help_channel.mention if help_channel else '#help'}\n"
+                    f"🔰 Get your class role in {roles_channel.mention if roles_channel else '#roles'}\n\n"
+                    "Say hi and introduce yourself! 🚀"
+                )
 
-                    # Update invite history
-                    if invite.code in self.invite_history:
-                        self.invite_history[invite.code]['joined_users'].append(member.id)
+                try:
+                    await welcome_channel.send(welcome_message)
+                    self.logger.info(f"Sent welcome message for {member.name}")
+                except Exception as e:
+                    self.logger.error(f"Error sending welcome message: {e}")
 
-                    self.logger.info(f"Member {member.name} joined using {invite.inviter.name}'s invite")
+            # Find used invite by comparing before and after
+            used_invite = None
+            for invite_after in invites_after:
+                invite_before = next(
+                    (inv for inv in invites_before if inv.code == invite_after.code),
+                    None
+                )
+
+                if invite_before and invite_after.uses > invite_before.uses:
+                    used_invite = invite_after
                     break
+
+            if used_invite:
+                inviter_id = used_invite.inviter.id
+                self.logger.info(f"Found invite used - Inviter ID: {inviter_id}")
+
+                # Initialize inviter's data if not exists
+                if inviter_id not in self.invites:
+                    self.invites[inviter_id] = {
+                        'count': 0,
+                        'leaves': 0,
+                        'fakes': 0,
+                        'created_at': datetime.now(),
+                        'history': []
+                    }
+
+                # Update inviter stats
+                self.invites[inviter_id]['count'] += 1
+                self.invites[inviter_id]['history'].append(datetime.now())
+
+                # Update invite history
+                if used_invite.code in self.invite_history:
+                    self.invite_history[used_invite.code]['joined_users'].append(member.id)
+
+                self.logger.info(
+                    f"Successfully tracked invite - Member: {member.name}, "
+                    f"Inviter: {used_invite.inviter.name}, "
+                    f"New Count: {self.invites[inviter_id]['count']}"
+                )
+            else:
+                self.logger.warning(f"Could not determine invite used for member {member.name}")
 
         except Exception as e:
             self.logger.error(f"Error tracking member join invite: {e}")
+            self.logger.exception(e)
 
     @commands.command(name='invites')
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def check_invites(self, ctx):
         """Check your current invite count with detailed statistics"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             user_data = self.invites.get(ctx.author.id, {
                 'count': 0,
@@ -155,6 +250,9 @@ class InviteManager(commands.Cog):
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def invite_stats(self, ctx, member: discord.Member = None):
         """Check detailed invite statistics for a user"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             member = member or ctx.author
             user_data = self.invites.get(member.id, {
@@ -200,6 +298,9 @@ class InviteManager(commands.Cog):
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def invite_history(self, ctx, member: discord.Member = None):
         """View detailed invite history for a user"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             member = member or ctx.author
             user_data = self.invites.get(member.id, {
@@ -245,56 +346,116 @@ class InviteManager(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.guild)
     async def invite_leaderboard(self, ctx):
         """Display the server's invite leaderboard with detailed statistics"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
+            self.logger.info(f"Generating leaderboard for guild {ctx.guild.name}")
+            self.logger.debug(f"Current invite data: {self.invites}")
+
+            if not self.invites:
+                self.logger.warning("No invite data available")
+                embed = discord.Embed(
+                    title="🏆 EduSphere Invite Leaderboard 🏆",
+                    description=(
+                        "No invites tracked yet! Start inviting friends to climb the ranks! 🚀\n\n"
+                        "Use `/invite` to get your personal invite link!"
+                    ),
+                    color=discord.Color.gold()
+                )
+                await ctx.send(embed=embed)
+                return
+
+            # Sort invites by valid invites (total - leaves - fakes)
             sorted_invites = sorted(
-                self.invites.items(),
-                key=lambda x: x[1]['count'] - x[1]['leaves'] - x[1]['fakes'],
+                [
+                    (uid, data) for uid, data in self.invites.items()
+                    if ctx.guild.get_member(uid) is not None  # Only include current members
+                ],
+                key=lambda x: x[1]['count'] - x[1].get('leaves', 0) - x[1].get('fakes', 0),
                 reverse=True
-            )[:10]  # Top 10
+            )
+
+            self.logger.debug(f"Sorted invites data: {sorted_invites}")
 
             embed = discord.Embed(
-                title="🏆 Invite Leaderboard 🏆",
-                description="Who's the ultimate inviter? Let's check the top inviters of all time! 🎖",
+                title="🏆 EduSphere Invite Leaderboard 🏆",
+                description="Our top inviters and their achievements! 🎖",
                 color=discord.Color.gold()
             )
 
-            medals = ["🥇", "🥈", "🥉"]
-            for i, (user_id, data) in enumerate(sorted_invites[:3], 1):
+            if not sorted_invites:
+                embed.add_field(
+                    name="😮 No Active Inviters",
+                    value="Be the first to start inviting! Use `/invite` to begin your journey! 🌟",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+                return
+
+            # Top 3 with special formatting
+            medals = ["👑", "🥈", "🥉"]
+            for i, (user_id, data) in enumerate(sorted_invites[:3]):
                 member = ctx.guild.get_member(user_id)
                 if member:
-                    valid_invites = data['count'] - data['leaves'] - data['fakes']
+                    valid_invites = data['count'] - data.get('leaves', 0) - data.get('fakes', 0)
+                    success_rate = (valid_invites / data['count'] * 100) if data['count'] > 0 else 0
+
+                    self.logger.debug(f"Processing top member {member.name} with {valid_invites} valid invites")
+
+                    field_value = (
+                        f"✨ **{valid_invites}** Valid Invites\n"
+                        f"📊 Total: {data['count']} | ❌ Left: {data.get('leaves', 0)}\n"
+                        f"🎯 Success Rate: {success_rate:.1f}%"
+                    )
                     embed.add_field(
-                        name=f"{medals[i-1]} {i}st Place: {member.display_name}",
-                        value=f"✨ {valid_invites} valid invites",
+                        name=f"{medals[i]} #{i+1} • {member.display_name}",
+                        value=field_value,
                         inline=False
                     )
 
+            # Rest of top 10
             if len(sorted_invites) > 3:
-                other_ranks = []
-                for i, (user_id, data) in enumerate(sorted_invites[3:], 4):
+                remaining = []
+                for i, (user_id, data) in enumerate(sorted_invites[3:10], 4):
                     member = ctx.guild.get_member(user_id)
                     if member:
-                        valid_invites = data['count'] - data['leaves'] - data['fakes']
-                        other_ranks.append(f"{i}. {member.display_name} - {valid_invites} invites")
+                        valid_invites = data['count'] - data.get('leaves', 0) - data.get('fakes', 0)
+                        remaining.append(f"`#{i}` {member.display_name} • **{valid_invites}** invites")
+                        self.logger.debug(f"Added member {member.name} to remaining list at position {i}")
 
-                if other_ranks:
+                if remaining:
                     embed.add_field(
-                        name="🎖 4th - 10th Place",
-                        value="\n".join(other_ranks),
+                        name="🎖️ Top Challengers",
+                        value="\n".join(remaining),
                         inline=False
                     )
 
-            embed.set_footer(text="🔥 Want to see your name here? Start inviting now!")
+            # Add user's rank
+            total_inviters = len(sorted_invites)
+            user_rank = next(
+                (i+1 for i, (uid, _) in enumerate(sorted_invites) if uid == ctx.author.id),
+                total_inviters + 1
+            )
+
+            self.logger.debug(f"User {ctx.author.name} rank: {user_rank}/{total_inviters}")
+
+            embed.set_footer(text=f"Your Rank: #{user_rank} of {total_inviters} • Updated every 30 seconds")
             await ctx.send(embed=embed)
+            self.logger.info(f"Successfully displayed leaderboard in {ctx.guild.name}")
 
         except Exception as e:
             self.logger.error(f"Error displaying leaderboard: {e}")
+            self.logger.exception(e)
             await ctx.send("❌ An error occurred while displaying the leaderboard.")
 
     @commands.command(name='addinv')
     @commands.has_permissions(administrator=True)
     async def add_invites(self, ctx, member: discord.Member, amount: int):
         """Add invites to a user's count"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             if amount <= 0:
                 await ctx.send("❌ Please specify a positive number of invites!")
@@ -337,6 +498,9 @@ class InviteManager(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def remove_invites(self, ctx, member: discord.Member, amount: int):
         """Remove invites from a user's count"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             if amount <= 0:
                 await ctx.send("❌ Please specify a positive number of invites!")
@@ -380,6 +544,9 @@ class InviteManager(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def reset_invites(self, ctx, member: discord.Member):
         """Reset a user's invite count"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             if member.id in self.invites:
                 self.invites[member.id]['count'] = 0
@@ -408,6 +575,9 @@ class InviteManager(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def fake_invite_check(self, ctx, member: discord.Member):
         """Check for potential fake invites"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             if member.id not in self.invites:
                 await ctx.send("❌ This user has no recorded invites!")
@@ -448,6 +618,9 @@ class InviteManager(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.user)  # Once every 30 seconds per user
     async def help_invites(self, ctx):
         """Display the invite tracking help menu"""
+        if not await self._check_command_channel(ctx):
+            return
+
         try:
             embed = discord.Embed(
                 title="🎟️ INVITE TRACKER COMMAND CENTER 🎟️",
