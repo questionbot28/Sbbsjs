@@ -116,6 +116,10 @@ class AIChatEnhanced(commands.Cog):
             prompt = f"Translate this text: '{text}' to {to_lang} language. Only provide the translation, nothing else."
             response = self.model.generate_content(prompt)
             
+            if not response or not response.text:
+                await ctx.send("❌ No response received from AI. Please try again.")
+                return
+                
             embed = discord.Embed(
                 title="🌍 Translation",
                 color=discord.Color.blue()
