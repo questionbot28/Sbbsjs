@@ -53,76 +53,146 @@ function createSongCard(song) {
     `;
 }
 
+let isPlaying = false;
+let currentProgress = 0;
+let progressInterval;
+
 function openPlayer(title, artist, image) {
     document.getElementById("playerTitle").textContent = title;
     document.getElementById("playerArtist").textContent = artist;
     document.getElementById("playerImage").src = image;
     document.getElementById("playerOverlay").style.display = "flex";
 
-    // Reset audio source when opening new song
-    const audioPlayer = document.getElementById("audioPlayer");
-    audioPlayer.pause();
-    // TODO: Set actual audio source when connected to backend
-    // audioPlayer.src = audioUrl;
+    // Reset progress
+    currentProgress = 0;
+    document.querySelector('.progress').style.width = '0%';
+    document.getElementById('currentTime').textContent = '0:00';
+    document.getElementById('duration').textContent = '3:30'; // Example duration
+
+    // Reset play button
+    document.getElementById('playPauseBtn').textContent = '▶';
+    isPlaying = false;
+    if (progressInterval) clearInterval(progressInterval);
 }
 
 function closePlayer() {
-    const audioPlayer = document.getElementById("audioPlayer");
-    audioPlayer.pause();
     document.getElementById("playerOverlay").style.display = "none";
+    if (progressInterval) clearInterval(progressInterval);
+    isPlaying = false;
+}
+
+function togglePlay() {
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    isPlaying = !isPlaying;
+
+    if (isPlaying) {
+        playPauseBtn.textContent = '⏸';
+        startProgress();
+    } else {
+        playPauseBtn.textContent = '▶';
+        if (progressInterval) clearInterval(progressInterval);
+    }
+}
+
+function startProgress() {
+    if (progressInterval) clearInterval(progressInterval);
+
+    const totalDuration = 210; // 3:30 in seconds
+    const progressBar = document.querySelector('.progress');
+    const currentTimeElement = document.getElementById('currentTime');
+
+    progressInterval = setInterval(() => {
+        if (currentProgress < totalDuration) {
+            currentProgress++;
+            const percentage = (currentProgress / totalDuration) * 100;
+            progressBar.style.width = `${percentage}%`;
+            currentTimeElement.textContent = formatTime(currentProgress);
+        } else {
+            clearInterval(progressInterval);
+            isPlaying = false;
+            document.getElementById('playPauseBtn').textContent = '▶';
+            currentProgress = 0;
+        }
+    }, 1000);
+}
+
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 function setupEventListeners() {
-    // Navigation buttons
-    document.querySelectorAll('.nav-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            document.querySelectorAll('.nav-btn').forEach(btn => 
-                btn.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-
     // Search functionality
-    document.getElementById('searchBar').addEventListener('keyup', function(e) {
+    const searchBar = document.getElementById('searchBar');
+    searchBar.addEventListener('keyup', function(e) {
         if (e.key === 'Enter') {
             searchSongs(this.value);
         }
     });
 
-    // Volume slider
+    // Progress bar click handling
+    const progressBar = document.querySelector('.progress-bar');
+    progressBar.addEventListener('click', function(e) {
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percentage = x / rect.width;
+
+        currentProgress = Math.floor(percentage * 210); // 3:30 in seconds
+        document.querySelector('.progress').style.width = `${percentage * 100}%`;
+        document.getElementById('currentTime').textContent = formatTime(currentProgress);
+
+        if (isPlaying) startProgress();
+    });
+
+    // Volume control
     const volumeSlider = document.querySelector('.volume-slider');
-    if (volumeSlider) {
-        volumeSlider.addEventListener('input', function() {
-            updateVolume(this.value);
-        });
-    }
+    volumeSlider.addEventListener('input', function() {
+        updateVolume(this.value);
+    });
 }
 
-function searchSongs(query) {
+async function searchSongs(query) {
     console.log(`Searching for: ${query}`);
-    // TODO: Implement search functionality
+    const searchResults = document.getElementById('search-results');
+    const searchSection = document.getElementById('searchResults');
+
+    // Show search section
+    searchSection.style.display = 'block';
+    searchResults.innerHTML = '<div class="loading">Searching...</div>';
+
+    try {
+        // TODO: Replace with actual API call
+        const results = [
+            { title: "295", artist: "Sidhu Moose Wala", image: "https://i.scdn.co/image/ab67616d0000b273e6f407c7f3a0ec98845e4431" },
+            { title: "Dollar", artist: "Sidhu Moose Wala", image: "https://i.scdn.co/image/ab67616d0000b273e7a913a1b83367de2c540088" }
+        ].filter(song => 
+            song.title.toLowerCase().includes(query.toLowerCase()) ||
+            song.artist.toLowerCase().includes(query.toLowerCase())
+        );
+
+        if (results.length > 0) {
+            searchResults.innerHTML = results.map(song => createSongCard(song)).join('');
+        } else {
+            searchResults.innerHTML = '<div class="error">No songs found</div>';
+        }
+    } catch (error) {
+        console.error("Error searching songs:", error);
+        searchResults.innerHTML = '<div class="error">Error searching songs</div>';
+    }
 }
 
 function updateVolume(value) {
     console.log(`Volume set to: ${value}%`);
-    // TODO: Implement volume control
-}
-
-function togglePlay() {
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    if (playPauseBtn.textContent === '▶') {
-        playPauseBtn.textContent = '⏸';
-    } else {
-        playPauseBtn.textContent = '▶';
-    }
-}
-
-function nextTrack() {
-    console.log('Next track');
-    // TODO: Implement next track functionality
+    // TODO: Implement actual volume control
 }
 
 function previousTrack() {
     console.log('Previous track');
     // TODO: Implement previous track functionality
+}
+
+function nextTrack() {
+    console.log('Next track');
+    // TODO: Implement next track functionality
 }
