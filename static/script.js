@@ -1,6 +1,7 @@
 // YouTube Player variables
 let player;
 let currentVideoId;
+let playerBarVisible = false; // Added: variable to track player bar visibility
 
 document.addEventListener("DOMContentLoaded", function() {
     initializeUI();
@@ -80,6 +81,13 @@ function updatePlayPauseButton(isPlaying) {
 
 async function playSong(videoId, title, artist, thumbnail) {
     try {
+        // Show player bar if hidden
+        const playerBar = document.getElementById('now-playing-bar');
+        if (playerBar && !playerBarVisible) {
+            playerBar.classList.add('visible');
+            playerBarVisible = true;
+        }
+
         // Update current track info
         currentVideoId = videoId;
         document.getElementById('current-song-title').textContent = title;

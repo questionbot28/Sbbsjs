@@ -129,6 +129,7 @@ body {
     background: linear-gradient(180deg, rgba(32,32,32,1) 0%, var(--background) 100%);
     overflow-y: auto;
     position: relative;
+    padding-bottom: var(--player-height);
 }
 
 .top-bar {
@@ -204,14 +205,25 @@ body {
     color: var(--text-primary);
 }
 
+/* Song grid horizontal scrolling */
 .song-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    display: flex;
     gap: 24px;
-    padding: 4px;
+    overflow-x: auto;
+    padding: 4px 0;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.song-grid::-webkit-scrollbar {
+    display: none;
 }
 
 .song-card {
+    flex: 0 0 200px;
+    scroll-snap-align: start;
     background-color: rgba(255, 255, 255, 0.07);
     padding: 16px;
     border-radius: 6px;
@@ -219,12 +231,6 @@ body {
     cursor: pointer;
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.song-card:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    transform: translateY(-8px);
-    box-shadow: 0 16px 24px rgba(0, 0, 0, 0.3);
 }
 
 .song-card img {
@@ -260,7 +266,7 @@ body {
     opacity: 0.7;
 }
 
-/* Player Bar Styles */
+/* Player bar visibility */
 .player-bar {
     grid-area: player;
     background-color: var(--surface);
@@ -269,7 +275,19 @@ body {
     display: grid;
     grid-template-columns: 30% 40% 30%;
     align-items: center;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-in-out;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
 }
+
+.player-bar.visible {
+    transform: translateY(0);
+}
+
 
 .now-playing-left {
     display: flex;
@@ -531,6 +549,13 @@ body {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 16px;
     }
+    .song-card {
+        flex: 0 0 160px;
+    }
+    .song-grid {
+        gap: 16px;
+        padding: 4px 16px;
+    }
 
     .player-bar {
         padding: 12px;
@@ -571,6 +596,7 @@ body {
 
     .song-card {
         padding: 12px;
+        flex: 0 0 140px;
     }
 
     .category h2 {
