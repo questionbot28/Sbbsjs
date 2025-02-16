@@ -271,10 +271,7 @@ body {
     grid-area: player;
     background-color: var(--surface);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 16px 32px;
-    display: grid;
-    grid-template-columns: 30% 40% 30%;
-    align-items: center;
+    padding: 16px;
     transform: translateY(100%);
     transition: transform 0.3s ease-in-out;
     position: fixed;
@@ -288,33 +285,157 @@ body {
     transform: translateY(0);
 }
 
-.now-playing-left {
+.player-container {
+    max-width: 800px;
+    margin: 0 auto;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 20px;
+}
+
+.now-playing-artwork {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease;
+}
+
+.now-playing-artwork:hover {
+    transform: scale(1.02);
 }
 
 #current-song-image {
-    width: 56px;
-    height: 56px;
-    border-radius: 4px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
 }
 
-.song-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+.song-info-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
 }
 
 #current-song-title {
-    font-weight: 500;
-    color: var(--text-primary);
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-bottom: 4px;
 }
 
 #current-song-artist {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.playback-controls {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.main-controls {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn:hover {
+    color: var(--text-primary);
+    transform: scale(1.1);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.play-pause {
+    background-color: var(--primary);
+    color: white;
+    padding: 20px;
+    transform: scale(1.2);
+}
+
+.play-pause:hover {
+    background-color: var(--primary);
+    color: white;
+    transform: scale(1.3);
+}
+
+.playback-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 20px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+}
+
+.progress {
+    height: 100%;
+    background-color: var(--primary);
+    border-radius: 2px;
+    position: relative;
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.progress-handle {
+    width: 12px;
+    height: 12px;
+    background-color: var(--primary);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    right: -6px;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.progress-bar:hover .progress-handle {
+    opacity: 1;
+}
+
+.time {
     font-size: 12px;
     color: var(--text-secondary);
+    min-width: 45px;
+    text-align: center;
+}
+
+.player-actions {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
 }
 
 .like-btn {
@@ -330,168 +451,58 @@ body {
 .like-btn:hover {
     color: var(--text-primary);
     transform: scale(1.1);
-}
-
-.now-playing-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-}
-
-.player-controls {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    justify-content: center;
-}
-
-.control-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.control-btn:hover {
-    color: var(--text-primary);
-    transform: scale(1.1);
-}
-
-.play-pause {
-    background-color: var(--text-primary);
-    color: var(--background);
-    padding: 16px;
-}
-
-.play-pause:hover {
-    transform: scale(1.05);
-    background-color: #FFFFFF;
-    color: var(--background);
-}
-
-.hidden {
-    display: none;
-}
-
-.playback-bar {
-    width: 100%;
-    max-width: 722px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.time {
-    font-size: 12px;
-    color: var(--text-secondary);
-    min-width: 40px;
-    text-align: center;
-}
-
-.progress-bar {
-    flex: 1;
-    height: 4px;
     background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    position: relative;
-    cursor: pointer;
 }
 
-.progress {
-    height: 100%;
-    background-color: var(--text-secondary);
-    border-radius: 2px;
-    position: relative;
-    width: 0%;
+.like-btn.active {
+    color: #e91e63;
 }
 
-.progress-handle {
-    width: 12px;
-    height: 12px;
-    background-color: var(--text-primary);
-    border-radius: 50%;
-    position: absolute;
-    top: 50%;
-    right: -6px;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.2s ease;
+.like-btn.active:hover {
+    color: #f06292;
 }
 
-.progress-bar:hover .progress {
-    background-color: var(--primary);
+/* Update responsive styles */
+@media (max-width: 768px) {
+    .now-playing-artwork {
+        width: 200px;
+        height: 200px;
+    }
+
+    .player-container {
+        gap: 16px;
+    }
+
+    .main-controls {
+        gap: 16px;
+    }
+
+    .playback-bar {
+        padding: 0 12px;
+    }
 }
 
-.progress-bar:hover .progress-handle {
-    opacity: 1;
-}
+@media (max-width: 480px) {
+    .now-playing-artwork {
+        width: 160px;
+        height: 160px;
+    }
 
-.now-playing-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: flex-end;
-}
+    .player-container {
+        gap: 12px;
+    }
 
-.volume-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    transition: all 0.2s ease;
-}
+    .main-controls {
+        gap: 12px;
+    }
 
-.volume-btn:hover {
-    color: var(--text-primary);
-}
+    .control-btn {
+        padding: 8px;
+    }
 
-.volume-slider {
-    width: 93px;
-}
-
-.volume-bar {
-    height: 4px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    position: relative;
-    cursor: pointer;
-}
-
-.volume-progress {
-    height: 100%;
-    background-color: var(--text-secondary);
-    border-radius: 2px;
-    width: 100%;
-}
-
-.volume-handle {
-    width: 12px;
-    height: 12px;
-    background-color: var(--text-primary);
-    border-radius: 50%;
-    position: absolute;
-    top: 50%;
-    right: -6px;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.volume-bar:hover .volume-progress {
-    background-color: var(--primary);
-}
-
-.volume-bar:hover .volume-handle {
-    opacity: 1;
+    .play-pause {
+        padding: 16px;
+    }
 }
 
 .loading {
@@ -634,7 +645,6 @@ body {
 }
 
 /* Add after existing styles */
-
 .settings-panel {
     position: fixed;
     top: 0;
