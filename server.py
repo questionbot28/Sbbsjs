@@ -29,7 +29,9 @@ cache = {
     'punjabi': {'data': None, 'timestamp': None},
     'hindi': {'data': None, 'timestamp': None},
     'featured': {'data': None, 'timestamp': None},
-    'your_mix': {'data': None, 'timestamp': None}
+    'your_mix': {'data': None, 'timestamp': None},
+    'albums': {'data': None, 'timestamp': None}, #Added for albums
+    'english': {'data': None, 'timestamp': None} #Added for english
 }
 
 def is_cache_valid(cache_type):
@@ -193,6 +195,66 @@ def get_your_mix():
         return jsonify(songs)
     except Exception as e:
         logger.error(f"Error in your mix endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/hindi')
+def get_hindi_songs():
+    """API endpoint to get Hindi songs"""
+    try:
+        if is_cache_valid('hindi'):
+            return jsonify(cache['hindi']['data'])
+
+        songs = fetch_youtube_videos('hindi', 'new hindi songs', region_code='IN')
+        if songs:
+            cache['hindi'] = {'data': songs, 'timestamp': datetime.now()}
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in hindi songs endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/punjabi')
+def get_punjabi_songs():
+    """API endpoint to get Punjabi songs"""
+    try:
+        if is_cache_valid('punjabi'):
+            return jsonify(cache['punjabi']['data'])
+
+        songs = fetch_youtube_videos('punjabi', 'new punjabi songs', region_code='IN')
+        if songs:
+            cache['punjabi'] = {'data': songs, 'timestamp': datetime.now()}
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in punjabi songs endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/english')
+def get_english_songs():
+    """API endpoint to get English songs"""
+    try:
+        if is_cache_valid('english'):
+            return jsonify(cache['english']['data'])
+
+        songs = fetch_youtube_videos('english', 'new english songs', region_code='US')
+        if songs:
+            cache['english'] = {'data': songs, 'timestamp': datetime.now()}
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in english songs endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/albums')
+def get_albums():
+    """API endpoint to get albums"""
+    try:
+        if is_cache_valid('albums'):
+            return jsonify(cache['albums']['data'])
+
+        songs = fetch_youtube_videos('albums', 'new album releases', region_code='US')
+        if songs:
+            cache['albums'] = {'data': songs, 'timestamp': datetime.now()}
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in albums endpoint: {str(e)}")
         return jsonify([]), 500
 
 @app.route('/')

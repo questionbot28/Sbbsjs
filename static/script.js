@@ -3,6 +3,9 @@ let player;
 let currentVideoId;
 let playerBarVisible = false; // Added: variable to track player bar visibility
 
+// Add liked songs storage
+let likedSongs = new Set(JSON.parse(localStorage.getItem('likedSongs') || '[]'));
+
 document.addEventListener("DOMContentLoaded", function() {
     initializeUI();
     setupEventListeners();
@@ -63,6 +66,10 @@ function initializeUI() {
     fetchNewReleases();
     fetchYourMix();
     fetchFeaturedSongs();
+    fetchHindiSongs();
+    fetchPunjabiSongs();
+    fetchEnglishSongs();
+    fetchAlbums();
 }
 
 function updatePlayPauseButton(isPlaying) {
@@ -93,6 +100,12 @@ async function playSong(videoId, title, artist, thumbnail) {
         document.getElementById('current-song-title').textContent = title;
         document.getElementById('current-song-artist').textContent = artist;
         document.getElementById('current-song-image').src = thumbnail;
+
+        // Update like button state
+        const likeBtn = document.querySelector('.like-btn');
+        if (likeBtn) {
+            likeBtn.classList.toggle('active', likedSongs.has(videoId));
+        }
 
         if (player && player.loadVideoById) {
             if (videoId === currentVideoId && (!player.getPlayerState || player.getPlayerState() === YT.PlayerState.PLAYING)) {
@@ -281,6 +294,12 @@ function setupPlayerControls() {
     if (volumeBar) {
         volumeBar.addEventListener('click', adjustVolume);
     }
+
+    // Like button
+    const likeBtn = document.querySelector('.like-btn');
+    if (likeBtn) {
+        likeBtn.addEventListener('click', toggleLike);
+    }
 }
 
 let isPlaying = false;
@@ -330,4 +349,84 @@ async function searchSongs(query) {
 
 function getYouTubeThumbnail(videoId) {
     return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+function toggleLike() {
+    if (!currentVideoId) return;
+
+    const likeBtn = document.querySelector('.like-btn');
+    if (likedSongs.has(currentVideoId)) {
+        likedSongs.delete(currentVideoId);
+        likeBtn.classList.remove('active');
+    } else {
+        likedSongs.add(currentVideoId);
+        likeBtn.classList.add('active');
+    }
+
+    // Save to localStorage
+    localStorage.setItem('likedSongs', JSON.stringify([...likedSongs]));
+}
+
+async function fetchHindiSongs() {
+    const hindiSongs = document.getElementById("hindi-songs");
+    if (!hindiSongs) return;
+
+    try {
+        const response = await fetch('/api/hindi');
+        if (!response.ok) throw new Error('Failed to fetch Hindi songs');
+
+        const songs = await response.json();
+        updateSongList(hindiSongs, songs, "No Hindi songs available");
+    } catch (error) {
+        console.error("Error fetching Hindi songs:", error);
+        showError(hindiSongs, "Failed to load Hindi songs");
+    }
+}
+
+async function fetchPunjabiSongs() {
+    const punjabiSongs = document.getElementById("punjabi-songs");
+    if (!punjabiSongs) return;
+
+    try {
+        const response = await fetch('/api/punjabi');
+        if (!response.ok) throw new Error('Failed to fetch Punjabi songs');
+
+        const songs = await response.json();
+        updateSongList(punjabiSongs, songs, "No Punjabi songs available");
+    } catch (error) {
+        console.error("Error fetching Punjabi songs:", error);
+        showError(punjabiSongs, "Failed to load Punjabi songs");
+    }
+}
+
+async function fetchEnglishSongs() {
+    const englishSongs = document.getElementById("english-songs");
+    if (!englishSongs) return;
+
+    try {
+        const response = await fetch('/api/english');
+        if (!response.ok) throw new Error('Failed to fetch English songs');
+
+        const songs = await response.json();
+        updateSongList(englishSongs, songs, "No English songs available");
+    } catch (error) {
+        console.error("Error fetching English songs:", error);
+        showError(englishSongs, "Failed to load English songs");
+    }
+}
+
+async function fetchAlbums() {
+    const albums = document.getElementById("albums");
+    if (!albums) return;
+
+    try {
+        const response = await fetch('/api/albums');
+        if (!response.ok) throw new Error('Failed to fetch albums');
+
+        const songs = await response.json();
+        updateSongList(albums, songs, "No albums available");
+    } catch (error) {
+        console.error("Error fetching albums:", error);
+        showError(albums, "Failed to load albums");
+    }
 }
