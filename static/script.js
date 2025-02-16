@@ -1,13 +1,119 @@
+// YouTube Player variables
+let player;
+let currentVideoId;
+
 document.addEventListener("DOMContentLoaded", function() {
     initializeUI();
     setupEventListeners();
+    loadYouTubeAPI();
 });
+
+function loadYouTubeAPI() {
+    // Load YouTube IFrame API
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+}
+
+// Called automatically by YouTube API
+window.onYouTubeIframeAPIReady = function() {
+    // Create a hidden player
+    player = new YT.Player('youtube-player', {
+        height: '0',
+        width: '0',
+        videoId: '',
+        playerVars: {
+            'playsinline': 1,
+            'controls': 0,
+            'disablekb': 1
+        },
+        events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+        }
+    });
+}
+
+function onPlayerReady(event) {
+    console.log("YouTube player is ready");
+}
+
+function onPlayerStateChange(event) {
+    switch(event.data) {
+        case YT.PlayerState.PLAYING:
+            updatePlayPauseButton(true);
+            break;
+        case YT.PlayerState.PAUSED:
+        case YT.PlayerState.ENDED:
+            updatePlayPauseButton(false);
+            break;
+    }
+}
+
+function onPlayerError(event) {
+    console.error("Player error:", event.data);
+    updatePlayPauseButton(false);
+}
 
 function initializeUI() {
     fetchTrendingSongs();
     fetchNewReleases();
     fetchYourMix();
     fetchFeaturedSongs();
+}
+
+function updatePlayPauseButton(isPlaying) {
+    const playIcon = document.querySelector('.play');
+    const pauseIcon = document.querySelector('.pause');
+    if (playIcon && pauseIcon) {
+        if (isPlaying) {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        } else {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+        }
+    }
+}
+
+async function playSong(videoId, title, artist, thumbnail) {
+    try {
+        // Update current track info
+        currentVideoId = videoId;
+        document.getElementById('current-song-title').textContent = title;
+        document.getElementById('current-song-artist').textContent = artist;
+        document.getElementById('current-song-image').src = thumbnail;
+
+        if (player && player.loadVideoById) {
+            if (videoId === currentVideoId && (!player.getPlayerState || player.getPlayerState() === YT.PlayerState.PLAYING)) {
+                player.pauseVideo();
+            } else {
+                player.loadVideoById(videoId);
+                player.playVideo();
+            }
+        } else {
+            console.error("YouTube player not ready");
+        }
+    } catch (error) {
+        console.error("Error playing song:", error);
+    }
+}
+
+function togglePlay() {
+    if (!player || !currentVideoId) return;
+
+    try {
+        const state = player.getPlayerState();
+        if (state === YT.PlayerState.PLAYING) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+        }
+    } catch (error) {
+        console.error("Error toggling play state:", error);
+    }
 }
 
 async function fetchFeaturedSongs() {
@@ -172,46 +278,6 @@ function setupPlayerControls() {
 let isPlaying = false;
 let currentTrack = null;
 
-function playSong(videoId, title, artist, thumbnail) {
-    currentTrack = { videoId, title, artist, thumbnail };
-
-    // Update player UI
-    document.getElementById('current-song-title').textContent = title;
-    document.getElementById('current-song-artist').textContent = artist;
-    document.getElementById('current-song-image').src = thumbnail;
-
-    // Reset play button state
-    const playIcon = document.querySelector('.play');
-    const pauseIcon = document.querySelector('.pause');
-    if (playIcon && pauseIcon) {
-        playIcon.classList.remove('hidden');
-        pauseIcon.classList.add('hidden');
-    }
-
-    isPlaying = false;
-    togglePlay();
-}
-
-function togglePlay() {
-    if (!currentTrack) return;
-
-    isPlaying = !isPlaying;
-    const playIcon = document.querySelector('.play');
-    const pauseIcon = document.querySelector('.pause');
-
-    if (playIcon && pauseIcon) {
-        if (isPlaying) {
-            playIcon.classList.add('hidden');
-            pauseIcon.classList.remove('hidden');
-        } else {
-            playIcon.classList.remove('hidden');
-            pauseIcon.classList.add('hidden');
-        }
-    }
-
-    // Here you would typically integrate with your audio playback system
-    console.log(`${isPlaying ? 'Playing' : 'Paused'}: ${currentTrack.title}`);
-}
 
 function previousTrack() {
     console.log('Previous track');
