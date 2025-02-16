@@ -162,6 +162,32 @@ def fetch_hindi_songs():
     cache['hindi'] = {'data': songs, 'timestamp': datetime.now()}
     return songs
 
+def fetch_featured_songs():
+    """Fetch featured music from YouTube Data API"""
+    if is_cache_valid('featured'):
+        return cache['featured']['data']
+
+    songs = fetch_youtube_videos('featured', 'trending music hits 2025')
+    cache['featured'] = {'data': songs, 'timestamp': datetime.now()}
+    return songs
+
+def fetch_your_mix():
+    """Fetch personalized mix of songs"""
+    if is_cache_valid('your_mix'):
+        return cache['your_mix']['data']
+
+    # For demonstration, fetching a mix of different genres
+    songs = fetch_youtube_videos('your_mix', 'popular music mix 2025')
+    cache['your_mix'] = {'data': songs, 'timestamp': datetime.now()}
+    return songs
+
+# Update cache dictionary to include new categories
+cache.update({
+    'featured': {'data': None, 'timestamp': None},
+    'your_mix': {'data': None, 'timestamp': None}
+})
+
+
 @app.route('/api/trending')
 def get_trending():
     """API endpoint to get trending songs"""
@@ -220,6 +246,30 @@ def get_hindi_songs():
         return jsonify(songs)
     except Exception as e:
         logger.error(f"Error in Hindi songs endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/featured')
+def get_featured():
+    """API endpoint to get featured songs"""
+    try:
+        logger.info("Fetching featured songs...")
+        songs = fetch_featured_songs()
+        logger.info(f"Fetched {len(songs)} featured songs")
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in featured songs endpoint: {str(e)}")
+        return jsonify([]), 500
+
+@app.route('/api/your-mix')
+def get_your_mix():
+    """API endpoint to get personalized mix"""
+    try:
+        logger.info("Fetching your mix...")
+        songs = fetch_your_mix()
+        logger.info(f"Fetched {len(songs)} songs for your mix")
+        return jsonify(songs)
+    except Exception as e:
+        logger.error(f"Error in your mix endpoint: {str(e)}")
         return jsonify([]), 500
 
 @app.route('/')
