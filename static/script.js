@@ -268,6 +268,23 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Add profile button click handler
+    const profileBtn = document.querySelector('.profile-btn');
+    if (profileBtn) {
+        profileBtn.addEventListener('click', () => {
+            window.location.href = '/login';
+        });
+    }
+
+    // Add settings button click handler
+    const settingsBtn = document.querySelector('[data-settings-button]');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', openSettings);
+    }
+
+    // Check user profile on load
+    checkUserProfile();
 }
 
 function setupPlayerControls() {
@@ -351,20 +368,86 @@ function getYouTubeThumbnail(videoId) {
     return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 }
 
-function toggleLike() {
+// Update toggleLike to use backend API
+async function toggleLike() {
     if (!currentVideoId) return;
 
-    const likeBtn = document.querySelector('.like-btn');
-    if (likedSongs.has(currentVideoId)) {
-        likedSongs.delete(currentVideoId);
-        likeBtn.classList.remove('active');
-    } else {
-        likedSongs.add(currentVideoId);
-        likeBtn.classList.add('active');
-    }
+    try {
+        const endpoint = likedSongs.has(currentVideoId) ? 
+            `/api/unlike-song/${currentVideoId}` : 
+            `/api/like-song/${currentVideoId}`;
 
-    // Save to localStorage
-    localStorage.setItem('likedSongs', JSON.stringify([...likedSongs]));
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+            throw new Error('Failed to update like status');
+        }
+
+        const likeBtn = document.querySelector('.like-btn');
+        if (likedSongs.has(currentVideoId)) {
+            likedSongs.delete(currentVideoId);
+            likeBtn.classList.remove('active');
+        } else {
+            likedSongs.add(currentVideoId);
+            likeBtn.classList.add('active');
+        }
+
+        // Save to localStorage
+        localStorage.setItem('likedSongs', JSON.stringify([...likedSongs]));
+
+    } catch (error) {
+        console.error("Error toggling like:", error);
+    }
+}
+
+// Add user profile management
+async function checkUserProfile() {
+    try {
+        const response = await fetch('/api/user-profile');
+        const data = await response.json();
+        updateProfileUI(data);
+    } catch (error) {
+        console.error("Error checking user profile:", error);
+    }
+}
+
+function updateProfileUI(profileData) {
+    const profileBtn = document.querySelector('.profile-btn');
+    if (profileData.authenticated) {
+        if (profileData.avatar) {
+            profileBtn.innerHTML = `<img src="${profileData.avatar}" alt="${profileData.username}" class="profile-avatar">`;
+        }
+        profileBtn.title = profileData.username;
+    } else {
+        profileBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" class="icon">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+            </svg>
+        `;
+        profileBtn.title = "Login with Discord";
+    }
+}
+
+// Add settings functionality
+function openSettings() {
+    const settingsPanel = document.getElementById('settings-panel');
+    if (settingsPanel) {
+        settingsPanel.classList.add('visible');
+    }
+}
+
+function closeSettings() {
+    const settingsPanel = document.getElementById('settings-panel');
+    if (settingsPanel) {
+        settingsPanel.classList.remove('visible');
+    }
 }
 
 async function fetchHindiSongs() {

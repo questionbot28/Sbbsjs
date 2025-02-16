@@ -8,6 +8,10 @@ from flask_cors import CORS
 import json
 import requests
 from datetime import datetime, timedelta
+from flask_login import current_user, login_required
+from auth import auth, login_manager #Added import for authentication
+from models import User # Added import for User model
+
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -19,6 +23,11 @@ logger = logging.getLogger(__name__)
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Setup Flask-Login
+app.secret_key = os.urandom(24)
+app.register_blueprint(auth)
+login_manager.init_app(app)
 
 # Cache for storing API responses
 cache = {
@@ -256,6 +265,45 @@ def get_albums():
     except Exception as e:
         logger.error(f"Error in albums endpoint: {str(e)}")
         return jsonify([]), 500
+
+
+@app.route('/api/liked-songs')
+@login_required
+def get_liked_songs():
+    """Get user's liked songs"""
+    if not current_user.is_authenticated:
+        return jsonify([]), 401
+    return jsonify(list(current_user.liked_songs))
+
+@app.route('/api/like-song/<video_id>', methods=['POST'])
+@login_required
+def like_song(video_id):
+    """Add a song to user's liked songs"""
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+    current_user.liked_songs.add(video_id)
+    return jsonify({'success': True})
+
+@app.route('/api/unlike-song/<video_id>', methods=['POST'])
+@login_required
+def unlike_song(video_id):
+    """Remove a song from user's liked songs"""
+    if not current_user.is_authenticated:
+        return jsonify({'error': 'Not authenticated'}), 401
+    current_user.liked_songs.discard(video_id)
+    return jsonify({'success': True})
+
+@app.route('/api/user-profile')
+def get_user_profile():
+    """Get current user's profile"""
+    if not current_user.is_authenticated:
+        return jsonify({'authenticated': False})
+    return jsonify({
+        'authenticated': True,
+        'username': current_user.username,
+        'avatar': current_user.avatar,
+        'liked_songs_count': len(current_user.liked_songs)
+    })
 
 @app.route('/')
 def index():
