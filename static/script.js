@@ -1,124 +1,105 @@
 document.addEventListener("DOMContentLoaded", function() {
     initializeUI();
+    setupEventListeners();
 });
 
 function initializeUI() {
     fetchTrendingSongs();
     fetchNewReleases();
-    fetchIndianSongs();
-    fetchPunjabiSongs();
-    fetchHindiSongs();
-    setupEventListeners();
+    fetchYourMix();
+    fetchFeaturedSongs();
+}
+
+async function fetchFeaturedSongs() {
+    const featured = document.getElementById("featured-songs");
+    if (!featured) return;
+
+    try {
+        const response = await fetch('/api/featured');
+        if (!response.ok) throw new Error('Failed to fetch featured songs');
+
+        const songs = await response.json();
+        updateSongList(featured, songs, "No featured songs available");
+    } catch (error) {
+        console.error("Error fetching featured songs:", error);
+        showError(featured, "Failed to load featured songs");
+    }
 }
 
 async function fetchTrendingSongs() {
     const trending = document.getElementById("trending-songs");
+    if (!trending) return;
+
     try {
-        trending.innerHTML = '<div class="loading">Loading trending songs...</div>';
         const response = await fetch('/api/trending');
         if (!response.ok) throw new Error('Failed to fetch trending songs');
 
-        const trendingSongs = await response.json();
-        if (trendingSongs.length === 0) {
-            trending.innerHTML = '<div class="error">No trending songs available</div>';
-            return;
-        }
-
-        trending.innerHTML = trendingSongs.map(song => createSongCard(song)).join('');
+        const songs = await response.json();
+        updateSongList(trending, songs, "No trending songs available");
     } catch (error) {
         console.error("Error fetching trending songs:", error);
-        trending.innerHTML = '<div class="error">Failed to load trending songs</div>';
+        showError(trending, "Failed to load trending songs");
     }
 }
 
 async function fetchNewReleases() {
     const newReleases = document.getElementById("new-releases");
+    if (!newReleases) return;
+
     try {
-        newReleases.innerHTML = '<div class="loading">Loading new releases...</div>';
         const response = await fetch('/api/new-releases');
         if (!response.ok) throw new Error('Failed to fetch new releases');
 
         const songs = await response.json();
-        if (songs.length === 0) {
-            newReleases.innerHTML = '<div class="error">No new releases available</div>';
-            return;
-        }
-
-        newReleases.innerHTML = songs.map(song => createSongCard(song)).join('');
+        updateSongList(newReleases, songs, "No new releases available");
     } catch (error) {
         console.error("Error fetching new releases:", error);
-        newReleases.innerHTML = '<div class="error">Failed to load new releases</div>';
+        showError(newReleases, "Failed to load new releases");
     }
 }
 
-async function fetchIndianSongs() {
-    const indianSongs = document.getElementById("indian-songs");
+async function fetchYourMix() {
+    const yourMix = document.getElementById("your-mix");
+    if (!yourMix) return;
+
     try {
-        indianSongs.innerHTML = '<div class="loading">Loading Indian songs...</div>';
-        const response = await fetch('/api/indian');
-        if (!response.ok) throw new Error('Failed to fetch Indian songs');
+        const response = await fetch('/api/your-mix');
+        if (!response.ok) throw new Error('Failed to fetch your mix');
 
         const songs = await response.json();
-        if (songs.length === 0) {
-            indianSongs.innerHTML = '<div class="error">No Indian songs available</div>';
-            return;
-        }
-
-        indianSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
+        updateSongList(yourMix, songs, "No personalized mix available");
     } catch (error) {
-        console.error("Error fetching Indian songs:", error);
-        indianSongs.innerHTML = '<div class="error">Failed to load Indian songs</div>';
+        console.error("Error fetching your mix:", error);
+        showError(yourMix, "Failed to load your mix");
     }
 }
 
-async function fetchPunjabiSongs() {
-    const punjabiSongs = document.getElementById("punjabi-songs");
-    try {
-        punjabiSongs.innerHTML = '<div class="loading">Loading Punjabi songs...</div>';
-        const response = await fetch('/api/punjabi');
-        if (!response.ok) throw new Error('Failed to fetch Punjabi songs');
+function updateSongList(container, songs, emptyMessage) {
+    if (!container) return;
 
-        const songs = await response.json();
-        if (songs.length === 0) {
-            punjabiSongs.innerHTML = '<div class="error">No Punjabi songs available</div>';
-            return;
-        }
-
-        punjabiSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
-    } catch (error) {
-        console.error("Error fetching Punjabi songs:", error);
-        punjabiSongs.innerHTML = '<div class="error">Failed to load Punjabi songs</div>';
+    if (!songs || songs.length === 0) {
+        container.innerHTML = `<div class="error">${emptyMessage}</div>`;
+        return;
     }
+
+    container.innerHTML = songs.map(song => createSongCard(song)).join('');
 }
 
-async function fetchHindiSongs() {
-    const hindiSongs = document.getElementById("hindi-songs");
-    try {
-        hindiSongs.innerHTML = '<div class="loading">Loading Hindi songs...</div>';
-        const response = await fetch('/api/hindi');
-        if (!response.ok) throw new Error('Failed to fetch Hindi songs');
-
-        const songs = await response.json();
-        if (songs.length === 0) {
-            hindiSongs.innerHTML = '<div class="error">No Hindi songs available</div>';
-            return;
-        }
-
-        hindiSongs.innerHTML = songs.map(song => createSongCard(song)).join('');
-    } catch (error) {
-        console.error("Error fetching Hindi songs:", error);
-        hindiSongs.innerHTML = '<div class="error">Failed to load Hindi songs</div>';
+function showError(container, message) {
+    if (container) {
+        container.innerHTML = `<div class="error">${message}</div>`;
     }
 }
 
 function createSongCard(song) {
-    const title = song.title.replace(/'/g, '&#39;');  // Escape single quotes
-    const artist = song.artist.replace(/'/g, '&#39;');
-    const views = parseInt(song.views).toLocaleString();  // Format view count
+    const title = song.title ? song.title.replace(/'/g, '&#39;') : 'Unknown Title';
+    const artist = song.artist ? song.artist.replace(/'/g, '&#39;') : 'Unknown Artist';
+    const views = song.views ? parseInt(song.views).toLocaleString() : '0';
+    const thumbnail = song.thumbnail || 'https://via.placeholder.com/150?text=No+Thumbnail';
 
     return `
-        <div class="song-card" onclick="openPlayer('${title}', '${artist}', '${song.thumbnail}', '${song.videoId}')">
-            <img src="${song.thumbnail}" alt="${title}" onerror="this.src='https://via.placeholder.com/150?text=No+Thumbnail';">
+        <div class="song-card" onclick="playSong('${song.videoId}', '${title}', '${artist}', '${thumbnail}')">
+            <img src="${thumbnail}" alt="${title}" loading="lazy" onerror="this.src='https://via.placeholder.com/150?text=No+Thumbnail';">
             <p class="song-title">${title}</p>
             <p class="artist">${artist}</p>
             <p class="views">👁 ${views} views</p>
@@ -126,87 +107,134 @@ function createSongCard(song) {
     `;
 }
 
-let isPlaying = false;
-let currentVideoId = null;
-
-function openPlayer(title, artist, image, videoId) {
-    currentVideoId = videoId;
-    document.getElementById("playerTitle").textContent = title;
-    document.getElementById("playerArtist").textContent = artist;
-    document.getElementById("playerImage").src = image;
-    document.getElementById("playerOverlay").style.display = "flex";
-
-    // Reset play button
-    document.getElementById('playPauseBtn').textContent = '▶';
-    isPlaying = false;
-}
-
-function closePlayer() {
-    document.getElementById("playerOverlay").style.display = "none";
-    isPlaying = false;
-    currentVideoId = null;
-}
-
-function togglePlay() {
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    isPlaying = !isPlaying;
-    playPauseBtn.textContent = isPlaying ? '⏸' : '▶';
-
-    // Here you would typically integrate with YouTube's iframe API
-    console.log(`${isPlaying ? 'Playing' : 'Paused'} video: ${currentVideoId}`);
-}
-
 function setupEventListeners() {
     // Search functionality
     const searchBar = document.getElementById('searchBar');
-    let searchTimeout;
+    if (searchBar) {
+        let searchTimeout;
+        searchBar.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (e.target.value.trim()) {
+                    searchSongs(e.target.value);
+                }
+            }, 500);  // Debounce search for 500ms
+        });
+    }
 
-    searchBar.addEventListener('input', function(e) {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            if (e.target.value.trim()) {
-                searchSongs(e.target.value);
-            }
-        }, 500);  // Debounce search for 500ms
-    });
+    // Player controls
+    setupPlayerControls();
 }
 
-async function searchSongs(query) {
-    console.log(`Searching for: ${query}`);
-    const searchResults = document.getElementById('search-results');
-    const searchSection = document.getElementById('searchResults');
-
-    // Show search section
-    searchSection.style.display = 'block';
-    searchResults.innerHTML = '<div class="loading">Searching...</div>';
-
-    try {
-        const response = await fetch('/api/trending');  // TODO: Replace with actual search endpoint
-        if (!response.ok) throw new Error('Failed to fetch songs');
-
-        const songs = await response.json();
-        const results = songs.filter(song => 
-            song.title.toLowerCase().includes(query.toLowerCase()) ||
-            song.artist.toLowerCase().includes(query.toLowerCase())
-        );
-
-        if (results.length > 0) {
-            searchResults.innerHTML = results.map(song => createSongCard(song)).join('');
-        } else {
-            searchResults.innerHTML = '<div class="error">No songs found</div>';
-        }
-    } catch (error) {
-        console.error("Error searching songs:", error);
-        searchResults.innerHTML = '<div class="error">Error searching songs</div>';
+function setupPlayerControls() {
+    // Play/Pause button
+    const playPauseBtn = document.querySelector('.play-pause');
+    if (playPauseBtn) {
+        playPauseBtn.addEventListener('click', togglePlay);
     }
+
+    // Previous track button
+    const prevBtn = document.querySelector('.previous');
+    if (prevBtn) {
+        prevBtn.addEventListener('click', previousTrack);
+    }
+
+    // Next track button
+    const nextBtn = document.querySelector('.next');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', nextTrack);
+    }
+
+    // Volume controls
+    const volumeBar = document.querySelector('.volume-bar');
+    if (volumeBar) {
+        volumeBar.addEventListener('click', adjustVolume);
+    }
+}
+
+let isPlaying = false;
+let currentTrack = null;
+
+function playSong(videoId, title, artist, thumbnail) {
+    currentTrack = { videoId, title, artist, thumbnail };
+
+    // Update player UI
+    document.getElementById('current-song-title').textContent = title;
+    document.getElementById('current-song-artist').textContent = artist;
+    document.getElementById('current-song-image').src = thumbnail;
+
+    // Reset play button state
+    const playIcon = document.querySelector('.play');
+    const pauseIcon = document.querySelector('.pause');
+    if (playIcon && pauseIcon) {
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
+    }
+
+    isPlaying = false;
+    togglePlay();
+}
+
+function togglePlay() {
+    if (!currentTrack) return;
+
+    isPlaying = !isPlaying;
+    const playIcon = document.querySelector('.play');
+    const pauseIcon = document.querySelector('.pause');
+
+    if (playIcon && pauseIcon) {
+        if (isPlaying) {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        } else {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+        }
+    }
+
+    // Here you would typically integrate with your audio playback system
+    console.log(`${isPlaying ? 'Playing' : 'Paused'}: ${currentTrack.title}`);
 }
 
 function previousTrack() {
     console.log('Previous track');
+    // Implement previous track functionality
 }
 
 function nextTrack() {
     console.log('Next track');
+    // Implement next track functionality
+}
+
+function adjustVolume(e) {
+    const volumeBar = e.currentTarget;
+    const rect = volumeBar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = (x / rect.width) * 100;
+
+    const volumeProgress = volumeBar.querySelector('.volume-progress');
+    if (volumeProgress) {
+        volumeProgress.style.width = `${percentage}%`;
+    }
+
+    // Here you would typically set the actual volume
+    console.log(`Volume set to: ${Math.round(percentage)}%`);
+}
+
+async function searchSongs(query) {
+    const searchResults = document.getElementById('search-results');
+    if (!searchResults) return;
+
+    try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error('Search failed');
+
+        const results = await response.json();
+        updateSongList(searchResults, results, "No songs found matching your search");
+    } catch (error) {
+        console.error("Error searching songs:", error);
+        showError(searchResults, "Failed to perform search");
+    }
 }
 
 function getYouTubeThumbnail(videoId) {
