@@ -27,7 +27,9 @@ cache = {
     'new_releases': {'data': None, 'timestamp': None},
     'indian': {'data': None, 'timestamp': None},
     'punjabi': {'data': None, 'timestamp': None},
-    'hindi': {'data': None, 'timestamp': None}
+    'hindi': {'data': None, 'timestamp': None},
+    'featured': {'data': None, 'timestamp': None},
+    'your_mix': {'data': None, 'timestamp': None}
 }
 
 def is_cache_valid(cache_type):
@@ -40,90 +42,83 @@ def is_cache_valid(cache_type):
 def fetch_youtube_videos(category, search_query=None, region_code='US'):
     """Generic function to fetch music videos from YouTube Data API"""
     try:
-        api_key = os.environ.get('YOUTUBE_API_KEY')
+        api_key = os.getenv('YOUTUBE_API_KEY')
         if not api_key:
             logger.error("YouTube API key not found in environment variables")
             return []
 
-        url = "https://www.googleapis.com/youtube/v3/search" if search_query else "https://www.googleapis.com/youtube/v3/videos"
-
+        logger.info(f"Fetching {category} videos from YouTube API")
+        base_url = "https://www.googleapis.com/youtube/v3/search"
         params = {
-            'part': 'snippet,statistics' if not search_query else 'snippet',
+            'part': 'snippet',
             'maxResults': '10',
             'key': api_key,
             'type': 'video',
             'videoCategoryId': '10',  # Music category
-            'regionCode': region_code
+            'regionCode': region_code,
+            'q': f"music {search_query}" if search_query else "popular music"
         }
 
-        if search_query:
-            params['q'] = search_query
-        else:
-            params['chart'] = 'mostPopular'
+        logger.info(f"Making API request for {category} videos with query: {params.get('q')}")
+        response = requests.get(base_url, params=params)
 
-        logger.info(f"Fetching {category} videos from YouTube API")
-        response = requests.get(url, params=params, timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-            songs = []
-
-            items = data.get('items', [])
-            if search_query:
-                # For search results, we need to fetch video statistics separately
-                video_ids = [item['id']['videoId'] for item in items]
-                stats_response = requests.get(
-                    "https://www.googleapis.com/youtube/v3/videos",
-                    params={
-                        'part': 'statistics',
-                        'id': ','.join(video_ids),
-                        'key': api_key
-                    }
-                )
-                stats_data = stats_response.json() if stats_response.status_code == 200 else {'items': []}
-                stats_map = {item['id']: item['statistics'] for item in stats_data.get('items', [])}
-
-            for item in items:
-                try:
-                    if search_query:
-                        video_id = item['id']['videoId']
-                        snippet = item['snippet']
-                        statistics = stats_map.get(video_id, {})
-                    else:
-                        video_id = item['id']
-                        snippet = item['snippet']
-                        statistics = item.get('statistics', {})
-
-                    song_info = {
-                        'title': snippet['title'],
-                        'artist': snippet['channelTitle'],
-                        'videoId': video_id,
-                        'thumbnail': snippet['thumbnails']['high']['url'],
-                        'views': statistics.get('viewCount', '0')
-                    }
-                    songs.append(song_info)
-                    logger.info(f"Added {category} song: {song_info['title']}")
-
-                except Exception as e:
-                    logger.error(f"Error processing video data: {e}")
-                    continue
-
-            return songs
-        else:
+        if response.status_code != 200:
             logger.error(f"YouTube API request failed: {response.status_code} - {response.text}")
             return []
 
+        data = response.json()
+        songs = []
+
+        for item in data.get('items', []):
+            try:
+                video_id = item['id']['videoId']
+                snippet = item['snippet']
+
+                # Get video statistics
+                stats_url = "https://www.googleapis.com/youtube/v3/videos"
+                stats_params = {
+                    'part': 'statistics',
+                    'id': video_id,
+                    'key': api_key
+                }
+
+                stats_response = requests.get(stats_url, params=stats_params)
+                if stats_response.status_code == 200:
+                    stats_data = stats_response.json()
+                    statistics = stats_data.get('items', [{}])[0].get('statistics', {})
+                else:
+                    logger.error(f"Failed to get statistics for video {video_id}")
+                    statistics = {}
+
+                song_info = {
+                    'title': snippet['title'],
+                    'artist': snippet['channelTitle'],
+                    'videoId': video_id,
+                    'thumbnail': snippet['thumbnails']['high']['url'],
+                    'views': statistics.get('viewCount', '0')
+                }
+                songs.append(song_info)
+                logger.info(f"Added {category} song: {song_info['title']}")
+
+            except Exception as e:
+                logger.error(f"Error processing video {video_id if 'video_id' in locals() else 'unknown'}: {str(e)}")
+                continue
+
+        logger.info(f"Successfully fetched {len(songs)} songs for {category}")
+        return songs
+
     except Exception as e:
-        logger.error(f"Error fetching {category} songs: {str(e)}")
+        logger.error(f"Error in fetch_youtube_videos for {category}: {str(e)}")
         return []
 
 def fetch_youtube_trending():
-    """Fetch trending music from YouTube Data API"""
+    """Fetch trending music from YouTube"""
     if is_cache_valid('trending'):
         return cache['trending']['data']
 
-    songs = fetch_youtube_videos('trending')
-    cache['trending'] = {'data': songs, 'timestamp': datetime.now()}
+    songs = fetch_youtube_videos('trending', 'trending music')
+    if songs:
+        cache['trending'] = {'data': songs, 'timestamp': datetime.now()}
     return songs
 
 def fetch_new_releases():
@@ -132,61 +127,29 @@ def fetch_new_releases():
         return cache['new_releases']['data']
 
     songs = fetch_youtube_videos('new_releases', 'new music this week')
-    cache['new_releases'] = {'data': songs, 'timestamp': datetime.now()}
-    return songs
-
-def fetch_indian_songs():
-    """Fetch Indian music"""
-    if is_cache_valid('indian'):
-        return cache['indian']['data']
-
-    songs = fetch_youtube_videos('indian', 'latest indian songs', 'IN')
-    cache['indian'] = {'data': songs, 'timestamp': datetime.now()}
-    return songs
-
-def fetch_punjabi_songs():
-    """Fetch Punjabi music"""
-    if is_cache_valid('punjabi'):
-        return cache['punjabi']['data']
-
-    songs = fetch_youtube_videos('punjabi', 'new punjabi songs 2025')
-    cache['punjabi'] = {'data': songs, 'timestamp': datetime.now()}
-    return songs
-
-def fetch_hindi_songs():
-    """Fetch Hindi music"""
-    if is_cache_valid('hindi'):
-        return cache['hindi']['data']
-
-    songs = fetch_youtube_videos('hindi', 'latest hindi songs')
-    cache['hindi'] = {'data': songs, 'timestamp': datetime.now()}
+    if songs:
+        cache['new_releases'] = {'data': songs, 'timestamp': datetime.now()}
     return songs
 
 def fetch_featured_songs():
-    """Fetch featured music from YouTube Data API"""
+    """Fetch featured music"""
     if is_cache_valid('featured'):
         return cache['featured']['data']
 
-    songs = fetch_youtube_videos('featured', 'trending music hits 2025')
-    cache['featured'] = {'data': songs, 'timestamp': datetime.now()}
+    songs = fetch_youtube_videos('featured', 'popular music hits')
+    if songs:
+        cache['featured'] = {'data': songs, 'timestamp': datetime.now()}
     return songs
 
 def fetch_your_mix():
-    """Fetch personalized mix of songs"""
+    """Fetch personalized mix"""
     if is_cache_valid('your_mix'):
         return cache['your_mix']['data']
 
-    # For demonstration, fetching a mix of different genres
-    songs = fetch_youtube_videos('your_mix', 'popular music mix 2025')
-    cache['your_mix'] = {'data': songs, 'timestamp': datetime.now()}
+    songs = fetch_youtube_videos('your_mix', 'music mix variety')
+    if songs:
+        cache['your_mix'] = {'data': songs, 'timestamp': datetime.now()}
     return songs
-
-# Update cache dictionary to include new categories
-cache.update({
-    'featured': {'data': None, 'timestamp': None},
-    'your_mix': {'data': None, 'timestamp': None}
-})
-
 
 @app.route('/api/trending')
 def get_trending():
@@ -194,7 +157,6 @@ def get_trending():
     try:
         logger.info("Fetching trending songs...")
         songs = fetch_youtube_trending()
-        logger.info(f"Fetched {len(songs)} trending songs")
         return jsonify(songs)
     except Exception as e:
         logger.error(f"Error in trending endpoint: {str(e)}")
@@ -206,46 +168,9 @@ def get_new_releases():
     try:
         logger.info("Fetching new releases...")
         songs = fetch_new_releases()
-        logger.info(f"Fetched {len(songs)} new releases")
         return jsonify(songs)
     except Exception as e:
         logger.error(f"Error in new releases endpoint: {str(e)}")
-        return jsonify([]), 500
-
-@app.route('/api/indian')
-def get_indian_songs():
-    """API endpoint to get Indian songs"""
-    try:
-        logger.info("Fetching Indian songs...")
-        songs = fetch_indian_songs()
-        logger.info(f"Fetched {len(songs)} Indian songs")
-        return jsonify(songs)
-    except Exception as e:
-        logger.error(f"Error in Indian songs endpoint: {str(e)}")
-        return jsonify([]), 500
-
-@app.route('/api/punjabi')
-def get_punjabi_songs():
-    """API endpoint to get Punjabi songs"""
-    try:
-        logger.info("Fetching Punjabi songs...")
-        songs = fetch_punjabi_songs()
-        logger.info(f"Fetched {len(songs)} Punjabi songs")
-        return jsonify(songs)
-    except Exception as e:
-        logger.error(f"Error in Punjabi songs endpoint: {str(e)}")
-        return jsonify([]), 500
-
-@app.route('/api/hindi')
-def get_hindi_songs():
-    """API endpoint to get Hindi songs"""
-    try:
-        logger.info("Fetching Hindi songs...")
-        songs = fetch_hindi_songs()
-        logger.info(f"Fetched {len(songs)} Hindi songs")
-        return jsonify(songs)
-    except Exception as e:
-        logger.error(f"Error in Hindi songs endpoint: {str(e)}")
         return jsonify([]), 500
 
 @app.route('/api/featured')
@@ -254,10 +179,9 @@ def get_featured():
     try:
         logger.info("Fetching featured songs...")
         songs = fetch_featured_songs()
-        logger.info(f"Fetched {len(songs)} featured songs")
         return jsonify(songs)
     except Exception as e:
-        logger.error(f"Error in featured songs endpoint: {str(e)}")
+        logger.error(f"Error in featured endpoint: {str(e)}")
         return jsonify([]), 500
 
 @app.route('/api/your-mix')
@@ -266,7 +190,6 @@ def get_your_mix():
     try:
         logger.info("Fetching your mix...")
         songs = fetch_your_mix()
-        logger.info(f"Fetched {len(songs)} songs for your mix")
         return jsonify(songs)
     except Exception as e:
         logger.error(f"Error in your mix endpoint: {str(e)}")
@@ -274,19 +197,18 @@ def get_your_mix():
 
 @app.route('/')
 def index():
-    logger.info("Received request for index route")
+    """Serve the main application page"""
     return render_template('index.html')
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    logger.info(f"Serving static file: {filename}")
+    """Serve static files"""
     return send_from_directory('static', filename)
 
 if __name__ == '__main__':
     try:
         port = int(os.environ.get('PORT', 8080))
-        logger.info(f"Attempting to start server on port {port}")
-        logger.info(f"Debug mode: {app.debug}")
+        logger.info(f"Starting server on port {port}")
 
         app.run(
             host='0.0.0.0',
@@ -294,5 +216,5 @@ if __name__ == '__main__':
             debug=True
         )
     except Exception as e:
-        logger.error(f"Failed to start server: {e}", exc_info=True)
+        logger.error(f"Failed to start server: {str(e)}")
         raise
