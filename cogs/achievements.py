@@ -5,6 +5,8 @@ from typing import Dict, List, Set
 import json
 import os
 from datetime import datetime
+import sqlite3
+import asyncio
 
 class Achievement:
     def __init__(self, id: str, name: str, description: str, emoji: str, points: int, role_name: str = None, secret: bool = False):
@@ -13,13 +15,17 @@ class Achievement:
         self.description = description
         self.emoji = emoji
         self.points = points
-        self.role_name = role_name  # Name of the role to be awarded
+        self.role_name = role_name
         self.secret = secret
 
 class Achievements(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
+        # Initialize XP system
+        self.xp_cooldown = {}
+        self.setup_database()
+
         self.achievements = {
             # Education Achievements
             "first_question": Achievement(
@@ -107,6 +113,169 @@ class Achievements(commands.Cog):
         self.load_achievements()
         self.logger.info("Achievements system initialized")
 
+    def setup_database(self):
+        """Initialize SQLite database for XP system"""
+        try:
+            os.makedirs('data', exist_ok=True)
+            self.db = sqlite3.connect('data/user_data.db')
+            cursor = self.db.cursor()
+
+            # Create XP table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_xp (
+                    user_id TEXT PRIMARY KEY,
+                    xp INTEGER DEFAULT 0,
+                    level INTEGER DEFAULT 1,
+                    last_xp_gain TIMESTAMP
+                )
+            ''')
+            self.db.commit()
+            self.logger.info("XP database initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Error setting up database: {str(e)}")
+
+    def calculate_level(self, xp: int) -> int:
+        """Calculate level based on XP"""
+        return int((xp / 100) ** 0.5) + 1
+
+    def calculate_xp_for_level(self, level: int) -> int:
+        """Calculate XP needed for a specific level"""
+        return ((level - 1) ** 2) * 100
+
+    async def add_xp(self, user_id: str, xp_amount: int = 10):
+        """Add XP to user with cooldown"""
+        try:
+            current_time = datetime.now()
+            if user_id in self.xp_cooldown:
+                if (current_time - self.xp_cooldown[user_id]).total_seconds() < 60:
+                    return
+
+            self.xp_cooldown[user_id] = current_time
+            cursor = self.db.cursor()
+
+            # Get current XP and level
+            cursor.execute('SELECT xp, level FROM user_xp WHERE user_id = ?', (user_id,))
+            result = cursor.fetchone()
+
+            if result:
+                current_xp, current_level = result
+                new_xp = current_xp + xp_amount
+            else:
+                current_xp, current_level = 0, 1
+                new_xp = xp_amount
+                cursor.execute('INSERT INTO user_xp (user_id, xp, level) VALUES (?, ?, ?)',
+                             (user_id, new_xp, current_level))
+
+            new_level = self.calculate_level(new_xp)
+
+            # Update database
+            cursor.execute('''
+                UPDATE user_xp 
+                SET xp = ?, level = ?, last_xp_gain = CURRENT_TIMESTAMP 
+                WHERE user_id = ?
+            ''', (new_xp, new_level, user_id))
+
+            self.db.commit()
+
+            # Handle level up
+            if new_level > current_level:
+                for guild in self.bot.guilds:
+                    member = guild.get_member(int(user_id))
+                    if member:
+                        embed = discord.Embed(
+                            title="🎉 Level Up!",
+                            description=f"Congratulations {member.mention}! You've reached level {new_level}!",
+                            color=discord.Color.gold()
+                        )
+                        # Send level up message to the first available channel
+                        for channel in guild.text_channels:
+                            try:
+                                await channel.send(embed=embed)
+                                break
+                            except discord.Forbidden:
+                                continue
+
+        except Exception as e:
+            self.logger.error(f"Error adding XP: {str(e)}")
+
+    async def award_achievement(self, user_id: str, achievement_id: str, guild: discord.Guild = None):
+        """Award an achievement to a user in a specific guild"""
+        try:
+            self.logger.info(f"Attempting to award achievement {achievement_id} to user {user_id} in guild {guild.name if guild else 'None'}")
+
+            if user_id not in self.user_achievements:
+                self.user_achievements[user_id] = []
+
+            if achievement_id not in self.user_achievements[user_id]:
+                achievement = self.achievements[achievement_id]
+                self.user_achievements[user_id].append(achievement_id)
+                self.save_achievements()
+
+                user = self.bot.get_user(int(user_id))
+                if user and guild:
+                    # Award role in the specific guild
+                    if achievement.role_name:
+                        try:
+                            member = guild.get_member(int(user_id))
+                            self.logger.info(f"Found member {member.name} ({member.id}) in guild {guild.name}")
+
+                            role = discord.utils.get(guild.roles, name=achievement.role_name)
+                            if role:
+                                self.logger.info(f"Found role {role.name} (Position: {role.position}) in guild {guild.name}")
+
+                                if guild.me.guild_permissions.manage_roles:
+                                    self.logger.info(f"Bot has manage_roles permission in {guild.name}")
+
+                                    if guild.me.top_role > role:
+                                        self.logger.info(f"Bot's role ({guild.me.top_role.name}, pos: {guild.me.top_role.position}) is higher than {role.name} (pos: {role.position})")
+                                        await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
+                                        self.logger.info(f"✅ Successfully awarded role {role.name} to {member.name} in {guild.name}")
+                                    else:
+                                        self.logger.warning(f"❌ Bot's role is not high enough to assign {role.name} in {guild.name}")
+                                else:
+                                    self.logger.warning(f"❌ Bot lacks permission to manage roles in {guild.name}")
+                            else:
+                                self.logger.warning(f"Role {achievement.role_name} not found in {guild.name}, attempting to create")
+                                await self.setup_achievement_roles(guild)
+                                role = discord.utils.get(guild.roles, name=achievement.role_name)
+                                if role:
+                                    await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
+                                    self.logger.info(f"✅ Successfully awarded role {role.name} to {member.name} after creation")
+                                else:
+                                    self.logger.error(f"❌ Failed to create role {achievement.role_name} in {guild.name}")
+                        except Exception as e:
+                            self.logger.error(f"Error assigning role in {guild.name}: {str(e)}", exc_info=True)
+
+                    # Send achievement notification
+                    embed = discord.Embed(
+                        title=f"🎉 Achievement Unlocked!",
+                        description=(
+                            f"{achievement.emoji} **{achievement.name}**\n"
+                            f"{achievement.description}\n"
+                            f"*+{achievement.points} points*"
+                        ),
+                        color=discord.Color.gold()
+                    )
+
+                    if achievement.role_name:
+                        embed.add_field(
+                            name="🏆 Role Awarded",
+                            value=f"You've been awarded the `{achievement.role_name}` role!",
+                            inline=False
+                        )
+
+                    try:
+                        await user.send(embed=embed)
+                    except discord.Forbidden:
+                        pass  # User has DMs disabled
+
+                self.logger.info(f"Finished processing achievement {achievement_id} for user {user_id}")
+                return True
+
+        except Exception as e:
+            self.logger.error(f"Error awarding achievement: {str(e)}", exc_info=True)
+        return False
+
     def load_achievements(self):
         """Load saved user achievements from file"""
         try:
@@ -140,6 +309,9 @@ class Achievements(commands.Cog):
 
             self.logger.info(f"Bot has required permissions in {guild.name}")
 
+            # Calculate position below bot's role
+            target_position = guild.me.top_role.position - 1
+
             for achievement in self.achievements.values():
                 if achievement.role_name and achievement.role_name not in existing_roles:
                     try:
@@ -157,12 +329,10 @@ class Achievements(commands.Cog):
                         )
                         self.logger.info(f"Successfully created role {role.name} in {guild.name}")
 
-                        # Try to move the role up in hierarchy
+                        # Immediately move role to correct position
                         try:
-                            positions = {role: role.position for role in guild.roles}
-                            positions[role] = guild.me.top_role.position - 1
-                            await guild.edit_role_positions(positions=positions)
-                            self.logger.info(f"Successfully positioned role {role.name} below bot's role")
+                            await role.edit(position=target_position)
+                            self.logger.info(f"Successfully positioned role {role.name} at position {target_position}")
                         except discord.Forbidden:
                             self.logger.warning(f"Could not move role {role.name} in hierarchy - insufficient permissions")
                         except Exception as e:
@@ -173,87 +343,17 @@ class Achievements(commands.Cog):
                     except Exception as e:
                         self.logger.error(f"Error creating role {achievement.role_name}: {str(e)}")
                 else:
-                    self.logger.info(f"Role {achievement.role_name} already exists in {guild.name}")
+                    # Update existing role position if needed
+                    role = existing_roles[achievement.role_name]
+                    if role.position < target_position:
+                        try:
+                            await role.edit(position=target_position)
+                            self.logger.info(f"Updated position for existing role {role.name} to {target_position}")
+                        except Exception as e:
+                            self.logger.error(f"Error updating position for role {role.name}: {str(e)}")
 
         except Exception as e:
             self.logger.error(f"Error setting up achievement roles: {str(e)}", exc_info=True)
-
-    async def award_achievement(self, user_id: str, achievement_id: str):
-        """Award an achievement to a user"""
-        try:
-            if user_id not in self.user_achievements:
-                self.user_achievements[user_id] = []
-
-            if achievement_id not in self.user_achievements[user_id]:
-                achievement = self.achievements[achievement_id]
-                self.user_achievements[user_id].append(achievement_id)
-                self.save_achievements()
-
-                user = self.bot.get_user(int(user_id))
-                if user:
-                    # Award role if it exists
-                    if achievement.role_name:
-                        for guild in self.bot.guilds:
-                            try:
-                                member = guild.get_member(int(user_id))
-                                if member:
-                                    role = discord.utils.get(guild.roles, name=achievement.role_name)
-                                    if role:
-                                        # Check if bot has permission to manage roles
-                                        if guild.me.guild_permissions.manage_roles:
-                                            # Check if bot's role is higher than the role to assign
-                                            if guild.me.top_role > role:
-                                                await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
-                                                self.logger.info(f"Successfully awarded role {role.name} to {member.name}")
-                                            else:
-                                                self.logger.warning(f"Bot's role is not high enough to assign {role.name}")
-                                        else:
-                                            self.logger.warning(f"Bot lacks permission to manage roles in {guild.name}")
-                                    else:
-                                        self.logger.warning(f"Role {achievement.role_name} not found in {guild.name}")
-                                        # Try to create the role if it doesn't exist
-                                        await self.setup_achievement_roles(guild)
-                                        # Try assigning the role again
-                                        role = discord.utils.get(guild.roles, name=achievement.role_name)
-                                        if role:
-                                            await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
-                                            self.logger.info(f"Successfully awarded role {role.name} to {member.name} after creation")
-                                else:
-                                    self.logger.warning(f"Could not find member {user_id} in {guild.name}")
-                            except discord.Forbidden as e:
-                                self.logger.error(f"Permission error assigning role in {guild.name}: {str(e)}")
-                            except Exception as e:
-                                self.logger.error(f"Error assigning role in {guild.name}: {str(e)}")
-
-                    # Send achievement notification
-                    embed = discord.Embed(
-                        title=f"🎉 Achievement Unlocked!",
-                        description=(
-                            f"{achievement.emoji} **{achievement.name}**\n"
-                            f"{achievement.description}\n"
-                            f"*+{achievement.points} points*"
-                        ),
-                        color=discord.Color.gold()
-                    )
-
-                    # Add role information to the embed if applicable
-                    if achievement.role_name:
-                        embed.add_field(
-                            name="🏆 Role Awarded",
-                            value=f"You've been awarded the `{achievement.role_name}` role!",
-                            inline=False
-                        )
-
-                    try:
-                        await user.send(embed=embed)
-                    except discord.Forbidden:
-                        pass  # User has DMs disabled
-
-                self.logger.info(f"Awarded achievement {achievement_id} to user {user_id}")
-                return True
-        except Exception as e:
-            self.logger.error(f"Error awarding achievement: {str(e)}")
-        return False
 
     @commands.command(name="achievements")
     async def view_achievements(self, ctx):
@@ -306,6 +406,79 @@ class Achievements(commands.Cog):
             self.logger.error(f"Error displaying achievements: {str(e)}")
             await ctx.send("❌ An error occurred while fetching achievements.")
 
+    @commands.command(name='level')
+    async def show_level(self, ctx, member: discord.Member = None):
+        """Show user's current level and XP progress"""
+        try:
+            target = member or ctx.author
+            cursor = self.db.cursor()
+            cursor.execute('SELECT xp, level FROM user_xp WHERE user_id = ?', (str(target.id),))
+            result = cursor.fetchone()
+
+            if result:
+                xp, level = result
+                next_level_xp = self.calculate_xp_for_level(level + 1)
+                current_level_xp = self.calculate_xp_for_level(level)
+                progress = ((xp - current_level_xp) / (next_level_xp - current_level_xp)) * 10
+                progress_bar = '█' * int(progress) + '░' * (10 - int(progress))
+
+                embed = discord.Embed(
+                    title=f"Level Status for {target.display_name}",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="Current Level",
+                    value=f"```Level {level}```",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Experience",
+                    value=f"```{xp}/{next_level_xp} XP\n{progress_bar}```",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(f"{target.mention} hasn't earned any XP yet!")
+
+        except Exception as e:
+            self.logger.error(f"Error showing level: {str(e)}")
+            await ctx.send("❌ An error occurred while fetching level information.")
+
+    @commands.command(name='leaderboard')
+    async def show_leaderboard(self, ctx):
+        """Show XP leaderboard"""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                SELECT user_id, xp, level 
+                FROM user_xp 
+                ORDER BY xp DESC 
+                LIMIT 10
+            ''')
+            results = cursor.fetchall()
+
+            if results:
+                embed = discord.Embed(
+                    title="🏆 XP Leaderboard",
+                    color=discord.Color.gold()
+                )
+
+                leaderboard_text = ""
+                for i, (user_id, xp, level) in enumerate(results, 1):
+                    member = ctx.guild.get_member(int(user_id))
+                    name = member.display_name if member else "Unknown User"
+                    leaderboard_text += f"{i}. {name} - Level {level} ({xp} XP)\n"
+
+                embed.description = f"```{leaderboard_text}```"
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send("No XP data available yet!")
+
+        except Exception as e:
+            self.logger.error(f"Error showing leaderboard: {str(e)}")
+            await ctx.send("❌ An error occurred while fetching the leaderboard.")
+
+
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         """Create achievement roles when bot joins a new guild"""
@@ -313,24 +486,27 @@ class Achievements(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        """Listen for messages to track achievements"""
+        """Listen for messages to track achievements and XP"""
         if message.author.bot:
             return
 
         user_id = str(message.author.id)
         try:
-            # Track AI interactions
+            # Add XP for message
+            await self.add_xp(user_id)
+
+            # Track achievements as before
             if message.content.startswith('!ask') or message.content.startswith('!chat'):
-                await self.award_achievement(user_id, "ai_explorer")
+                await self.award_achievement(user_id, "ai_explorer", message.guild)
 
             # Track night owl achievement
             current_hour = datetime.now().hour
             if current_hour >= 0 and current_hour < 6:
                 if message.content.startswith('!11') or message.content.startswith('!12'):
-                    await self.award_achievement(user_id, "night_owl")
+                    await self.award_achievement(user_id, "night_owl", message.guild)
 
         except Exception as e:
-            self.logger.error(f"Error in achievement listener: {str(e)}")
+            self.logger.error(f"Error in achievement/XP listener: {str(e)}")
 
     @commands.command(name='checkroles')
     @commands.has_permissions(administrator=True)

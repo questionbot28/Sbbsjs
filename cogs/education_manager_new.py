@@ -20,114 +20,6 @@ class EducationManager(commands.Cog):
             'D': '📝'
         }
 
-    @commands.command(name='help')
-    async def help_command(self, ctx):
-        """Show help information with fancy formatting"""
-        help_embed = discord.Embed(
-            title="📚 Educational Bot Help",
-            description="Your personal study companion for Class 11 & 12!",
-            color=discord.Color.blue()
-        )
-
-        commands_info = (
-            "```\n"
-            "!11 - Get Class 11 Questions\n"
-            "!12 - Get Class 12 Questions\n"
-            "!subjects - List All Subjects\n"
-            "!chapters11 - View Class 11 Chapters\n"
-            "!chapters12 - View Class 12 Chapters\n"
-            "```"
-        )
-        help_embed.add_field(
-            name="🎮 Available Commands",
-            value=commands_info,
-            inline=False
-        )
-
-        examples = (
-            "```\n"
-            "!11 physics waves\n"
-            "!12 chemistry organic\n"
-            "!chapters11 physics\n"
-            "!chapters12 chemistry\n"
-            "```"
-        )
-        help_embed.add_field(
-            name="📝 Example Usage",
-            value=examples,
-            inline=False
-        )
-
-        features = (
-            "• 📚 Questions from all major subjects\n"
-            "• 🎯 Topic-specific practice\n"
-            "• 📖 Chapter-wise curriculum view\n"
-            "• ⏱️ Timed answer reveals\n"
-            "• 📨 Private message delivery\n"
-            "• 📝 Detailed explanations"
-        )
-        help_embed.add_field(
-            name="✨ Features",
-            value=features,
-            inline=False
-        )
-
-        help_embed.set_footer(text="Made with ❤️ by Rohanpreet Singh Pathania")
-        await ctx.send(embed=help_embed)
-
-    @commands.command(name='subjects')
-    async def list_subjects(self, ctx):
-        """List all available subjects"""
-        embed = discord.Embed(
-            title="📚 Available Subjects",
-            description="Here are all the subjects you can study:",
-            color=discord.Color.blue()
-        )
-
-        subjects_format = (
-            "📕 Mathematics\n"
-            "📗 Physics\n"
-            "📘 Chemistry\n"
-            "📙 Biology\n"
-            "📔 Economics\n"
-            "📓 Accountancy\n"
-            "📒 Business Studies\n"
-            "📚 English"
-        )
-        embed.add_field(
-            name="Available Subjects:",
-            value=f"```{subjects_format}```",
-            inline=False
-        )
-
-        examples = (
-            "Examples:\n"
-            "!11 physics waves\n"
-            "!12 chemistry organic\n"
-            "!11 mathematics integration\n"
-            "!12 biology evolution"
-        )
-        embed.add_field(
-            name="How to Use:",
-            value=f"```{examples}```",
-            inline=False
-        )
-
-        embed.set_footer(text="Use these subjects with !11 or !12 commands to get practice questions! 📚✨")
-        await ctx.send(embed=embed)
-
-    @commands.command(name='11')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
-        """Get a question for class 11"""
-        await self._handle_question_command(ctx, subject, topic, 11)
-
-    @commands.command(name='12')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
-        """Get a question for class 12"""
-        await self._handle_question_command(ctx, subject, topic, 12)
-
     async def _handle_question_command(self, ctx, subject: str, topic: Optional[str], class_level: int):
         """Handle question generation for both class 11 and 12"""
         if ctx.author.id not in self.command_locks:
@@ -138,8 +30,8 @@ class EducationManager(commands.Cog):
                 # Validate subject
                 is_valid, normalized_subject = self._validate_subject(subject)
                 if not is_valid:
-                    available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology',
-                                      'Economics', 'Accountancy', 'Business Studies', 'English']
+                    available_subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 
+                                       'Economics', 'Accountancy', 'Business Studies', 'English']
                     await ctx.send(f"❌ Invalid subject. Available subjects: {', '.join(available_subjects)}")
                     return
 
@@ -147,12 +39,12 @@ class EducationManager(commands.Cog):
                 if ctx.author.id not in self.user_questions:
                     self.user_questions[ctx.author.id] = {}
 
-                # Track achievements
+                # Track achievements with guild context
                 achievements_cog = self.bot.get_cog('Achievements')
                 if achievements_cog:
                     user_id = str(ctx.author.id)
                     # First question achievement
-                    await achievements_cog.award_achievement(user_id, "first_question")
+                    await achievements_cog.award_achievement(user_id, "first_question", ctx.guild)
 
                     # Track unique subjects
                     if not hasattr(self, 'user_subjects'):
@@ -161,7 +53,7 @@ class EducationManager(commands.Cog):
                         self.user_subjects[user_id] = set()
                     self.user_subjects[user_id].add(normalized_subject)
                     if len(self.user_subjects[user_id]) >= 5:
-                        await achievements_cog.award_achievement(user_id, "knowledge_seeker")
+                        await achievements_cog.award_achievement(user_id, "knowledge_seeker", ctx.guild)
 
                     # Track total questions
                     if not hasattr(self, 'user_question_count'):
@@ -170,7 +62,7 @@ class EducationManager(commands.Cog):
                         self.user_question_count[user_id] = 0
                     self.user_question_count[user_id] += 1
                     if self.user_question_count[user_id] >= 100:
-                        await achievements_cog.award_achievement(user_id, "master_student")
+                        await achievements_cog.award_achievement(user_id, "master_student", ctx.guild)
 
                 # Generate question
                 try:
@@ -284,6 +176,114 @@ class EducationManager(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error sending question to DM: {str(e)}")
             await ctx.send("❌ An error occurred while sending the question.")
+
+    @commands.command(name='11')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def class_11(self, ctx, subject: str, topic: Optional[str] = None):
+        """Get a question for class 11"""
+        await self._handle_question_command(ctx, subject, topic, 11)
+
+    @commands.command(name='12')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def class_12(self, ctx, subject: str, topic: Optional[str] = None):
+        """Get a question for class 12"""
+        await self._handle_question_command(ctx, subject, topic, 12)
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Show help information with fancy formatting"""
+        help_embed = discord.Embed(
+            title="📚 Educational Bot Help",
+            description="Your personal study companion for Class 11 & 12!",
+            color=discord.Color.blue()
+        )
+
+        commands_info = (
+            "```\n"
+            "!11 - Get Class 11 Questions\n"
+            "!12 - Get Class 12 Questions\n"
+            "!subjects - List All Subjects\n"
+            "!chapters11 - View Class 11 Chapters\n"
+            "!chapters12 - View Class 12 Chapters\n"
+            "```"
+        )
+        help_embed.add_field(
+            name="🎮 Available Commands",
+            value=commands_info,
+            inline=False
+        )
+
+        examples = (
+            "```\n"
+            "!11 physics waves\n"
+            "!12 chemistry organic\n"
+            "!chapters11 physics\n"
+            "!chapters12 chemistry\n"
+            "```"
+        )
+        help_embed.add_field(
+            name="📝 Example Usage",
+            value=examples,
+            inline=False
+        )
+
+        features = (
+            "• 📚 Questions from all major subjects\n"
+            "• 🎯 Topic-specific practice\n"
+            "• 📖 Chapter-wise curriculum view\n"
+            "• ⏱️ Timed answer reveals\n"
+            "• 📨 Private message delivery\n"
+            "• 📝 Detailed explanations"
+        )
+        help_embed.add_field(
+            name="✨ Features",
+            value=features,
+            inline=False
+        )
+
+        help_embed.set_footer(text="Made with ❤️ by Rohanpreet Singh Pathania")
+        await ctx.send(embed=help_embed)
+
+    @commands.command(name='subjects')
+    async def list_subjects(self, ctx):
+        """List all available subjects"""
+        embed = discord.Embed(
+            title="📚 Available Subjects",
+            description="Here are all the subjects you can study:",
+            color=discord.Color.blue()
+        )
+
+        subjects_format = (
+            "📕 Mathematics\n"
+            "📗 Physics\n"
+            "📘 Chemistry\n"
+            "📙 Biology\n"
+            "📔 Economics\n"
+            "📓 Accountancy\n"
+            "📒 Business Studies\n"
+            "📚 English"
+        )
+        embed.add_field(
+            name="Available Subjects:",
+            value=f"```{subjects_format}```",
+            inline=False
+        )
+
+        examples = (
+            "Examples:\n"
+            "!11 physics waves\n"
+            "!12 chemistry organic\n"
+            "!11 mathematics integration\n"
+            "!12 biology evolution"
+        )
+        embed.add_field(
+            name="How to Use:",
+            value=f"```{examples}```",
+            inline=False
+        )
+
+        embed.set_footer(text="Use these subjects with !11 or !12 commands to get practice questions! 📚✨")
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(EducationManager(bot))
