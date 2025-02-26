@@ -66,16 +66,18 @@ class Flashcards(commands.Cog):
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _generate_with_gemini(self, prompt: str) -> str:
         """Make API call to Gemini with retry logic"""
-        model = genai.GenerativeModel('gemini-pro')
-        response = await asyncio.to_thread(
-            model.generate_content,
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=500,
+        try:
+            model = genai.GenerativeModel('gemini-pro')
+            response = await asyncio.to_thread(
+                model.generate_content,
+                prompt
             )
-        )
-        return response.text
+            if not response.text:
+                raise ValueError("Empty response from Gemini")
+            return response.text
+        except Exception as e:
+            self.logger.error(f"Gemini API call failed: {str(e)}")
+            raise
 
     async def generate_flashcards(self, text: str, user_id: str, subject: Optional[str] = None) -> List[Flashcard]:
         """Generate flashcards using Google's Gemini API"""
@@ -84,39 +86,39 @@ class Flashcards(commands.Cog):
             raise ValueError("Google API key not configured")
 
         try:
-            prompt = (
-                f"Convert this text into 3-5 flashcards about {subject if subject else 'the topic'}. "
-                "Format each flashcard as:\nFront: [Question/Term] | Back: [Answer/Definition]\n\n"
-                f"Text: {text}"
-            )
+            # Simplify the prompt to reduce complexity
+            prompt = f"Create 3 flashcards from this text about {subject if subject else 'this topic'}. Format:\nFront: [Question]\nBack: [Answer]\n\nText: {text}"
 
-            self.logger.info("Attempting to generate flashcards with Gemini")
+            self.logger.info(f"Generating flashcards for subject: {subject}")
             flashcards_text = await self._generate_with_gemini(prompt)
-            self.logger.info("Successfully received response from Gemini")
+            self.logger.info("Received response from Gemini")
 
             flashcard_list = []
+            current_front = None
 
-            # Parse the response into flashcards
             for line in flashcards_text.split('\n'):
-                if '|' in line:
-                    try:
-                        front, back = line.split('|')
-                        front = front.replace('Front:', '').strip()
-                        back = back.replace('Back:', '').strip()
-                        if front and back:  # Only add if both sides have content
-                            flashcard_list.append(Flashcard(front, back, user_id, subject))
-                    except ValueError as e:
-                        self.logger.warning(f"Skipping malformed flashcard line: {line}")
-                        continue
+                line = line.strip()
+                if not line:
+                    continue
+
+                if line.startswith('Front:'):
+                    current_front = line.replace('Front:', '').strip()
+                elif line.startswith('Back:') and current_front:
+                    back = line.replace('Back:', '').strip()
+                    if current_front and back:
+                        flashcard_list.append(Flashcard(current_front, back, user_id, subject))
+                        current_front = None
 
             if not flashcard_list:
-                self.logger.error("No valid flashcards could be parsed from Gemini response")
-                raise ValueError("Failed to generate valid flashcards")
+                self.logger.error("No valid flashcards parsed from response")
+                self.logger.debug(f"Raw response: {flashcards_text}")
+                return []
 
+            self.logger.info(f"Successfully created {len(flashcard_list)} flashcards")
             return flashcard_list
 
         except Exception as e:
-            self.logger.error(f"Error generating flashcards with Gemini: {str(e)}")
+            self.logger.error(f"Error in flashcard generation: {str(e)}")
             self.logger.debug(f"Full error details: {str(e)}", exc_info=True)
             return []
 
