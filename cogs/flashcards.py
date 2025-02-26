@@ -67,12 +67,18 @@ class Flashcards(commands.Cog):
     async def _generate_with_gemini(self, prompt: str) -> str:
         """Make API call to Gemini with retry logic"""
         try:
-            model = genai.GenerativeModel('gemini-pro')
+            # List available models for debugging
+            self.logger.debug("Available Gemini models:")
+            for m in genai.list_models():
+                self.logger.debug(f"- {m.name}")
+
+            model = genai.GenerativeModel('gemini-2.0-flash')
             response = await asyncio.to_thread(model.generate_content, prompt)
 
             # Log response type and structure for debugging
             self.logger.debug(f"Gemini response type: {type(response)}")
             self.logger.debug(f"Gemini response attributes: {dir(response)}")
+            self.logger.debug(f"Raw Gemini response: {response.text}")
 
             if not response.text:
                 raise ValueError("Empty response from Gemini")
