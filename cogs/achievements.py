@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import sqlite3
 import asyncio
+import os
+from utils.badge_generator import AchievementBadgeGenerator
 
 class Achievement:
     def __init__(self, id: str, name: str, description: str, emoji: str, points: int, role_name: str = None, secret: bool = False, required_count: int = None):
@@ -23,12 +25,12 @@ class Achievements(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
-        # Initialize XP system
         self.xp_cooldown = {}
         self.setup_database()
-
+        # Ensure static directories exist
+        os.makedirs('static/css', exist_ok=True)
+        os.makedirs('static/badges', exist_ok=True)
         self.achievements = {
-            # Education Achievements with progress tracking
             "first_question": Achievement(
                 "first_question",
                 "Curious Mind",
@@ -56,6 +58,7 @@ class Achievements(commands.Cog):
                 "Master Student",
                 required_count=100
             ),
+            # Subject specific achievements
             "physics_enthusiast": Achievement(
                 "physics_enthusiast",
                 "Physics Enthusiast",
@@ -92,6 +95,7 @@ class Achievements(commands.Cog):
                 "Biology Expert",
                 required_count=25
             ),
+            # Study Habits
             "daily_scholar": Achievement(
                 "daily_scholar",
                 "Daily Scholar",
@@ -110,6 +114,7 @@ class Achievements(commands.Cog):
                 "Weekend Warrior",
                 required_count=2
             ),
+            # Music achievements
             "music_lover": Achievement(
                 "music_lover",
                 "Music Enthusiast",
@@ -146,6 +151,7 @@ class Achievements(commands.Cog):
                 "Rhythm Master",
                 required_count=50
             ),
+            # AI Interaction achievements
             "ai_explorer": Achievement(
                 "ai_explorer",
                 "AI Explorer",
@@ -182,6 +188,7 @@ class Achievements(commands.Cog):
                 "Creative Mind",
                 required_count=1
             ),
+            # Community achievements
             "helpful_peer": Achievement(
                 "helpful_peer",
                 "Helpful Peer",
@@ -200,6 +207,7 @@ class Achievements(commands.Cog):
                 "Community Builder",
                 required_count=5
             ),
+            # Secret achievements
             "night_owl": Achievement(
                 "night_owl",
                 "Night Owl",
@@ -243,6 +251,8 @@ class Achievements(commands.Cog):
         }
         self.user_achievements = {}
         self.load_achievements()
+        self.badge_generator = AchievementBadgeGenerator()
+        self.setup_badges()
         self.logger.info("Achievements system initialized")
 
     def setup_database(self):
@@ -291,7 +301,7 @@ class Achievements(commands.Cog):
             return result[0], bool(result[1])
         return 0, False
 
-    async def update_achievement_progress(self, user_id: str, achievement_id: str, count: int = 1):
+    async def update_achievement_progress(self, user_id: str, achievement_id: str, guild: discord.Guild = None, count: int = 1):
         """Update progress towards an achievement"""
         try:
             achievement = self.achievements[achievement_id]
@@ -309,7 +319,7 @@ class Achievements(commands.Cog):
 
                 # Check if achievement is now completed
                 if new_count >= achievement.required_count and not completed:
-                    await self.award_achievement(user_id, achievement_id, None)  # Guild will be set when awarding
+                    await self.award_achievement(user_id, achievement_id, guild)
 
         except Exception as e:
             self.logger.error(f"Error updating achievement progress: {str(e)}")
@@ -319,8 +329,21 @@ class Achievements(commands.Cog):
         filled = int((current / required) * length)
         return '█' * filled + '░' * (length - filled)
 
+    def setup_badges(self):
+        """Generate and save achievement badges"""
+        if not os.path.exists('static/badges'):
+            os.makedirs('static/badges')
+
+        for achievement_id, achievement in self.achievements.items():
+            badge_svg = self.badge_generator.generate_badge(
+                emoji=achievement.emoji,
+                color="#4CAF50" if not achievement.secret else "#9C27B0"
+            )
+            self.badge_generator.save_badge(badge_svg, f"achievement_{achievement_id}")
+
+    @commands.command(name="achievements")
     async def view_achievements(self, ctx, member: discord.Member = None):
-        """View achievements with progress tracking"""
+        """View achievements with animated badges"""
         try:
             target = member or ctx.author
             user_id = str(target.id)
@@ -364,8 +387,8 @@ class Achievements(commands.Cog):
                     progress_bar = ""
                     progress_text = ""
 
-                # Format achievement text
-                status = "✅" if completed else "🔄"
+                # Format achievement text with sparkle emoji for completed achievements
+                status = f"✨ {achievement.emoji}" if completed else "🔄"
                 achievement_text = (
                     f"{status} **{achievement.name}** (+{achievement.points})\n"
                     f"➜ {achievement.description}\n"
@@ -374,7 +397,7 @@ class Achievements(commands.Cog):
                     achievement_text += f"```{progress_bar} {progress_text}```\n"
 
                 # Add to appropriate category
-                if "question" in achievement_id or "physics" in achievement_id or "math" in achievement_id or "chemistry" in achievement_id or "biology" in achievement_id:
+                if "question" in achievement_id or any(subj in achievement_id for subj in ["physics", "math", "chemistry", "biology"]):
                     categories["📚 Education"].append(achievement_text)
                 elif "daily" in achievement_id or "streak" in achievement_id or "weekend" in achievement_id:
                     categories["⏰ Study Habits"].append(achievement_text)
@@ -385,19 +408,19 @@ class Achievements(commands.Cog):
                 else:
                     categories["🌟 Community"].append(achievement_text)
 
-            # Add summary
-            embed.description = f"Unlocked {unlocked_count} achievements and earned {total_points} points!"
+            # Add summary with sparkle emojis
+            embed.description = f"✨ Unlocked {unlocked_count} achievements and earned {total_points} points! ✨"
 
             # Add each category to embed
             for category, achievements in categories.items():
                 if achievements:
                     embed.add_field(
-                        name=category,
+                        name=f"{category}",
                         value="\n".join(achievements),
                         inline=False
                     )
 
-            embed.set_footer(text="Keep interacting to unlock more achievements!")
+            embed.set_footer(text="✨ Keep interacting to unlock more achievements! ✨")
             await ctx.send(embed=embed)
 
         except Exception as e:
@@ -407,8 +430,6 @@ class Achievements(commands.Cog):
     async def award_achievement(self, user_id: str, achievement_id: str, guild: discord.Guild = None):
         """Award an achievement to a user in a specific guild"""
         try:
-            self.logger.info(f"Attempting to award achievement {achievement_id} to user {user_id} in guild {guild.name if guild else 'None'}")
-
             if user_id not in self.user_achievements:
                 self.user_achievements[user_id] = []
 
@@ -417,71 +438,56 @@ class Achievements(commands.Cog):
                 self.user_achievements[user_id].append(achievement_id)
                 self.save_achievements()
 
-                user = self.bot.get_user(int(user_id))
-                if user and guild:
-                    # Award role in the specific guild
-                    if achievement.role_name:
-                        try:
-                            member = guild.get_member(int(user_id))
-                            self.logger.info(f"Found member {member.name} ({member.id}) in guild {guild.name}")
+                # Create congratulatory message with sparkle effects
+                embed = discord.Embed(
+                    title=f"✨ Achievement Unlocked! ✨",
+                    description=(
+                        f"{achievement.emoji} **{achievement.name}**\n"
+                        f"{achievement.description}\n"
+                        f"*+{achievement.points} points*"
+                    ),
+                    color=discord.Color.gold()
+                )
 
-                            role = discord.utils.get(guild.roles, name=achievement.role_name)
-                            if role:
-                                self.logger.info(f"Found role {role.name} (Position: {role.position}) in guild {guild.name}")
-
-                                if guild.me.guild_permissions.manage_roles:
-                                    self.logger.info(f"Bot has manage_roles permission in {guild.name}")
-
-                                    if guild.me.top_role > role:
-                                        self.logger.info(f"Bot's role ({guild.me.top_role.name}, pos: {guild.me.top_role.position}) is higher than {role.name} (pos: {role.position})")
-                                        await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
-                                        self.logger.info(f"✅ Successfully awarded role {role.name} to {member.name} in {guild.name}")
-                                    else:
-                                        self.logger.warning(f"❌ Bot's role is not high enough to assign {role.name} in {guild.name}")
-                                else:
-                                    self.logger.warning(f"❌ Bot lacks permission to manage roles in {guild.name}")
-                            else:
-                                self.logger.warning(f"Role {achievement.role_name} not found in {guild.name}, attempting to create")
-                                await self.setup_achievement_roles(guild)
-                                role = discord.utils.get(guild.roles, name=achievement.role_name)
-                                if role:
-                                    await member.add_roles(role, reason=f"Earned achievement: {achievement.name}")
-                                    self.logger.info(f"✅ Successfully awarded role {role.name} to {member.name} after creation")
-                                else:
-                                    self.logger.error(f"❌ Failed to create role {achievement.role_name} in {guild.name}")
-                        except Exception as e:
-                            self.logger.error(f"Error assigning role in {guild.name}: {str(e)}", exc_info=True)
-
-                    # Send achievement notification
-                    embed = discord.Embed(
-                        title=f"🎉 Achievement Unlocked!",
-                        description=(
-                            f"{achievement.emoji} **{achievement.name}**\n"
-                            f"{achievement.description}\n"
-                            f"*+{achievement.points} points*"
-                        ),
-                        color=discord.Color.gold()
+                # Add role notification if applicable
+                if achievement.role_name:
+                    embed.add_field(
+                        name="🏆 Role Awarded",
+                        value=f"You've been awarded the `{achievement.role_name}` role!",
+                        inline=False
                     )
 
-                    if achievement.role_name:
-                        embed.add_field(
-                            name="🏆 Role Awarded",
-                            value=f"You've been awarded the `{achievement.role_name}` role!",
-                            inline=False
-                        )
-
+                # Try to send DM
+                user = self.bot.get_user(int(user_id))
+                if user:
                     try:
                         await user.send(embed=embed)
                     except discord.Forbidden:
                         pass  # User has DMs disabled
 
-                self.logger.info(f"Finished processing achievement {achievement_id} for user {user_id}")
+                # Award role if in a guild
+                if guild and achievement.role_name:
+                    await self.award_achievement_role(guild, int(user_id), achievement.role_name)
+
                 return True
 
         except Exception as e:
-            self.logger.error(f"Error awarding achievement: {str(e)}", exc_info=True)
+            self.logger.error(f"Error awarding achievement: {str(e)}")
         return False
 
+    async def award_achievement_role(self, guild: discord.Guild, user_id: int, role_name: str):
+        try:
+            member = guild.get_member(user_id)
+            if member:
+                role = discord.utils.get(guild.roles, name=role_name)
+                if role and guild.me.guild_permissions.manage_roles and guild.me.top_role > role:
+                    await member.add_roles(role, reason=f"Earned achievement")
+                else:
+                    self.logger.warning(f"Could not award role {role_name}. Check bot permissions or role existence.")
+        except Exception as e:
+            self.logger.error(f"Error awarding achievement role: {str(e)}")
+
+
     def load_achievements(self):
         """Load saved user achievements from file"""
         try:
@@ -560,173 +566,6 @@ class Achievements(commands.Cog):
 
         except Exception as e:
             self.logger.error(f"Error setting up achievement roles: {str(e)}", exc_info=True)
-
-    @commands.command(name='level')
-    async def show_level(self, ctx, member: discord.Member = None):
-        """Show user's current level and XP progress"""
-        try:
-            target = member or ctx.author
-            cursor = self.db.cursor()
-            cursor.execute('SELECT xp, level FROM user_xp WHERE user_id = ?', (str(target.id),))
-            result = cursor.fetchone()
-
-            if result:
-                xp, level = result
-                next_level_xp = self.calculate_xp_for_level(level + 1)
-                current_level_xp = self.calculate_xp_for_level(level)
-                progress = ((xp - current_level_xp) / (next_level_xp - current_level_xp)) * 10
-                progress_bar = '█' * int(progress) + '░' * (10 - int(progress))
-
-                embed = discord.Embed(
-                    title=f"Level Status for {target.display_name}",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(
-                    name="Current Level",
-                    value=f"```Level {level}```",
-                    inline=False
-                )
-                embed.add_field(
-                    name="Experience",
-                    value=f"```{xp}/{next_level_xp} XP\n{progress_bar}```",
-                    inline=False
-                )
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send(f"{target.mention} hasn't earned any XP yet!")
-
-        except Exception as e:
-            self.logger.error(f"Error showing level: {str(e)}")
-            await ctx.send("❌ An error occurred while fetching level information.")
-
-    @commands.command(name='leaderboard')
-    async def show_leaderboard(self, ctx):
-        """Show XP leaderboard"""
-        try:
-            cursor = self.db.cursor()
-            cursor.execute('''
-                SELECT user_id, xp, level 
-                FROM user_xp 
-                ORDER BY xp DESC 
-                LIMIT 10
-            ''')
-            results = cursor.fetchall()
-
-            if results:
-                embed = discord.Embed(
-                    title="🏆 XP Leaderboard",
-                    color=discord.Color.gold()
-                )
-
-                leaderboard_text = ""
-                for i, (user_id, xp, level) in enumerate(results, 1):
-                    member = ctx.guild.get_member(int(user_id))
-                    name = member.display_name if member else "Unknown User"
-                    leaderboard_text += f"{i}. {name} - Level {level} ({xp} XP)\n"
-
-                embed.description = f"```{leaderboard_text}```"
-                await ctx.send(embed=embed)
-            else:
-                await ctx.send("No XP data available yet!")
-
-        except Exception as e:
-            self.logger.error(f"Error showing leaderboard: {str(e)}")
-            await ctx.send("❌ An error occurred while fetching the leaderboard.")
-
-
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        """Create achievement roles when bot joins a new guild"""
-        await self.setup_achievement_roles(guild)
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for messages to track achievements and XP"""
-        if message.author.bot:
-            return
-
-        user_id = str(message.author.id)
-        try:
-            # Add XP for message
-            await self.add_xp(user_id)
-
-            # Track AI interactions
-            if message.content.startswith('!ask') or message.content.startswith('!chat'):
-                await self.update_achievement_progress(user_id, "ai_explorer")
-                # Track AI conversation depth
-                if not hasattr(self, 'ai_interactions'):
-                    self.ai_interactions = {}
-                if user_id not in self.ai_interactions:
-                    self.ai_interactions[user_id] = 0
-                self.ai_interactions[user_id] += 1
-                if self.ai_interactions[user_id] >= 50:
-                    await self.update_achievement_progress(user_id, "deep_thinker")
-
-            # Track subject-specific achievements
-            if message.content.startswith('!11') or message.content.startswith('!12'):
-                subject = message.content.split()[1].lower() if len(message.content.split()) > 1 else None
-                if subject:
-                    if not hasattr(self, 'subject_counts'):
-                        self.subject_counts = {}
-                    if user_id not in self.subject_counts:
-                        self.subject_counts[user_id] = {'physics': 0, 'mathematics': 0, 'chemistry': 0, 'biology': 0}
-
-                    # Map variations of subject names
-                    subject_mapping = {
-                        'physics': 'physics',
-                        'maths': 'mathematics',
-                        'math': 'mathematics',
-                        'chemistry': 'chemistry',
-                        'biology': 'biology',
-                        'bio': 'biology'
-                    }
-
-                    norm_subject = subject_mapping.get(subject)
-                    if norm_subject in self.subject_counts[user_id]:
-                        self.subject_counts[user_id][norm_subject] += 1
-                        count = self.subject_counts[user_id][norm_subject]
-
-                        await self.update_achievement_progress(user_id, f"{norm_subject}_enthusiast")
-
-
-            # Track time-based achievements
-            current_hour = datetime.now().hour
-            if message.content.startswith('!11') or message.content.startswith('!12'):
-                if current_hour < 6:
-                    await self.update_achievement_progress(user_id, "early_bird")
-                elif current_hour >= 0 and current_hour < 6:
-                    await self.update_achievement_progress(user_id, "night_owl")
-
-            # Track study streaks
-            current_date = datetime.now().date()
-            if not hasattr(self, 'study_dates'):
-                self.study_dates = {}
-            if user_id not in self.study_dates:
-                self.study_dates[user_id] = set()
-
-            self.study_dates[user_id].add(current_date)
-
-            # Check for daily scholar (7 consecutive days)
-            dates = sorted(self.study_dates[user_id])
-            if len(dates) >= 7:
-                consecutive_days = 1
-                for i in range(1, len(dates)):
-                    if (dates[i] - dates[i-1]).days == 1:
-                        consecutive_days += 1
-                        if consecutive_days >= 7:
-                            await self.update_achievement_progress(user_id, "daily_scholar")
-                            break
-                    else:
-                        consecutive_days = 1
-
-            # Check for weekend warrior
-            if current_date.weekday() >= 5:  # Saturday or Sunday
-                weekend_dates = {d for d in self.study_dates[user_id] if d.weekday() >= 5}
-                if len(weekend_dates) >= 2:
-                    await self.update_achievement_progress(user_id, "weekend_warrior")
-
-        except Exception as e:
-            self.logger.error(f"Error in achievement/XP listener: {str(e)}")
 
     @commands.command(name='checkroles')
     @commands.has_permissions(administrator=True)
@@ -835,190 +674,94 @@ class Achievements(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error adding XP: {str(e)}")
 
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        """Create achievement roles when bot joins a new guild"""
+        await self.setup_achievement_roles(guild)
 
-    def load_achievements(self):
-        """Load saved user achievements from file"""
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """Listen for messages to track achievements and XP"""
+        if message.author.bot:
+            return
+
+        user_id = str(message.author.id)
         try:
-            if os.path.exists('data/achievements.json'):
-                with open('data/achievements.json', 'r') as f:
-                    self.user_achievements = json.load(f)
-            self.logger.info("Successfully loaded user achievements")
-        except Exception as e:
-            self.logger.error(f"Error loading achievements: {str(e)}")
+            # Add XP for message
+            await self.add_xp(user_id)
 
-    def save_achievements(self):
-        """Save user achievements to file"""
-        try:
-            os.makedirs('data', exist_ok=True)
-            with open('data/achievements.json', 'w') as f:
-                json.dump(self.user_achievements, f)
-            self.logger.info("Successfully saved user achievements{bot_perms}```",
-                inline=False
-            )
+            # Track AI interactions
+            if message.content.startswith('!ask') or message.content.startswith('!chat'):
+                await self.update_achievement_progress(user_id, "ai_explorer", message.guild)
+                if not hasattr(self, 'ai_interactions'):
+                    self.ai_interactions = {}
+                if user_id not in self.ai_interactions:
+                    self.ai_interactions[user_id] = 0
+                self.ai_interactions[user_id] += 1
+                if self.ai_interactions[user_id] >= 50:
+                    await self.update_achievement_progress(user_id, "deep_thinker", message.guild)
 
-            # List achievement roles
-            achievement_roles = []
-            for achievement in self.achievements.values():
-                if achievement.role_name:
-                    role = discord.utils.get(ctx.guild.roles, name=achievement.role_name)
-                    status = "✅ Created" if role else "❌ Missing"
-                    pos = role.position if role else "N/A"
-                    achievement_roles.append(f"{achievement.role_name}: {status} (Position: {pos})")
+            # Track subject-specific achievements
+            if message.content.startswith('!11') or message.content.startswith('!12'):
+                subject = message.content.split()[1].lower() if len(message.content.split()) > 1 else None
+                if subject:
+                    if not hasattr(self, 'subject_counts'):
+                        self.subject_counts = {}
+                    if user_id not in self.subject_counts:
+                        self.subject_counts[user_id] = {'physics': 0, 'mathematics': 0, 'chemistry': 0, 'biology': 0}
 
-            embed.add_field(
-                name="Achievement Roles",
-                value="```" + "\n".join(achievement_roles) + "```",
-                inline=False
-            )
-            await ctx.send(embed=embed)
+                    subject_mapping = {
+                        'physics': 'physics',
+                        'maths': 'mathematics',
+                        'math': 'mathematics',
+                        'chemistry': 'chemistry',
+                        'biology': 'biology',
+                        'bio': 'biology'
+                    }
 
-        except Exception as e:
-            self.logger.error(f"Error checking roles: {str(e)}")
-            await ctx.send("❌ An error occurred while checking roles.")
+                    norm_subject = subject_mapping.get(subject)
+                    if norm_subject in self.subject_counts[user_id]:
+                        self.subject_counts[user_id][norm_subject] += 1
+                        await self.update_achievement_progress(user_id, f"{norm_subject}_enthusiast", message.guild)
 
-    def calculate_level(self, xp: int) -> int:
-        """Calculate level based on XP"""
-        return int((xp / 100) ** 0.5) + 1
+            # Track time-based achievements
+            current_hour = datetime.now().hour
+            if message.content.startswith('!11') or message.content.startswith('!12'):
+                if current_hour < 6:
+                    await self.update_achievement_progress(user_id, "early_bird", message.guild)
+                elif current_hour >= 0 and current_hour < 6:
+                    await self.update_achievement_progress(user_id, "night_owl", message.guild)
 
-    def calculate_xp_for_level(self, level: int) -> int:
-        """Calculate XP needed for a specific level"""
-        return ((level - 1) ** 2) * 100
+            # Track study streaks
+            current_date = datetime.now().date()
+            if not hasattr(self, 'study_dates'):
+                self.study_dates = {}
+            if user_id not in self.study_dates:
+                self.study_dates[user_id] = set()
 
-    async def add_xp(self, user_id: str, xp_amount: int = 10):
-        """Add XP to user with cooldown"""
-        try:
-            current_time = datetime.now()
-            if user_id in self.xp_cooldown:
-                if (current_time - self.xp_cooldown[user_id]).total_seconds() < 60:
-                    return
+            self.study_dates[user_id].add(current_date)
 
-            self.xp_cooldown[user_id] = current_time
-            cursor = self.db.cursor()
+            # Check for daily scholar
+            dates = sorted(self.study_dates[user_id])
+            if len(dates) >= 7:
+                consecutive_days = 1
+                for i in range(1, len(dates)):
+                    if (dates[i] - dates[i-1]).days == 1:
+                        consecutive_days += 1
+                        if consecutive_days >= 7:
+                            await self.update_achievement_progress(user_id, "daily_scholar", message.guild)
+                            break
+                    else:
+                        consecutive_days = 1
 
-            # Get current XP and level
-            cursor.execute('SELECT xp, level FROM user_xp WHERE user_id = ?', (user_id,))
-            result = cursor.fetchone()
-
-            if result:
-                current_xp, current_level = result
-                new_xp = current_xp + xp_amount
-            else:
-                current_xp, current_level = 0, 1
-                new_xp = xp_amount
-                cursor.execute('INSERT INTO user_xp (user_id, xp, level) VALUES (?, ?, ?)',
-                             (user_id, new_xp, current_level))
-
-            new_level = self.calculate_level(new_xp)
-
-            # Update database
-            cursor.execute('''
-                UPDATE user_xp 
-                SET xp = ?, level = ?, last_xp_gain = CURRENT_TIMESTAMP 
-                WHERE user_id = ?
-            ''', (new_xp, new_level, user_id))
-
-            self.db.commit()
-
-            # Handle level up
-            if new_level > current_level:
-                for guild in self.bot.guilds:
-                    member = guild.get_member(int(user_id))
-                    if member:
-                        embed = discord.Embed(
-                            title="🎉 Level Up!",
-                            description=f"Congratulations {member.mention}! You've reached level {new_level}!",
-                            color=discord.Color.gold()
-                        )
-                        # Send level up message to the first available channel
-                        for channel in guild.text_channels:
-                            try:
-                                await channel.send(embed=embed)
-                                break
-                            except discord.Forbidden:
-                                continue
+            # Check for weekend warrior
+            if current_date.weekday() >= 5:  # Saturday or Sunday
+                weekend_dates = {d for d in self.study_dates[user_id] if d.weekday() >= 5}
+                if len(weekend_dates) >= 2:
+                    await self.update_achievement_progress(user_id, "weekend_warrior", message.guild)
 
         except Exception as e:
-            self.logger.error(f"Error adding XP: {str(e)}")
-
-
-    def load_achievements(self):
-        """Load saved user achievements from file"""
-        try:
-            if os.path.exists('data/achievements.json'):
-                with open('data/achievements.json', 'r') as f:
-                    self.user_achievements = json.load(f)
-            self.logger.info("Successfully loaded user achievements")
-        except Exception as e:
-            self.logger.error(f"Error loading achievements: {str(e)}")
-
-    def save_achievements(self):
-        """Save user achievements to file"""
-        try:
-            os.makedirs('data', exist_ok=True)
-            with open('data/achievements.json', 'w') as f:
-                json.dump(self.user_achievements, f)
-            self.logger.info("Successfully saved user achievements")
-        except Exception as e:
-            self.logger.error(f"Error saving achievements: {str(e)}")
-
-    async def setup_achievement_roles(self, guild: discord.Guild):
-        """Create achievement roles if they don't exist"""
-        try:
-            self.logger.info(f"Setting up achievement roles for guild: {guild.name}")
-            existing_roles = {role.name: role for role in guild.roles}
-
-            # Check bot permissions first
-            if not guild.me.guild_permissions.manage_roles:
-                self.logger.error(f"Bot lacks 'Manage Roles' permission in guild: {guild.name}")
-                return
-
-            self.logger.info(f"Bot has required permissions in {guild.name}")
-
-            # Calculate position below bot's role
-            target_position = guild.me.top_role.position - 1
-
-            for achievement in self.achievements.values():
-                if achievement.role_name and achievement.role_name not in existing_roles:
-                    try:
-                        # Create role with a color based on points
-                        color = discord.Color.from_rgb(
-                            min(achievement.points * 2, 255),  # More points = more red
-                            max(255 - achievement.points, 0),  # More points = less green
-                            255  # Constant blue for consistency
-                        )
-                        role = await guild.create_role(
-                            name=achievement.role_name,
-                            color=color,
-                            reason="Achievement role",
-                            hoist=True  # Show role separately in member list
-                        )
-                        self.logger.info(f"Successfully created role {role.name} in {guild.name}")
-
-                        # Immediately move role to correct position
-                        try:
-                            await role.edit(position=target_position)
-                            self.logger.info(f"Successfully positioned role {role.name} at position {target_position}")
-                        except discord.Forbidden:
-                            self.logger.warning(f"Could not move role {role.name} in hierarchy - insufficient permissions")
-                        except Exception as e:
-                            self.logger.error(f"Error positioning role {role.name}: {str(e)}")
-
-                    except discord.Forbidden:
-                        self.logger.error(f"Failed to create role {achievement.role_name} - insufficient permissions")
-                    except Exception as e:
-                        self.logger.error(f"Error creating role {achievement.role_name}: {str(e)}")
-                else:
-                    # Update existing role position if needed
-                    role = existing_roles[achievement.role_name]
-                    if role.position < target_position:
-                        try:
-                            await role.edit(position=target_position)
-                            self.logger.info(f"Updated position for existing role {role.name} to {target_position}")
-                        except Exception as e:
-                            self.logger.error(f"Error updating position for role {role.name}: {str(e)}")
-
-        except Exception as e:
-            self.logger.error(f"Error setting up achievement roles: {str(e)}", exc_info=True)
+            self.logger.error(f"Error in achievement/XP listener: {str(e)}")
 
     @commands.command(name='level')
     async def show_level(self, ctx, member: discord.Member = None):
@@ -1083,142 +826,15 @@ class Achievements(commands.Cog):
                     name = member.display_name if member else "Unknown User"
                     leaderboard_text += f"{i}. {name} - Level {level} ({xp} XP)\n"
 
-                embed.description = f"```{leaderboard_text}```"
+                embed.description = f"```\n{leaderboard_text}```"
                 await ctx.send(embed=embed)
             else:
                 await ctx.send("No XP data available yet!")
 
         except Exception as e:
             self.logger.error(f"Error showing leaderboard: {str(e)}")
-            await ctx.send("❌ An error occurred while fetching the leaderboard.")
+            await ctx.send("❌ Anerror occurred while fetching the leaderboard.")
 
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        """Create achievement roles when bot joins a new guild"""
-        await self.setup_achievement_roles(guild)
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for messages to track achievements and XP"""
-        if message.author.bot:
-            return
-
-        user_id = str(message.author.id)
-        try:
-            # Add XP for message
-            await self.add_xp(user_id)
-
-            # Track AI interactions
-            if message.content.startswith('!ask') or message.content.startswith('!chat'):
-                await self.update_achievement_progress(user_id, "ai_explorer")
-                # Track AI conversation depth
-                if not hasattr(self, 'ai_interactions'):
-                    self.ai_interactions = {}
-                if user_id not in self.ai_interactions:
-                    self.ai_interactions[user_id] = 0
-                self.ai_interactions[user_id] += 1
-                if self.ai_interactions[user_id] >= 50:
-                    await self.update_achievement_progress(user_id, "deep_thinker")
-
-            # Track subject-specific achievements
-            if message.content.startswith('!11') or message.content.startswith('!12'):
-                subject = message.content.split()[1].lower() if len(message.content.split()) > 1 else None
-                if subject:
-                    if not hasattr(self, 'subject_counts'):
-                        self.subject_counts = {}
-                    if user_id not in self.subject_counts:
-                        self.subject_counts[user_id] = {'physics': 0, 'mathematics': 0, 'chemistry': 0, 'biology': 0}
-
-                    # Map variations of subject names
-                    subject_mapping = {
-                        'physics': 'physics',
-                        'maths': 'mathematics',
-                        'math': 'mathematics',
-                        'chemistry': 'chemistry',
-                        'biology': 'biology',
-                        'bio': 'biology'
-                    }
-
-                    norm_subject = subject_mapping.get(subject)
-                    if norm_subject in self.subject_counts[user_id]:
-                        self.subject_counts[user_id][norm_subject] += 1
-                        count = self.subject_counts[user_id][norm_subject]
-
-                        await self.update_achievement_progress(user_id, f"{norm_subject}_enthusiast")
-
-
-            # Track time-based achievements
-            current_hour = datetime.now().hour
-            if message.content.startswith('!11') or message.content.startswith('!12'):
-                if current_hour < 6:
-                    await self.update_achievement_progress(user_id, "early_bird")
-                elif current_hour >= 0 and current_hour < 6:
-                    await self.update_achievement_progress(user_id, "night_owl")
-
-            # Track study streaks
-            current_date = datetime.now().date()
-            if not hasattr(self, 'study_dates'):
-                self.study_dates = {}
-            if user_id not in self.study_dates:
-                self.study_dates[user_id] = set()
-
-            self.study_dates[user_id].add(current_date)
-
-            # Check for daily scholar (7 consecutive days)
-            dates = sorted(self.study_dates[user_id])
-            if len(dates) >= 7:
-                consecutive_days = 1
-                for i in range(1, len(dates)):
-                    if (dates[i] - dates[i-1]).days == 1:
-                        consecutive_days += 1
-                        if consecutive_days >= 7:
-                            await self.update_achievement_progress(user_id, "daily_scholar")
-                            break
-                    else:
-                        consecutive_days = 1
-
-            # Check for weekend warrior
-            if current_date.weekday() >= 5:  # Saturday or Sunday
-                weekend_dates = {d for d in self.study_dates[user_id] if d.weekday() >= 5}
-                if len(weekend_dates) >= 2:
-                    await self.update_achievement_progress(user_id, "weekend_warrior")
-
-        except Exception as e:
-            self.logger.error(f"Error in achievement/XP listener: {str(e)}")
-
-    @commands.command(name='checkroles')
-    @commands.has_permissions(administrator=True)
-    async def check_roles(self, ctx):
-        """Debug command to check bot permissions and role setup"""
-        try:
-            embed = discord.Embed(
-                title="🔍 Role System Status",
-                color=discord.Color.blue()
-            )
-
-            # Check bot permissions
-            perms = ctx.guild.me.guild_permissions
-            bot_perms = (
-                f"✅ Manage Roles: {perms.manage_roles}\n"
-                f"✅ Bot's Top Role: {ctx.guild.me.top_role.name}\n"
-                f"✅ Bot's Role Position: {ctx.guild.me.top_role.position}"
-            )
-            embed.add_field(
-                name="Bot Permissions",
-                value=f"```{bot_perms}```",
-                inline=False
-            )
-
-            # List achievement roles
-            achievement_roles = []
-            for achievement in self.achievements.values():
-                if achievement.role_name:
-                    role = discord.utils.get(ctx.guild.roles, name=achievement.role_name)
-                    status = "✅ Created" if role else "❌ Missing"
-                    pos = role.position if role else "N/A"
-                    achievement_roles.append(f"{achievement.role_name}: {status} (Position: {pos})")
-
-            embed.add_field(
-                name="Achievement Roles",
-                value="```" + "\n".join(achievement_roles) + "
+async def setup(bot):
+    await bot.add_cog(Achievements(bot))
