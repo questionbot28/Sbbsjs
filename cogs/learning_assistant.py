@@ -61,6 +61,30 @@ class LearningAssistant(commands.Cog):
                 )
             ''')
 
+            # Create study_tip_categories table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS study_tip_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    category_name TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, category_name)
+                )
+            ''')
+
+            # Create study_tips table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS study_tips (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL,
+                    tip_content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(category_id) REFERENCES study_tip_categories(id)
+                )
+            ''')
+
             self.db.commit()
             self.logger.info("Learning assistant database initialized")
         except Exception as e:
@@ -88,6 +112,11 @@ class LearningAssistant(commands.Cog):
             embed.add_field(
                 name="Homework Help",
                 value="```\n!learn solve <question> - Get step-by-step solutions\n```",
+                inline=False
+            )
+            embed.add_field(
+                name="Study Tips",
+                value="```\nUse the !tips command to manage your study tips.\n```",
                 inline=False
             )
             await ctx.send(embed=embed)
@@ -300,6 +329,190 @@ class LearningAssistant(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in progress command: {str(e)}")
             await ctx.send("❌ An error occurred while checking your progress.")
+
+    @commands.group(name='tips', invoke_without_command=True)
+    async def tips(self, ctx):
+        """Study tips management commands"""
+        if ctx.invoked_subcommand is None:
+            embed = discord.Embed(
+                title="📚 Study Tips Management",
+                description="Here's how you can manage your study tips:",
+                color=discord.Color.blue()
+            )
+
+            commands = [
+                ("📝 Create Category", "`!tips category add <name> [description]`\nCreate a new tip category"),
+                ("👀 View Categories", "`!tips categories`\nList all your tip categories"),
+                ("➕ Add Tip", "`!tips add <category> <tip>`\nAdd a new tip to a category"),
+                ("📖 View Tips", "`!tips view <category>`\nView tips in a category"),
+                ("❌ Delete Category", "`!tips category delete <name>`\nDelete a category and its tips"),
+                ("🗑️ Delete Tip", "`!tips delete <category> <tip_id>`\nDelete a specific tip")
+            ]
+
+            for name, value in commands:
+                embed.add_field(name=name, value=value, inline=False)
+
+            await ctx.send(embed=embed)
+
+    @tips.command(name='category')
+    async def category(self, ctx, action: str, name: str, *, description: str = None):
+        """Manage study tip categories"""
+        if action.lower() not in ['add', 'delete']:
+            await ctx.send("❌ Invalid action. Use 'add' or 'delete'.")
+            return
+
+        try:
+            cursor = self.db.cursor()
+            if action.lower() == 'add':
+                cursor.execute('''
+                    INSERT INTO study_tip_categories (user_id, category_name, description)
+                    VALUES (?, ?, ?)
+                ''', (str(ctx.author.id), name, description))
+                self.db.commit()
+                await ctx.send(f"✅ Created new category: **{name}**")
+            else:  # delete
+                cursor.execute('''
+                    DELETE FROM study_tips WHERE category_id IN 
+                    (SELECT id FROM study_tip_categories WHERE user_id = ? AND category_name = ?)
+                ''', (str(ctx.author.id), name))
+                cursor.execute('''
+                    DELETE FROM study_tip_categories WHERE user_id = ? AND category_name = ?
+                ''', (str(ctx.author.id), name))
+                self.db.commit()
+                await ctx.send(f"✅ Deleted category: **{name}** and all its tips")
+        except sqlite3.IntegrityError:
+            await ctx.send(f"❌ Category **{name}** already exists!")
+        except Exception as e:
+            self.logger.error(f"Error managing category: {str(e)}")
+            await ctx.send("❌ An error occurred while managing the category.")
+
+    @tips.command(name='categories')
+    async def list_categories(self, ctx):
+        """List all study tip categories"""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                SELECT category_name, description, 
+                       (SELECT COUNT(*) FROM study_tips WHERE category_id = c.id) as tip_count
+                FROM study_tip_categories c
+                WHERE user_id = ?
+                ORDER BY category_name
+            ''', (str(ctx.author.id),))
+
+            categories = cursor.fetchall()
+
+            if not categories:
+                await ctx.send("📝 You don't have any tip categories yet. Create one with `!tips category add <name>`!")
+                return
+
+            embed = discord.Embed(
+                title="📚 Your Study Tip Categories",
+                description="Here are all your tip categories:",
+                color=discord.Color.blue()
+            )
+
+            for name, desc, count in categories:
+                embed.add_field(
+                    name=f"📑 {name} ({count} tips)",
+                    value=desc or "No description",
+                    inline=False
+                )
+
+            embed.set_footer(text="Use !tips view <category> to see tips in a category")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error listing categories: {str(e)}")
+            await ctx.send("❌ An error occurred while listing categories.")
+
+    @tips.command(name='add')
+    async def add_tip(self, ctx, category: str, *, tip: str):
+        """Add a new study tip to a category"""
+        try:
+            cursor = self.db.cursor()
+            # Get category ID
+            cursor.execute('''
+                SELECT id FROM study_tip_categories
+                WHERE user_id = ? AND category_name = ?
+            ''', (str(ctx.author.id), category))
+
+            result = cursor.fetchone()
+            if not result:
+                await ctx.send(f"❌ Category **{category}** not found!")
+                return
+
+            category_id = result[0]
+            cursor.execute('''
+                INSERT INTO study_tips (category_id, user_id, tip_content)
+                VALUES (?, ?, ?)
+            ''', (category_id, str(ctx.author.id), tip))
+
+            self.db.commit()
+            await ctx.send(f"✅ Added tip to **{category}**!")
+
+        except Exception as e:
+            self.logger.error(f"Error adding tip: {str(e)}")
+            await ctx.send("❌ An error occurred while adding the tip.")
+
+    @tips.command(name='view')
+    async def view_tips(self, ctx, category: str):
+        """View tips in a category"""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                SELECT t.id, t.tip_content, t.created_at
+                FROM study_tips t
+                JOIN study_tip_categories c ON t.category_id = c.id
+                WHERE t.user_id = ? AND c.category_name = ?
+                ORDER BY t.created_at DESC
+            ''', (str(ctx.author.id), category))
+
+            tips = cursor.fetchall()
+            if not tips:
+                await ctx.send(f"📝 No tips found in category **{category}**!")
+                return
+
+            embed = discord.Embed(
+                title=f"📚 Tips in {category}",
+                description="Here are your study tips:",
+                color=discord.Color.blue()
+            )
+
+            for tip_id, content, created_at in tips:
+                date = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+                embed.add_field(
+                    name=f"Tip #{tip_id} (Added: {date})",
+                    value=content,
+                    inline=False
+                )
+
+            embed.set_footer(text=f"Total tips: {len(tips)}")
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error viewing tips: {str(e)}")
+            await ctx.send("❌ An error occurred while viewing tips.")
+
+    @tips.command(name='delete')
+    async def delete_tip(self, ctx, category: str, tip_id: int):
+        """Delete a specific tip from a category"""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute('''
+                DELETE FROM study_tips
+                WHERE id = ? AND user_id = ? AND category_id IN 
+                    (SELECT id FROM study_tip_categories WHERE category_name = ? AND user_id = ?)
+            ''', (tip_id, str(ctx.author.id), category, str(ctx.author.id)))
+
+            if cursor.rowcount > 0:
+                self.db.commit()
+                await ctx.send(f"✅ Deleted tip #{tip_id} from **{category}**!")
+            else:
+                await ctx.send(f"❌ Tip #{tip_id} not found in **{category}**!")
+
+        except Exception as e:
+            self.logger.error(f"Error deleting tip: {str(e)}")
+            await ctx.send("❌ An error occurred while deleting the tip.")
 
 async def setup(bot):
     await bot.add_cog(LearningAssistant(bot))
