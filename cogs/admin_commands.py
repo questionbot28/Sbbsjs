@@ -9,8 +9,8 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
-    @commands.command(name='ping')
-    async def ping(self, ctx):
+    @commands.command(name='admin_ping')  # Renamed to avoid conflict
+    async def admin_ping(self, ctx):
         """Check bot latency"""
         self.logger.info(f"Ping command invoked by {ctx.author}")
         try:
