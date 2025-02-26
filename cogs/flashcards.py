@@ -5,11 +5,12 @@ import sqlite3
 import logging
 from datetime import datetime
 import asyncio
-import openai
+import google.generativeai as genai
 import os
 from typing import List, Dict, Optional
 
 class Flashcard:
+    """A class representing a flashcard with front and back content."""
     def __init__(self, front: str, back: str, user_id: str, subject: Optional[str] = None):
         self.front = front
         self.back = back
@@ -18,68 +19,82 @@ class Flashcard:
         self.created_at = datetime.now()
 
 class Flashcards(commands.Cog):
+    """A cog for managing flashcards with AI-powered generation capabilities."""
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
+        # Configure Gemini
+        if not os.getenv('GOOGLE_API_KEY'):
+            self.logger.error("Google API key not found in environment variables")
+        else:
+            genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
         self.setup_database()
-        
+
     def setup_database(self):
         """Initialize SQLite database for flashcards"""
         try:
             self.db = sqlite3.connect('data/user_data.db')
             cursor = self.db.cursor()
-            
+
             # Create flashcards table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS flashcards (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT,
+                    user_id TEXT NOT NULL,
                     subject TEXT,
-                    front TEXT,
-                    back TEXT,
-                    created_at TIMESTAMP,
+                    front TEXT NOT NULL,
+                    back TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_reviewed TIMESTAMP,
                     review_count INTEGER DEFAULT 0
                 )
             ''')
-            
+
             self.db.commit()
             self.logger.info("Flashcards database initialized")
         except Exception as e:
             self.logger.error(f"Error setting up flashcards database: {str(e)}")
 
-    async def generate_flashcards(self, text: str, subject: Optional[str] = None) -> List[Flashcard]:
-        """Generate flashcards using OpenAI API"""
+    async def generate_flashcards(self, text: str, user_id: str, subject: Optional[str] = None) -> List[Flashcard]:
+        """Generate flashcards using Google's Gemini API"""
+        if not os.getenv('GOOGLE_API_KEY'):
+            raise ValueError("Google API key not configured")
+
         try:
             prompt = (
                 f"Convert this text into 3-5 flashcards about {subject if subject else 'the topic'}. "
-                "Format: Front: [Question/Term] | Back: [Answer/Definition]\n\n"
+                "Format each flashcard as:\nFront: [Question/Term] | Back: [Answer/Definition]\n\n"
                 f"Text: {text}"
             )
-            
-            response = await openai.ChatCompletion.acreate(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "You are a helpful flashcard creator. Create clear, concise flashcards from the given text."},
-                         {"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=500
+
+            # Configure the model
+            model = genai.GenerativeModel('gemini-pro')
+
+            # Generate the response
+            response = await asyncio.to_thread(
+                model.generate_content,
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=500,
+                )
             )
-            
-            flashcards_text = response.choices[0].message.content
+
+            flashcards_text = response.text
             flashcard_list = []
-            
+
             # Parse the response into flashcards
             for line in flashcards_text.split('\n'):
                 if '|' in line:
                     front, back = line.split('|')
                     front = front.replace('Front:', '').strip()
                     back = back.replace('Back:', '').strip()
-                    flashcard_list.append(Flashcard(front, back, None, subject))
-            
+                    flashcard_list.append(Flashcard(front, back, user_id, subject))
+
             return flashcard_list
-            
+
         except Exception as e:
-            self.logger.error(f"Error generating flashcards: {str(e)}")
+            self.logger.error(f"Error generating flashcards with Gemini: {str(e)}")
             return []
 
     @commands.group(name='flashcard', aliases=['fc'])
@@ -88,7 +103,7 @@ class Flashcards(commands.Cog):
         if ctx.invoked_subcommand is None:
             await ctx.send("❓ Available commands:\n"
                          "```\n"
-                         "!flashcard create <text> [subject] - Create flashcards from text\n"
+                         "!flashcard create <text> [in subject] - Create flashcards from text\n"
                          "!flashcard review [subject] - Review your flashcards\n"
                          "!flashcard list [subject] - List your flashcards\n"
                          "!flashcard stats - View your flashcard statistics\n"
@@ -102,34 +117,34 @@ class Flashcards(commands.Cog):
             subject = None
             if ' in ' in content:
                 content, subject = content.split(' in ', 1)
-            
+
             # Send initial response
             msg = await ctx.send("🤖 Generating flashcards... Please wait!")
-            
+
             # Generate flashcards
-            flashcards = await self.generate_flashcards(content, subject)
-            
+            flashcards = await self.generate_flashcards(content, str(ctx.author.id), subject)
+
             if not flashcards:
                 await msg.edit(content="❌ Failed to generate flashcards. Please try again.")
                 return
-            
+
             # Save flashcards to database
             cursor = self.db.cursor()
             for card in flashcards:
                 cursor.execute('''
                     INSERT INTO flashcards (user_id, subject, front, back, created_at)
                     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''', (str(ctx.author.id), subject, card.front, card.back))
-            
+                ''', (card.user_id, card.subject, card.front, card.back))
+
             self.db.commit()
-            
+
             # Create embed to show the generated flashcards
             embed = discord.Embed(
                 title="📝 Generated Flashcards",
                 description=f"Created {len(flashcards)} flashcards" + (f" for {subject}" if subject else ""),
                 color=discord.Color.green()
             )
-            
+
             for i, card in enumerate(flashcards, 1):
                 embed.add_field(
                     name=f"Card {i} - Front",
@@ -141,9 +156,11 @@ class Flashcards(commands.Cog):
                     value=card.back,
                     inline=False
                 )
-            
+
             await msg.edit(content=None, embed=embed)
-            
+
+        except ValueError as ve:
+            await ctx.send(f"❌ Configuration error: {str(ve)}")
         except Exception as e:
             self.logger.error(f"Error creating flashcards: {str(e)}")
             await ctx.send("❌ An error occurred while creating flashcards.")
@@ -153,7 +170,7 @@ class Flashcards(commands.Cog):
         """Review flashcards interactively"""
         try:
             cursor = self.db.cursor()
-            
+
             # Get flashcards for review
             if subject:
                 cursor.execute('''
@@ -169,13 +186,13 @@ class Flashcards(commands.Cog):
                     ORDER BY last_reviewed ASC NULLS FIRST
                     LIMIT 5
                 ''', (str(ctx.author.id),))
-            
+
             cards = cursor.fetchall()
-            
+
             if not cards:
                 await ctx.send("No flashcards found for review!" + (f" in {subject}" if subject else ""))
                 return
-            
+
             for card_id, front, back in cards:
                 embed = discord.Embed(
                     title="🔄 Flashcard Review",
@@ -183,20 +200,20 @@ class Flashcards(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.set_footer(text="React with 👀 to see the answer")
-                
+
                 card_msg = await ctx.send(embed=embed)
                 await card_msg.add_reaction("👀")
-                
+
                 def check(reaction, user):
                     return user == ctx.author and str(reaction.emoji) == "👀"
-                
+
                 try:
                     await self.bot.wait_for('reaction_add', timeout=60.0, check=check)
-                    
+
                     # Show answer
                     embed.add_field(name="Answer", value=back, inline=False)
                     await card_msg.edit(embed=embed)
-                    
+
                     # Update review count and timestamp
                     cursor.execute('''
                         UPDATE flashcards 
@@ -205,14 +222,14 @@ class Flashcards(commands.Cog):
                         WHERE id = ?
                     ''', (card_id,))
                     self.db.commit()
-                    
+
                 except asyncio.TimeoutError:
                     await ctx.send("Review session timed out!")
                     break
-                
+
                 # Wait before showing next card
                 await asyncio.sleep(2)
-            
+
         except Exception as e:
             self.logger.error(f"Error reviewing flashcards: {str(e)}")
             await ctx.send("❌ An error occurred during review.")
@@ -222,7 +239,7 @@ class Flashcards(commands.Cog):
         """View flashcard statistics"""
         try:
             cursor = self.db.cursor()
-            
+
             # Get user's flashcard stats
             cursor.execute('''
                 SELECT 
@@ -233,26 +250,26 @@ class Flashcards(commands.Cog):
                 FROM flashcards 
                 WHERE user_id = ?
             ''', (str(ctx.author.id),))
-            
+
             stats = cursor.fetchone()
-            
+
             if not stats or stats[0] == 0:
                 await ctx.send("No flashcard statistics available!")
                 return
-            
+
             embed = discord.Embed(
                 title="📊 Flashcard Statistics",
                 description=f"Statistics for {ctx.author.display_name}",
                 color=discord.Color.gold()
             )
-            
+
             embed.add_field(name="Total Cards", value=stats[0], inline=True)
             embed.add_field(name="Subjects", value=stats[1], inline=True)
             embed.add_field(name="Total Reviews", value=stats[2] or 0, inline=True)
             embed.add_field(name="Most Reviews", value=stats[3] or 0, inline=True)
-            
+
             await ctx.send(embed=embed)
-            
+
         except Exception as e:
             self.logger.error(f"Error getting flashcard stats: {str(e)}")
             await ctx.send("❌ An error occurred while fetching statistics.")
