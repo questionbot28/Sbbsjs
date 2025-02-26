@@ -43,6 +43,7 @@ class EducationalBot(commands.Bot):
             'cogs.command_explainer',  # Command explanation generator
             'cogs.achievements',  # Achievement system
             'cogs.flashcards',  # New flashcard system
+            'cogs.learning_assistant',  # New AI-powered learning assistant
         ]
         self.logger = logger
         self.welcome_channel_id = 1337410430699569232
