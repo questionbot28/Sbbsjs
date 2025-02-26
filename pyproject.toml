@@ -31,4 +31,5 @@ dependencies = [
     "python-socketio>=5.12.1",
     "eventlet>=0.39.0",
     "gevent>=24.11.1",
+    "tenacity>=9.0.0",
 ]
