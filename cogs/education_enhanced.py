@@ -1,4 +1,31 @@
-\n"
+import discord
+from discord.ext import commands
+from typing import Optional, Dict, Any
+import asyncio
+
+class EducationCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = bot.logger
+        self.question_generator = bot.question_generator  # Assuming this is defined elsewhere
+        self.user_questions = {}  # Track questions per user
+        self.command_locks = {}  # Prevent concurrent commands per user
+        self.option_emojis = {'A': '🇦', 'B': '🇧', 'C': '🇨', 'D': '🇩'}
+        self.dm_gif_url = "YOUR_DM_GIF_URL_HERE" # Replace with actual URL
+
+
+    @commands.command(name='help')
+    async def help_command(self, ctx):
+        """Displays the help embed with all commands and features."""
+        help_embed = discord.Embed(
+            title="📚 Education Bot Help",
+            description="Welcome to the Education Bot! Use these commands to enhance your learning experience.",
+            color=discord.Color.blue()
+        )
+
+        # Main Commands Section
+        commands_info = (
+            "```ansi\n"
             "[1;34m┏━━━━━ Main Commands ━━━━━┓[0m\n"
             "[1;32m!11[0m - Get Class 11 Questions\n"
             "[1;32m!12[0m - Get Class 12 Questions\n"
@@ -32,6 +59,41 @@
             value=chapter_info,
             inline=False
         )
+
+        # Learning Assistant Section
+        learning_commands = (
+            "```ansi\n"
+            "[1;35m┏━━━━━ Learning Assistant ━━━━━┓[0m\n"
+            "!learn quiz <subject> - Get practice questions\n"
+            "!learn schedule <subject> <days> - Create study plan\n"
+            "!learn solve <question> - Get step-by-step solutions\n"
+            "!learn progress - Check your study progress\n"
+            "[1;35m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
+        )
+        help_embed.add_field(
+            name="🎓 Learning Assistant",
+            value=learning_commands,
+            inline=False
+        )
+
+        # Study Tips Section
+        tips_commands = (
+            "```ansi\n"
+            "[1;36m┏━━━━━ Study Tips ━━━━━┓[0m\n"
+            "!tips category add <name> - Create tip category\n"
+            "!tips add <category> <tip> - Add new tip\n"
+            "!tips view <category> - View tips\n"
+            "!tips categories - List all categories\n"
+            "[1;36m┗━━━━━━━━━━━━━━━━━━━━┛[0m\n"
+            "```"
+        )
+        help_embed.add_field(
+            name="📝 Study Tips",
+            value=tips_commands,
+            inline=False
+        )
+
 
         # Usage Examples Section
         examples = (
@@ -300,4 +362,7 @@
             "📒 Business Studies\n"
             "📚 English\n"
             "[1;34m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛[0m\n"
-            "
+            "```"
+        )
+        embed.add_field(name="Subjects", value=subjects_format, inline=False)
+        await ctx.send(embed=embed)

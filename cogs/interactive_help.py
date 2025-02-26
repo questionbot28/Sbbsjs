@@ -14,9 +14,10 @@ class HelpMenuView(View):
     def add_category_buttons(self):
         categories = {
             "education": ("📚", discord.ButtonStyle.primary),
-            "music": ("🎵", discord.ButtonStyle.success),
-            "invites": ("📊", discord.ButtonStyle.primary),
-            "ai": ("🤖", discord.ButtonStyle.success)
+            "learning": ("🎓", discord.ButtonStyle.success),
+            "music": ("🎵", discord.ButtonStyle.primary),
+            "invites": ("📊", discord.ButtonStyle.success),
+            "ai": ("🤖", discord.ButtonStyle.primary)
         }
 
         for category, (emoji, style) in categories.items():
@@ -58,6 +59,7 @@ class InteractiveHelp(commands.Cog):
             categories = {
                 "🎵 MUSIC SYSTEM": "Play, pause, loop & apply effects to music",
                 "📚 EDUCATION HUB": "Generate papers, quizzes & AI study notes",
+                "🎓 LEARNING ASSISTANT": "Access learning assistant and tips features",
                 "📊 INVITE TRACKER": "Track invites & climb the leaderboard",
                 "🤖 AI ASSISTANT": "Chat with AI & get instant help"
             }
@@ -86,6 +88,16 @@ class InteractiveHelp(commands.Cog):
                     "!subjects": "View all available subjects",
                     "!chapters11": "Browse Class 11 chapters",
                     "!chapters12": "Browse Class 12 chapters"
+                },
+                "learning": {
+                    "!learn": "Access learning assistant features",
+                    "!learn quiz": "Get personalized practice questions",
+                    "!learn schedule": "Create custom study schedules",
+                    "!learn solve": "Get step-by-step solutions",
+                    "!tips": "Manage your study tips",
+                    "!tips category": "Create/manage tip categories",
+                    "!tips add": "Add new study tips",
+                    "!tips view": "View tips by category"
                 },
                 "music": {
                     "!play": "Play your favorite songs & playlists",
