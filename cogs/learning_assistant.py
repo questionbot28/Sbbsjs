@@ -3,6 +3,7 @@ from discord.ext import commands
 import sqlite3
 import logging
 import asyncio
+import json
 from datetime import datetime, timedelta
 import google.generativeai as genai
 import os
@@ -10,7 +11,7 @@ from typing import List, Dict, Optional
 
 class LearningAssistant(commands.Cog):
     """A cog for AI-powered learning assistance features"""
-    
+
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
@@ -21,7 +22,7 @@ class LearningAssistant(commands.Cog):
             try:
                 genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
                 self.logger.info("Successfully configured Gemini API")
-                model = genai.GenerativeModel('gemini-2.0-flash')
+                self.model = genai.GenerativeModel('gemini-2.0-flash')
                 self.logger.info("Successfully initialized Gemini model")
             except Exception as e:
                 self.logger.error(f"Failed to configure Gemini: {str(e)}")
@@ -65,7 +66,7 @@ class LearningAssistant(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error setting up learning assistant database: {str(e)}")
 
-    @commands.group(name='learn')
+    @commands.group(name='learn', invoke_without_command=True)
     async def learn(self, ctx):
         """Learning assistant command group"""
         if ctx.invoked_subcommand is None:
@@ -104,9 +105,9 @@ class LearningAssistant(commands.Cog):
                 ORDER BY (CAST(correct_answers AS FLOAT) / total_attempts) ASC
                 LIMIT 1
             ''', (str(ctx.author.id), subject))
-            
+
             weak_topic = cursor.fetchone()
-            
+
             # Generate question prompt
             if weak_topic and weak_topic[1] > 0:
                 topic = weak_topic[0]
@@ -119,20 +120,19 @@ class LearningAssistant(commands.Cog):
             msg = await ctx.send("🤔 Generating your personalized question...")
 
             try:
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = await asyncio.to_thread(model.generate_content, prompt)
-                
+                response = await asyncio.to_thread(self.model.generate_content, prompt)
+
                 question = response.text.strip()
-                
+
                 embed = discord.Embed(
                     title=f"📝 {subject} Question",
                     description=question,
                     color=discord.Color.green()
                 )
                 embed.set_footer(text="Take your time to think about it! Use !learn solve to get help if needed.")
-                
+
                 await msg.edit(content=None, embed=embed)
-                
+
             except Exception as e:
                 self.logger.error(f"Error generating question: {str(e)}")
                 await msg.edit(content="❌ Sorry, I couldn't generate a question right now. Please try again later.")
@@ -158,11 +158,9 @@ class LearningAssistant(commands.Cog):
                 Each topic should be specific and achievable in one study session.
                 Example format: ["Introduction to {subject}", "Basic Concepts", ...]"""
 
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = await asyncio.to_thread(model.generate_content, prompt)
-                
+                response = await asyncio.to_thread(self.model.generate_content, prompt)
+
                 # Parse the study plan
-                import json
                 try:
                     daily_topics = json.loads(response.text.strip())
                 except:
@@ -173,12 +171,12 @@ class LearningAssistant(commands.Cog):
                 cursor = self.db.cursor()
                 start_date = datetime.now().date()
                 end_date = start_date + timedelta(days=days)
-                
+
                 cursor.execute('''
                     INSERT INTO study_schedule (user_id, subject, start_date, end_date, daily_topics)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (str(ctx.author.id), subject, start_date, end_date, json.dumps(daily_topics)))
-                
+
                 self.db.commit()
 
                 # Create embed with schedule
@@ -224,7 +222,7 @@ class LearningAssistant(commands.Cog):
             try:
                 prompt = f"""Solve this problem step by step:
                 Question: {question}
-                
+
                 Format your response with:
                 1. First identify the type of problem
                 2. List any key information or given values
@@ -232,9 +230,8 @@ class LearningAssistant(commands.Cog):
                 4. Explain each step
                 5. Give the final answer"""
 
-                model = genai.GenerativeModel('gemini-2.0-flash')
-                response = await asyncio.to_thread(model.generate_content, prompt)
-                
+                response = await asyncio.to_thread(self.model.generate_content, prompt)
+
                 solution = response.text.strip()
 
                 # Create embed with solution
@@ -243,7 +240,7 @@ class LearningAssistant(commands.Cog):
                     description=f"**Question:**\n{question}\n\n**Solution:**\n{solution}",
                     color=discord.Color.green()
                 )
-                
+
                 await msg.edit(content=None, embed=embed)
 
             except Exception as e:
@@ -259,7 +256,7 @@ class LearningAssistant(commands.Cog):
         """Check study progress and schedule"""
         try:
             cursor = self.db.cursor()
-            
+
             # Get active study schedules
             cursor.execute('''
                 SELECT subject, start_date, end_date, daily_topics, completed_topics
@@ -267,9 +264,9 @@ class LearningAssistant(commands.Cog):
                 WHERE user_id = ? AND end_date >= date('now')
                 ORDER BY start_date ASC
             ''', (str(ctx.author.id),))
-            
+
             schedules = cursor.fetchall()
-            
+
             if not schedules:
                 await ctx.send("You don't have any active study schedules. Use `!learn schedule` to create one!")
                 return
@@ -285,10 +282,10 @@ class LearningAssistant(commands.Cog):
                 try:
                     daily_topics = json.loads(daily_topics)
                     completed = json.loads(completed_topics) if completed_topics else []
-                    
+
                     progress = len(completed) / len(daily_topics) * 100
                     days_left = (datetime.strptime(end_date, '%Y-%m-%d').date() - datetime.now().date()).days
-                    
+
                     embed.add_field(
                         name=f"{subject} Progress",
                         value=f"```\nProgress: {progress:.1f}%\nDays Left: {days_left}\nTopics Completed: {len(completed)}/{len(daily_topics)}```",
