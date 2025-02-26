@@ -15,7 +15,6 @@ class HelpMenuView(View):
         categories = {
             "education": ("📚", discord.ButtonStyle.primary),
             "music": ("🎵", discord.ButtonStyle.success),
-            "tickets": ("🎫", discord.ButtonStyle.secondary),
             "invites": ("📊", discord.ButtonStyle.primary),
             "ai": ("🤖", discord.ButtonStyle.success)
         }
@@ -36,10 +35,7 @@ class InteractiveHelp(commands.Cog):
         self.logger = logging.getLogger('discord_bot')
         self.active_menus: Dict[int, discord.Message] = {}
         self.tooltip_frames = [
-            "⠋ Loading...", "⠙ Loading...", "⠹ Loading...",
-            "⠸ Loading...", "⠼ Loading...", "⠴ Loading...",
-            "⠦ Loading...", "⠧ Loading...", "⠇ Loading...",
-            "⠏ Loading..."
+            "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"
         ]
 
     @commands.command(name='help2', description='Shows the new interactive help menu')
@@ -47,25 +43,27 @@ class InteractiveHelp(commands.Cog):
         """Display the interactive help menu with animated tooltips"""
         try:
             embed = discord.Embed(
-                title="✨ Interactive Command Center ✨",
-                description="Welcome to the enhanced help menu! Click the buttons below to explore different command categories.",
+                title="🌟 EduSphere Interactive Command Center 🌟",
+                description=(
+                    "🔹 Welcome to the ultimate control hub!\n"
+                    "🔹 Select a category to access its commands.\n\n"
+                    "⬇️ Click a category to reveal specific features! ⬇️\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "📂 **MAIN CATEGORIES** 📂\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                ),
                 color=discord.Color.blue()
             )
 
             categories = {
-                "📚 Education": "Master your studies with Class 11-12 questions",
-                "🎵 Music": "Enjoy music with advanced playback controls",
-                "🎫 Tickets": "Get support through our ticket system",
-                "📊 Invites": "Track and manage server invitations",
-                "🤖 AI Chat": "Interact with our AI assistant"
+                "🎵 MUSIC SYSTEM": "Play, pause, loop & apply effects to music",
+                "📚 EDUCATION HUB": "Generate papers, quizzes & AI study notes",
+                "📊 INVITE TRACKER": "Track invites & climb the leaderboard",
+                "🤖 AI ASSISTANT": "Chat with AI & get instant help"
             }
 
-            for category, desc in categories.items():
-                embed.add_field(
-                    name=f"{category}",
-                    value=f"```ansi\n[2;34m{desc}[0m```",
-                    inline=False
-                )
+            category_text = "\n".join([f"🔹 **{cat}** – {desc}" for cat, desc in categories.items()])
+            embed.description += category_text
 
             embed.set_footer(text="✨ Click a button below to explore commands!")
             view = HelpMenuView(self)
@@ -80,60 +78,61 @@ class InteractiveHelp(commands.Cog):
     async def handle_category_select(self, interaction: discord.Interaction, category: str):
         """Handle button clicks for category selection"""
         try:
+            self.logger.info(f"Category selected: {category} by user {interaction.user.name}")
             commands = {
                 "education": {
-                    "!11": "Get Class 11 Questions",
-                    "!12": "Get Class 12 Questions",
-                    "!subjects": "List All Subjects",
-                    "!chapters11": "View Class 11 Chapters",
-                    "!chapters12": "View Class 12 Chapters"
+                    "!11": "Generate Class 11 practice questions",
+                    "!12": "Generate Class 12 practice questions",
+                    "!subjects": "View all available subjects",
+                    "!chapters11": "Browse Class 11 chapters",
+                    "!chapters12": "Browse Class 12 chapters"
                 },
                 "music": {
-                    "!play": "Play a song or playlist",
-                    "!pause": "Pause current song",
-                    "!resume": "Resume playback",
-                    "!skip": "Skip to next song",
-                    "!queue": "View song queue"
+                    "!play": "Play your favorite songs & playlists",
+                    "!pause": "Pause the current track",
+                    "!resume": "Resume paused music",
+                    "!skip": "Skip to the next song",
+                    "!queue": "View upcoming tracks",
+                    "!volume": "Adjust music volume",
+                    "!lyrics": "Show song lyrics",
+                    "!now": "Display current track"
                 },
                 "invites": {
-                    "!invites": "View your invite statistics",
-                    "!invite-stats": "Detailed invite analytics",
-                    "!invite-history": "Check invite history",
-                    "!invite-leaderboard": "Server invite rankings"
-                },
-                "tickets": {
-                    "!ticket": "Create support ticket",
-                    "!close": "Close active ticket",
-                    "!add": "Add user to ticket",
-                    "!remove": "Remove from ticket"
+                    "!invites": "Check your invite statistics",
+                    "!invite-stats": "View detailed analytics",
+                    "!invite-history": "Track invite progress",
+                    "!invite-leaderboard": "Compete with others"
                 },
                 "ai": {
-                    "!ask": "Ask AI a question",
+                    "!ask": "Get instant AI answers",
                     "!chat": "Start AI conversation",
-                    "!summary": "Generate AI summary",
-                    "!explain": "Get AI explanation"
+                    "!summary": "Summarize text with AI",
+                    "!explain": "Get detailed explanations",
+                    "!study": "Generate study materials",
+                    "!quiz": "Create AI-powered quizzes"
                 }
             }
 
             embed = discord.Embed(
-                title=f"📖 {category.title()} Commands",
-                description=f"Explore the {category.title()} category commands below:",
+                title=f"🌟 {category.upper()} COMMANDS 🌟",
+                description=(
+                    f"🔹 Welcome to {category.title()} Commands!\n"
+                    f"🔹 Here are all the available features:\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                ),
                 color=discord.Color.blue()
             )
 
-            for cmd, desc in commands[category].items():
-                embed.add_field(
-                    name=cmd,
-                    value=f"```ansi\n[2;32m{desc}[0m```",
-                    inline=False
-                )
+            command_text = "\n\n".join([f"**{cmd}**\n➜ {desc}" for cmd, desc in commands[category].items()])
+            embed.description += f"\n{command_text}"
 
-            embed.set_footer(text=f"✨ Browsing {category.title()} commands")
-            view = HelpMenuView(self)  # Create new view for new embed
+            embed.set_footer(text=f"✨ Browsing {category.title()} commands • Click another category to explore more!")
+            view = HelpMenuView(self)
             await interaction.response.edit_message(embed=embed, view=view)
 
             if interaction.message.id in self.active_menus.values():
                 await self._show_tooltip(interaction.message, f"✨ Showing {category.title()} commands!")
+                self.logger.info(f"Successfully displayed {category} commands for user {interaction.user.name}")
 
         except Exception as e:
             self.logger.error(f"Error handling category selection: {e}")
