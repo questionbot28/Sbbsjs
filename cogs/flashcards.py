@@ -68,14 +68,25 @@ class Flashcards(commands.Cog):
         """Make API call to Gemini with retry logic"""
         try:
             model = genai.GenerativeModel('gemini-pro')
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt
-            )
+            response = await asyncio.to_thread(model.generate_content, prompt)
+
+            # Log response type and structure for debugging
+            self.logger.debug(f"Gemini response type: {type(response)}")
+            self.logger.debug(f"Gemini response attributes: {dir(response)}")
+
             if not response.text:
                 raise ValueError("Empty response from Gemini")
             return response.text
         except Exception as e:
+            if "SERVICE_DISABLED" in str(e):
+                self.logger.error("Gemini API service is not enabled. Please enable it in the Google Cloud Console.")
+                raise ValueError(
+                    "The Gemini AI service needs to be enabled. Please follow these steps:\n"
+                    "1. Go to Google Cloud Console\n"
+                    "2. Enable the 'Generative Language API'\n"
+                    "3. Wait a few minutes for the changes to take effect\n"
+                    "Contact the bot administrator for assistance."
+                )
             self.logger.error(f"Gemini API call failed: {str(e)}")
             raise
 
@@ -87,11 +98,17 @@ class Flashcards(commands.Cog):
 
         try:
             # Simplify the prompt to reduce complexity
-            prompt = f"Create 3 flashcards from this text about {subject if subject else 'this topic'}. Format:\nFront: [Question]\nBack: [Answer]\n\nText: {text}"
+            prompt = f"""Create 3 flashcards from this text about {subject if subject else 'this topic'}. 
+Format each flashcard as:
+Front: [Question]
+Back: [Answer]
+
+Text: {text}"""
 
             self.logger.info(f"Generating flashcards for subject: {subject}")
             flashcards_text = await self._generate_with_gemini(prompt)
             self.logger.info("Received response from Gemini")
+            self.logger.debug(f"Raw Gemini response: {flashcards_text}")
 
             flashcard_list = []
             current_front = None
@@ -117,6 +134,10 @@ class Flashcards(commands.Cog):
             self.logger.info(f"Successfully created {len(flashcard_list)} flashcards")
             return flashcard_list
 
+        except ValueError as ve:
+            # Handle known errors with specific messages
+            self.logger.error(f"Known error in flashcard generation: {str(ve)}")
+            raise
         except Exception as e:
             self.logger.error(f"Error in flashcard generation: {str(e)}")
             self.logger.debug(f"Full error details: {str(e)}", exc_info=True)
@@ -146,49 +167,64 @@ class Flashcards(commands.Cog):
             # Send initial response
             msg = await ctx.send("🤖 Generating flashcards... Please wait!")
 
-            # Generate flashcards
-            flashcards = await self.generate_flashcards(content, str(ctx.author.id), subject)
+            try:
+                # Generate flashcards
+                flashcards = await self.generate_flashcards(content, str(ctx.author.id), subject)
 
-            if not flashcards:
-                await msg.edit(content="❌ Failed to generate flashcards. Please try again.")
-                return
+                if not flashcards:
+                    await msg.edit(content="❌ Failed to generate flashcards. Please try again.")
+                    return
 
-            # Save flashcards to database
-            cursor = self.db.cursor()
-            for card in flashcards:
-                cursor.execute('''
-                    INSERT INTO flashcards (user_id, subject, front, back, created_at)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''', (card.user_id, card.subject, card.front, card.back))
+                # Save flashcards to database
+                cursor = self.db.cursor()
+                for card in flashcards:
+                    cursor.execute('''
+                        INSERT INTO flashcards (user_id, subject, front, back, created_at)
+                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (card.user_id, card.subject, card.front, card.back))
 
-            self.db.commit()
+                self.db.commit()
 
-            # Create embed to show the generated flashcards
-            embed = discord.Embed(
-                title="📝 Generated Flashcards",
-                description=f"Created {len(flashcards)} flashcards" + (f" for {subject}" if subject else ""),
-                color=discord.Color.green()
-            )
-
-            for i, card in enumerate(flashcards, 1):
-                embed.add_field(
-                    name=f"Card {i} - Front",
-                    value=card.front,
-                    inline=False
-                )
-                embed.add_field(
-                    name=f"Card {i} - Back",
-                    value=card.back,
-                    inline=False
+                # Create embed to show the generated flashcards
+                embed = discord.Embed(
+                    title="📝 Generated Flashcards",
+                    description=f"Created {len(flashcards)} flashcards" + (f" for {subject}" if subject else ""),
+                    color=discord.Color.green()
                 )
 
-            await msg.edit(content=None, embed=embed)
+                for i, card in enumerate(flashcards, 1):
+                    embed.add_field(
+                        name=f"Card {i} - Front",
+                        value=card.front,
+                        inline=False
+                    )
+                    embed.add_field(
+                        name=f"Card {i} - Back",
+                        value=card.back,
+                        inline=False
+                    )
 
-        except ValueError as ve:
-            await ctx.send(f"❌ Configuration error: {str(ve)}")
+                await msg.edit(content=None, embed=embed)
+
+            except ValueError as ve:
+                error_msg = str(ve)
+                if "Gemini AI service needs to be enabled" in error_msg:
+                    # Create an embed for the error message
+                    error_embed = discord.Embed(
+                        title="❌ Configuration Required",
+                        description=error_msg,
+                        color=discord.Color.red()
+                    )
+                    await msg.edit(content=None, embed=error_embed)
+                else:
+                    await msg.edit(content=f"❌ {error_msg}")
+            except Exception as e:
+                self.logger.error(f"Error creating flashcards: {str(e)}")
+                await msg.edit(content="❌ An error occurred while creating flashcards.")
+
         except Exception as e:
-            self.logger.error(f"Error creating flashcards: {str(e)}")
-            await ctx.send("❌ An error occurred while creating flashcards.")
+            self.logger.error(f"Error in create_flashcards command: {str(e)}")
+            await ctx.send("❌ An error occurred while processing your request.")
 
     @flashcard.command(name='review')
     async def review_flashcards(self, ctx, subject: Optional[str] = None):
