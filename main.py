@@ -40,6 +40,7 @@ class EducationalBot(commands.Bot):
             'cogs.admin_commands',  # Additional admin commands
             'cogs.subjects_viewer',  # Subject viewing functionality
             'cogs.interactive_help',  # New interactive help system
+            'cogs.command_explainer',  # Command explanation generator
         ]
         self.logger = logger
         self.welcome_channel_id = 1337410430699569232
