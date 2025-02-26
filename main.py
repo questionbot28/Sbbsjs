@@ -32,11 +32,13 @@ class EducationalBot(commands.Bot):
             'cogs.education_manager_new',
             'cogs.admin_core',
             'cogs.subject_curriculum_new',
-            'cogs.music_commands',  # Using the updated music commands
+            'cogs.music_commands_enhanced',  # Using enhanced music commands
             'cogs.staff_commands',
             'cogs.ticket_manager',
             'cogs.invite_manager',
-            'cogs.ai_chat_commands'
+            'cogs.ai_chat_enhanced',  # Using enhanced AI chat
+            'cogs.admin_commands',  # Additional admin commands
+            'cogs.subjects_viewer',  # Subject viewing functionality
         ]
         self.logger = logger
         self.welcome_channel_id = 1337410430699569232
