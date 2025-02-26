@@ -66,9 +66,9 @@ class AdminCommands(commands.Cog):
             self.logger.error(f"Error setting up ticket system: {str(e)}")
             await ctx.send("❌ An error occurred while setting up the ticket system.")
 
-    @commands.command(name='refresh')
+    @commands.command(name='admin_refresh')  # Renamed to avoid conflict
     @commands.has_permissions(administrator=True)
-    async def refresh(self, ctx):
+    async def admin_refresh(self, ctx):
         """Refresh bot by reloading all extensions"""
         self.logger.info(f"Refresh command invoked by {ctx.author}")
         loading_msg = await ctx.send("🔄 Reloading all extensions...")

@@ -147,6 +147,31 @@ class EducationManager(commands.Cog):
                 if ctx.author.id not in self.user_questions:
                     self.user_questions[ctx.author.id] = {}
 
+                # Track achievements
+                achievements_cog = self.bot.get_cog('Achievements')
+                if achievements_cog:
+                    user_id = str(ctx.author.id)
+                    # First question achievement
+                    await achievements_cog.award_achievement(user_id, "first_question")
+
+                    # Track unique subjects
+                    if not hasattr(self, 'user_subjects'):
+                        self.user_subjects = {}
+                    if user_id not in self.user_subjects:
+                        self.user_subjects[user_id] = set()
+                    self.user_subjects[user_id].add(normalized_subject)
+                    if len(self.user_subjects[user_id]) >= 5:
+                        await achievements_cog.award_achievement(user_id, "knowledge_seeker")
+
+                    # Track total questions
+                    if not hasattr(self, 'user_question_count'):
+                        self.user_question_count = {}
+                    if user_id not in self.user_question_count:
+                        self.user_question_count[user_id] = 0
+                    self.user_question_count[user_id] += 1
+                    if self.user_question_count[user_id] >= 100:
+                        await achievements_cog.award_achievement(user_id, "master_student")
+
                 # Generate question
                 try:
                     question = await self.question_generator.generate_question(
