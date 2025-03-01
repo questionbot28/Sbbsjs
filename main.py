@@ -27,21 +27,36 @@ async def initialize_server():
         logger.info("Starting keep_alive server...")
         keep_alive()
 
-        # Give the server a moment to start
-        await asyncio.sleep(2)
+        # Give the server more time to start
+        logger.info("Waiting for Flask server to initialize...")
+        await asyncio.sleep(5)  # Increased from 2 to 5 seconds
 
-        # Test server accessibility
+        # Test server accessibility with retries
         import requests
-        try:
-            response = requests.get('http://0.0.0.0:5000/health')
-            if response.status_code == 200:
-                logger.info("Flask server is running and accessible")
-                server_status = response.json()
-                logger.info(f"Server status: {server_status}")
-            else:
-                logger.error(f"Server health check failed with status code: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Failed to connect to Flask server: {e}")
+        from requests.exceptions import RequestException
+
+        retries = 3
+        while retries > 0:
+            try:
+                logger.info("Attempting to connect to Flask server...")
+                response = requests.get('http://0.0.0.0:5000/health')
+                if response.status_code == 200:
+                    logger.info("Flask server is running and accessible")
+                    server_status = response.json()
+                    logger.info(f"Server status: {server_status}")
+                    break
+                else:
+                    logger.warning(f"Server health check failed with status code: {response.status_code}")
+            except RequestException as e:
+                logger.warning(f"Failed to connect to Flask server (attempt {4-retries}/3): {e}")
+                if retries > 1:
+                    logger.info("Waiting before retry...")
+                    await asyncio.sleep(2)
+            retries -= 1
+
+        if retries == 0:
+            logger.error("Failed to verify Flask server status after multiple attempts")
+            raise Exception("Could not verify Flask server status")
 
     except Exception as e:
         logger.error(f"Error initializing server: {e}")
@@ -62,7 +77,7 @@ class EducationalBot(commands.Bot):
             'cogs.staff_commands',
             'cogs.ticket_manager',
             'cogs.invite_manager',
-            'cogs.ai_chat_enhanced',  # Using enhanced AI chat
+            'cogs.ai_chat_commands',  # Load the new AI chat commands
             'cogs.admin_commands',  # Additional admin commands
             'cogs.subjects_viewer',  # Subject viewing functionality
             'cogs.interactive_help',  # New interactive help system
@@ -89,6 +104,10 @@ class EducationalBot(commands.Bot):
             except Exception as e:
                 logger.error(f"Failed to load extension {extension}: {str(e)}")
                 logger.exception(e)
+                # Log additional details about the error
+                import traceback
+                logger.error(f"Full traceback for {extension}:")
+                logger.error(traceback.format_exc())
 
     async def on_ready(self):
         """Called when the bot is ready and connected"""
