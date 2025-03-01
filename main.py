@@ -1,13 +1,11 @@
 import os
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from dotenv import load_dotenv
 import logging
 from utils.logger import setup_logger
 import asyncio
 from keep_alive import keep_alive
-import requests
-from requests.exceptions import RequestException
 
 # Load environment variables
 load_dotenv(override=True)  
@@ -30,6 +28,7 @@ class EducationalBot(commands.Bot):
             intents=intents,
             help_command=None  # Disable default help command
         )
+        self.logger = logger
         self.initial_extensions = [
             'cogs.ai_chat_enhanced',  # Using enhanced AI chat with Gemini
             'cogs.admin_core',
@@ -45,7 +44,6 @@ class EducationalBot(commands.Bot):
             'cogs.flashcards',
             'cogs.learning_assistant',
         ]
-        self.logger = logger
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
@@ -86,44 +84,16 @@ class EducationalBot(commands.Bot):
             )
         )
 
-async def initialize_server():
-    """Initialize the Flask server and verify it's running"""
-    try:
-        logger.info("Starting keep_alive server...")
-        keep_alive()
-
-        # Give the server time to start
-        logger.info("Waiting for Flask server to initialize...")
-        await asyncio.sleep(3)
-
-        # Test server accessibility
-        try:
-            logger.info("Testing connection to Flask server...")
-            response = requests.get('http://0.0.0.0:5000/health', timeout=5)
-            if response.status_code == 200:
-                logger.info("Flask server is running and accessible")
-                logger.info(f"Server status: {response.json()}")
-                return
-            else:
-                logger.error(f"Flask server returned unexpected status: {response.status_code}")
-                raise Exception("Flask server health check failed")
-        except RequestException as e:
-            logger.error(f"Could not connect to Flask server: {e}")
-            raise
-
-    except Exception as e:
-        logger.error(f"Error initializing server: {e}", exc_info=True)
-        raise
-
 async def main():
     try:
-        # Initialize Flask server first
-        await initialize_server()
+        # Start Flask server
+        logger.info("Starting Flask server...")
+        keep_alive()
 
         # Initialize bot
         bot = EducationalBot()
 
-        # Get token with better error handling
+        # Get token
         token = os.getenv('DISCORD_TOKEN')
         if not token:
             logger.error("No Discord token found in environment variables!")
@@ -133,9 +103,6 @@ async def main():
         logger.info("Starting bot...")
         await bot.start(token)
 
-    except discord.LoginFailure as e:
-        logger.error(f"Failed to log in: Invalid token. Please check your DISCORD_TOKEN in .env")
-        logger.exception(e)
     except Exception as e:
         logger.error(f"Error starting bot: {str(e)}")
         logger.exception(e)
