@@ -70,26 +70,21 @@ class EducationalBot(commands.Bot):
             help_command=None  # Disable default help command
         )
         self.initial_extensions = [
-            'cogs.education_manager_new',
+            'cogs.ai_chat_enhanced',  # Using enhanced AI chat with Gemini
             'cogs.admin_core',
-            'cogs.subject_curriculum_new',
-            'cogs.music_commands_enhanced',  # Using enhanced music commands
+            'cogs.education_manager_new',
+            'cogs.music_commands_enhanced',
             'cogs.staff_commands',
             'cogs.ticket_manager',
             'cogs.invite_manager',
-            'cogs.ai_chat_commands',  # Load the new AI chat commands
-            'cogs.admin_commands',  # Additional admin commands
-            'cogs.subjects_viewer',  # Subject viewing functionality
-            'cogs.interactive_help',  # New interactive help system
-            'cogs.command_explainer',  # Command explanation generator
-            'cogs.achievements',  # Achievement system
-            'cogs.flashcards',  # New flashcard system
-            'cogs.learning_assistant',  # New AI-powered learning assistant
+            'cogs.subjects_viewer',
+            'cogs.interactive_help',
+            'cogs.command_explainer',
+            'cogs.achievements',
+            'cogs.flashcards',
+            'cogs.learning_assistant',
         ]
         self.logger = logger
-        self.welcome_channel_id = 1337410430699569232
-        self.help_channel_id = 1337414736802742393
-        self.roles_channel_id = 1337427674347339786
 
     async def setup_hook(self):
         """Initial setup and load extensions"""
@@ -112,6 +107,7 @@ class EducationalBot(commands.Bot):
     async def on_ready(self):
         """Called when the bot is ready and connected"""
         logger.info(f'Bot is ready! Logged in as {self.user.name}')
+        # Log all registered commands
         commands_list = [cmd.name for cmd in self.commands]
         logger.info(f"Registered commands: {', '.join(commands_list)}")
 
@@ -156,24 +152,6 @@ class EducationalBot(commands.Bot):
             await ctx.send("❌ An error occurred while processing your command.")
             logger.exception(error)
 
-    async def on_member_join(self, member):
-        """Send welcome message when a new member joins"""
-        try:
-            welcome_channel = self.get_channel(self.welcome_channel_id)
-            if welcome_channel:
-                welcome_message = (
-                    f"🎉 Welcome, {member.mention}! Glad to have you in EduSphere – "
-                    f"Learn, Share, Grow! 📚✨\n\n"
-                    f"🤝 Need help? Ask in <#{self.help_channel_id}>\n"
-                    f"🔰 Get your class role in <#{self.roles_channel_id}>\n\n"
-                    f"Say hi and introduce yourself! 🚀"
-                )
-                await welcome_channel.send(welcome_message)
-                self.logger.info(f"Sent welcome message to {member.name} in {welcome_channel.name}")
-        except Exception as e:
-            self.logger.error(f"Error sending welcome message: {str(e)}")
-            self.logger.exception(e)
-
 async def main():
     try:
         # Initialize Flask server first
@@ -190,8 +168,6 @@ async def main():
             return
 
         logger.info("Starting bot...")
-        # Add debug logging for token presence
-        logger.info("Token exists and attempting to connect...")
         await bot.start(token)
 
     except discord.LoginFailure as e:
