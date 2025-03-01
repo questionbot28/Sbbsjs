@@ -33,4 +33,5 @@ dependencies = [
     "gevent>=24.11.1",
     "tenacity>=9.0.0",
     "pyttsx3>=2.98",
+    "gtts>=2.5.4",
 ]

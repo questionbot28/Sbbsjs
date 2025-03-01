@@ -5,8 +5,7 @@ import os
 import asyncio
 import json
 from pathlib import Path
-import subprocess
-import wave
+from gtts import gTTS
 import io
 
 class VoiceCommands(commands.Cog):
@@ -27,7 +26,7 @@ class VoiceCommands(commands.Cog):
 
     def get_response_path(self, user_id):
         """Get path for user's response file"""
-        return self.responses_dir / f"response_{user_id}.wav"
+        return self.responses_dir / f"response_{user_id}.mp3"  # Changed to .mp3 for gTTS
 
     async def _check_channel(self, ctx):
         """Check if command is used in allowed channels"""
@@ -40,14 +39,14 @@ class VoiceCommands(commands.Cog):
     async def set_language(self, ctx, lang_code: str):
         """Set preferred language for voice responses"""
         try:
-            # Map language codes to espeak voices
+            # Map language codes to gTTS languages
             voice_mapping = {
-                'en': 'english',
-                'es': 'spanish',
-                'fr': 'french',
-                'de': 'german',
-                'it': 'italian',
-                'pt': 'portuguese'
+                'en': 'en',    # English
+                'es': 'es',    # Spanish
+                'fr': 'fr',    # French
+                'de': 'de',    # German
+                'it': 'it',    # Italian
+                'pt': 'pt'     # Portuguese
             }
 
             if lang_code not in voice_mapping:
@@ -57,7 +56,7 @@ class VoiceCommands(commands.Cog):
 
             # Store user's language preference
             self.user_languages[ctx.author.id] = lang_code
-            await ctx.send(f"✅ Voice language set to: {voice_mapping[lang_code]}")
+            await ctx.send(f"✅ Voice language set to: {lang_code}")
             self.logger.info(f"Set language {lang_code} for user {ctx.author.name}")
 
         except Exception as e:
@@ -65,32 +64,25 @@ class VoiceCommands(commands.Cog):
             await ctx.send("❌ Failed to set language preference.")
 
     async def generate_speech(self, text, lang_code, output_path):
-        """Generate speech using espeak"""
+        """Generate speech using gTTS"""
         try:
-            self.logger.info(f"Generating speech with espeak: lang={lang_code}, output={output_path}")
+            self.logger.info(f"Generating speech with gTTS: lang={lang_code}, output={output_path}")
 
-            # Use espeak to generate raw audio data
-            cmd = [
-                'espeak',
-                '--stdout',
-                '-v', lang_code,
-                '-s', '150',  # Speed
-                '-a', '200',  # Amplitude
-                '-w', str(output_path),  # Write to WAV file directly
-                text
-            ]
+            # Create gTTS object
+            tts = gTTS(text=text, lang=lang_code, slow=False)
 
-            # Run espeak command
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
+            # Save to file
+            tts.save(str(output_path))
 
-            stdout, stderr = await process.communicate()
+            # Verify file was created and has content
+            if not os.path.exists(str(output_path)):
+                raise FileNotFoundError("gTTS failed to create audio file")
 
-            if process.returncode != 0:
-                raise Exception(f"espeak failed: {stderr.decode()}")
+            file_size = os.path.getsize(str(output_path))
+            self.logger.info(f"Generated audio file size: {file_size} bytes")
+
+            if file_size == 0:
+                raise ValueError("Generated audio file is empty")
 
             self.logger.info(f"Successfully generated speech file at {output_path}")
             return True
@@ -123,18 +115,26 @@ class VoiceCommands(commands.Cog):
                     return
                 text = self.last_responses[ctx.author.id]
 
-            # Send status message
-            status_msg = await ctx.send("🎵 Generating voice response...")
-
             try:
+                # Send status message
+                status_msg = await ctx.send("🎵 Generating voice response...")
+
                 # Generate voice response
                 response_path = self.get_response_path(ctx.author.id)
                 self.logger.info(f"Generating voice response to {response_path}")
 
-                # Generate speech using espeak
+                # Generate speech using gTTS
                 success = await self.generate_speech(text, lang, str(response_path))
                 if not success:
                     await status_msg.edit(content="❌ Failed to generate voice response.")
+                    return
+
+                # Wait a moment for file to be completely written
+                await asyncio.sleep(2)
+
+                # Verify file exists and has content
+                if not os.path.exists(str(response_path)):
+                    await status_msg.edit(content="❌ Failed to create voice file.")
                     return
 
                 await status_msg.edit(content="🎵 Voice generated, connecting to voice channel...")
@@ -159,7 +159,7 @@ class VoiceCommands(commands.Cog):
                         os.remove(str(response_path))
                     return
 
-                # Wait a moment for file to be ready
+                # Wait a moment for connection to stabilize
                 await asyncio.sleep(1)
 
                 # Play the audio
@@ -170,14 +170,26 @@ class VoiceCommands(commands.Cog):
                     self.logger.info("Starting audio playback")
                     audio_source = discord.FFmpegPCMAudio(
                         str(response_path),
-                        options='-loglevel warning -acodec pcm_s16le -ar 44100 -ac 1'
+                        options='-loglevel warning -c:a libmp3lame -b:a 192k -ar 44100' #Improved FFmpeg options
                     )
-                    voice_client.play(audio_source)
+
+                    # Set up audio source with increased volume
+                    audio_source = discord.PCMVolumeTransformer(audio_source, volume=2.0)
+
+                    # Play audio with completion callback
+                    voice_client.play(
+                        audio_source,
+                        after=lambda e: self.bot.loop.create_task(self._after_playback(e, status_msg, response_path))
+                    )
+
                     await status_msg.edit(content="🔊 Playing voice response...")
 
                     # Wait for audio to finish
                     while voice_client.is_playing():
                         await asyncio.sleep(1)
+
+                    # Add a small delay after playback finishes
+                    await asyncio.sleep(2)
 
                     self.logger.info("Audio playback completed")
 
@@ -190,12 +202,9 @@ class VoiceCommands(commands.Cog):
                         os.remove(str(response_path))
                     return
 
-                # Cleanup
+                # Cleanup only if we haven't already disconnected
                 if voice_client.is_connected():
                     await voice_client.disconnect()
-                if os.path.exists(str(response_path)):
-                    os.remove(str(response_path))
-                await status_msg.edit(content="✅ Voice explanation complete!")
 
             except Exception as e:
                 self.logger.error(f"Error generating/playing voice: {e}")
@@ -207,6 +216,22 @@ class VoiceCommands(commands.Cog):
             self.logger.error(f"Error in explain_voice command: {e}")
             await ctx.send("❌ An error occurred while processing your request.")
 
+    async def _after_playback(self, error, status_msg, response_path):
+        """Callback after audio playback completes"""
+        try:
+            if error:
+                self.logger.error(f"Error during playback: {error}")
+                await status_msg.edit(content=f"❌ Error during playback: {error}")
+            else:
+                await status_msg.edit(content="✅ Voice explanation complete!")
+
+            # Clean up the audio file after a short delay
+            await asyncio.sleep(2) #Increased delay for cleanup
+            if os.path.exists(str(response_path)):
+                os.remove(str(response_path))
+        except Exception as e:
+            self.logger.error(f"Error in _after_playback: {e}")
+
     async def cleanup(self):
         """Cleanup function to be called when cog is unloaded"""
         try:
@@ -215,7 +240,7 @@ class VoiceCommands(commands.Cog):
                 await self.current_voice_client.disconnect()
 
             # Clean up any remaining response files
-            for file in self.responses_dir.glob("response_*.wav"):
+            for file in self.responses_dir.glob("response_*.mp3"):
                 file.unlink()
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
@@ -224,3 +249,4 @@ async def setup(bot):
     cog = VoiceCommands(bot)
     await bot.add_cog(cog)
     logging.getLogger('discord_bot').info("VoiceCommands cog loaded successfully")
+</replit_file>
