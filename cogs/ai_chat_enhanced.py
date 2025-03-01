@@ -56,6 +56,86 @@ class AIChatEnhanced(commands.Cog):
             self.logger.error(f"Error analyzing image: {e}")
             return "❌ An error occurred while analyzing the image."
 
+    @commands.command(name='analyze')
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def analyze(self, ctx, *, text: Optional[str] = None):
+        """Analyze text or image and provide insights"""
+        self.logger.info(f"Analyze command received from {ctx.author}")
+
+        if not await self._check_channel(ctx):
+            return
+
+        if not ctx.message.attachments and not text:
+            await ctx.send("❌ Please provide either text to analyze or attach an image!")
+            return
+
+        async with ctx.typing():
+            try:
+                if ctx.message.attachments:
+                    # Handle image analysis
+                    attachment = ctx.message.attachments[0]
+                    if not attachment.content_type.startswith('image/'):
+                        await ctx.send("❌ Please provide a valid image file!")
+                        return
+
+                    self.logger.info(f"Processing image from {ctx.author}")
+                    image_data = await attachment.read()
+
+                    prompt = (
+                        "Analyze this image in detail. Describe what you see, "
+                        "identify key elements, and provide relevant insights. "
+                        "If there's text in the image, include that in your analysis."
+                    )
+
+                    self.logger.debug("Sending image to Gemini Vision API...")
+                    response = vision_model.generate_content(
+                        [prompt, {"mime_type": "image/jpeg", "data": image_data}]
+                    )
+                    analysis = response.text
+
+                    embed = discord.Embed(
+                        title="🖼️ Image Analysis",
+                        description="Here's my analysis of your image:",
+                        color=discord.Color.purple()
+                    )
+                    embed.set_thumbnail(url=attachment.url)
+
+                else:
+                    # Handle text analysis
+                    self.logger.info(f"Processing text from {ctx.author}")
+                    response = model.generate_content(
+                        f"Analyze the following text and provide key insights:\n\n{text}"
+                    )
+                    analysis = response.text
+
+                    embed = discord.Embed(
+                        title="📊 Text Analysis",
+                        description="Here's my analysis of your text:",
+                        color=discord.Color.purple()
+                    )
+                    embed.add_field(
+                        name="Input Text",
+                        value=text[:1000] + "..." if len(text) > 1000 else text,
+                        inline=False
+                    )
+
+                # Add analysis to embed
+                embed.add_field(
+                    name="Analysis",
+                    value=analysis,
+                    inline=False
+                )
+
+                await ctx.send(embed=embed)
+                self.logger.info(
+                    f"Successfully analyzed {'image' if ctx.message.attachments else 'text'} "
+                    f"for {ctx.author}"
+                )
+
+            except Exception as e:
+                self.logger.error(f"Error processing {'image' if ctx.message.attachments else 'text'}: {e}")
+                await ctx.send("❌ An error occurred while processing your request. Please try again later.")
+
     @commands.command(name='ask')
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def ask(self, ctx, *, question: str):
@@ -114,73 +194,6 @@ class AIChatEnhanced(commands.Cog):
             await ctx.send(embed=embed)
             self.logger.info(f"Successfully explained concept for {ctx.author}")
 
-    @commands.command(name='analyze')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def analyze(self, ctx, *, text: Optional[str] = None):
-        """Analyze text or image and provide insights"""
-        self.logger.info(f"Analyze command received from {ctx.author}")
-
-        if not await self._check_channel(ctx):
-            return
-
-        if not ctx.message.attachments and not text:
-            await ctx.send("❌ Please provide either text to analyze or attach an image!")
-            return
-
-        async with ctx.typing():
-            if ctx.message.attachments:
-                # Handle image analysis
-                attachment = ctx.message.attachments[0]
-                if not attachment.content_type.startswith('image/'):
-                    await ctx.send("❌ Please provide a valid image file!")
-                    return
-
-                image_data = await attachment.read()
-                prompt = (
-                    "Analyze this image in detail. Describe what you see, "
-                    "identify key elements, and provide relevant insights. "
-                    "If there's text in the image, include that in your analysis."
-                )
-
-                analysis = await self._get_image_analysis(image_data, prompt)
-
-                embed = discord.Embed(
-                    title="🖼️ Image Analysis",
-                    description="Here's my analysis of your image:",
-                    color=discord.Color.purple()
-                )
-
-                embed.set_thumbnail(url=attachment.url)
-
-            else:
-                # Handle text analysis
-                system_prompt = (
-                    "You are an expert analyst. Analyze the following text and provide key insights, "
-                    "patterns, and notable elements. Break down your analysis into clear sections."
-                )
-
-                analysis = await self._get_ai_response(text, system_prompt)
-
-                embed = discord.Embed(
-                    title="📊 Text Analysis",
-                    description="Here's my analysis of your text:",
-                    color=discord.Color.purple()
-                )
-
-                embed.add_field(
-                    name="Input Text",
-                    value=text[:1000] + "..." if len(text) > 1000 else text,
-                    inline=False
-                )
-
-            embed.add_field(
-                name="Analysis",
-                value=analysis,
-                inline=False
-            )
-
-            await ctx.send(embed=embed)
-            self.logger.info(f"Successfully analyzed {'image' if ctx.message.attachments else 'text'} for {ctx.author}")
 
 async def setup(bot):
     cog = AIChatEnhanced(bot)

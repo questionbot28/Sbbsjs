@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 import logging
 from utils.logger import setup_logger
 import asyncio
-from keep_alive import keep_alive
+# Skip Flask server for now
+# from keep_alive import keep_alive, is_port_available
+# import time
 
 # Load environment variables
 load_dotenv(override=True)  
@@ -86,9 +88,9 @@ class EducationalBot(commands.Bot):
 
 async def main():
     try:
-        # Start Flask server
-        logger.info("Starting Flask server...")
-        keep_alive()
+        # Skip Flask server initialization for now
+        # logger.info("Starting Flask server initialization...")
+        # await initialize_server()
 
         # Initialize bot
         bot = EducationalBot()
