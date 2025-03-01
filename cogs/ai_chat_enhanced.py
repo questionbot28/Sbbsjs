@@ -99,6 +99,44 @@ class AIChatEnhanced(commands.Cog):
             await ctx.send(embed=embed)
             self.logger.info(f"Successfully explained concept for {ctx.author}")
 
+    @commands.command(name='analyze')
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def analyze(self, ctx, *, text: str):
+        """Analyze text and provide insights"""
+        self.logger.info(f"Analyze command received from {ctx.author}: {text[:50]}...")
+
+        if not await self._check_channel(ctx):
+            return
+
+        async with ctx.typing():
+            system_prompt = (
+                "You are an expert analyst. Analyze the following text and provide key insights, "
+                "patterns, and notable elements. Break down your analysis into clear sections."
+            )
+
+            analysis = await self._get_ai_response(text, system_prompt)
+
+            embed = discord.Embed(
+                title="📊 Text Analysis",
+                description="Here's my analysis of your text:",
+                color=discord.Color.purple()
+            )
+
+            embed.add_field(
+                name="Input Text",
+                value=text[:1000] + "..." if len(text) > 1000 else text,
+                inline=False
+            )
+
+            embed.add_field(
+                name="Analysis",
+                value=analysis,
+                inline=False
+            )
+
+            await ctx.send(embed=embed)
+            self.logger.info(f"Successfully analyzed text for {ctx.author}")
+
 async def setup(bot):
     cog = AIChatEnhanced(bot)
     await bot.add_cog(cog)
