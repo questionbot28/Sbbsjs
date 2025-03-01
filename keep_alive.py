@@ -4,7 +4,7 @@ import os
 import logging
 import time
 
-# Configure logging with more detailed format
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -17,44 +17,49 @@ start_time = time.time()
 @app.route('/')
 def home():
     """Basic endpoint that confirms server is running"""
-    logger.info("Health check endpoint accessed")
+    logger.info("Home endpoint accessed")
     return "I'm alive!"
 
 @app.route('/health')
 def health():
-    """Detailed health check endpoint"""
-    uptime = int(time.time() - start_time)
-    status = {
-        'status': 'healthy',
-        'uptime_seconds': uptime,
-        'server': 'flask',
-        'port': 5000
-    }
-    logger.info(f"Health check returned: {status}")
-    return jsonify(status)
+    """Health check endpoint"""
+    try:
+        logger.info("Health check endpoint accessed")
+        status = {
+            'status': 'healthy',
+            'uptime_seconds': int(time.time() - start_time),
+            'server': 'flask',
+            'port': 5000
+        }
+        logger.info(f"Health check successful: {status}")
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Health check failed: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def run():
-    """Run the Flask server with proper error handling"""
+    """Run the Flask server"""
     try:
-        logger.info("Starting Flask server on port 5000...")
         # Always use port 5000 for Replit
+        logger.info("Starting Flask server on port 5000...")
         app.run(
-            host="0.0.0.0",
+            host='0.0.0.0',  # Bind to all interfaces
             port=5000,
-            debug=False  # Disable debug mode in production
+            debug=False
         )
     except Exception as e:
-        logger.error(f"An error occurred while starting Flask server: {e}")
-        raise  # Re-raise the exception for the main thread to handle
+        logger.error(f"Failed to start Flask server: {e}", exc_info=True)
+        raise
 
 def keep_alive():
-    """Initialize and start the keep_alive thread with proper logging"""
+    """Start the server in a separate thread"""
     try:
-        logger.info("Initializing keep_alive thread...")
-        t = Thread(target=run)
-        t.daemon = True  # Make thread daemon so it exits when main thread exits
+        logger.info("Starting keep_alive thread...")
+        t = Thread(target=run, daemon=True)
         t.start()
+        # Give the server a moment to start
+        time.sleep(2)
         logger.info("Keep_alive thread started successfully")
     except Exception as e:
-        logger.error(f"Failed to start keep_alive thread: {e}")
+        logger.error(f"Failed to start keep_alive thread: {e}", exc_info=True)
         raise

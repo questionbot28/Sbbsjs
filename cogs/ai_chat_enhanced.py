@@ -4,10 +4,13 @@ import logging
 import os
 import google.generativeai as genai
 from typing import Optional
+import base64
+from io import BytesIO
 
-# Initialize Gemini AI
+# Initialize Gemini AI with newer model
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-2.0-flash')  # Using newer flash model for faster responses
+vision_model = genai.GenerativeModel('gemini-2.0-flash')  # Using same model for vision tasks
 
 class AIChatEnhanced(commands.Cog):
     def __init__(self, bot):
@@ -40,6 +43,18 @@ class AIChatEnhanced(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error getting AI response: {e}")
             return "❌ An error occurred while processing your request."
+
+    async def _get_image_analysis(self, image_data: bytes, prompt: str) -> str:
+        """Analyze image using Gemini Vision AI"""
+        try:
+            self.logger.debug("Processing image with Gemini Vision API...")
+            response = vision_model.generate_content(
+                [prompt, {"mime_type": "image/jpeg", "data": image_data}]
+            )
+            return response.text
+        except Exception as e:
+            self.logger.error(f"Error analyzing image: {e}")
+            return "❌ An error occurred while analyzing the image."
 
     @commands.command(name='ask')
     @commands.cooldown(1, 5, commands.BucketType.user)
@@ -101,32 +116,62 @@ class AIChatEnhanced(commands.Cog):
 
     @commands.command(name='analyze')
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def analyze(self, ctx, *, text: str):
-        """Analyze text and provide insights"""
-        self.logger.info(f"Analyze command received from {ctx.author}: {text[:50]}...")
+    async def analyze(self, ctx, *, text: Optional[str] = None):
+        """Analyze text or image and provide insights"""
+        self.logger.info(f"Analyze command received from {ctx.author}")
 
         if not await self._check_channel(ctx):
             return
 
+        if not ctx.message.attachments and not text:
+            await ctx.send("❌ Please provide either text to analyze or attach an image!")
+            return
+
         async with ctx.typing():
-            system_prompt = (
-                "You are an expert analyst. Analyze the following text and provide key insights, "
-                "patterns, and notable elements. Break down your analysis into clear sections."
-            )
+            if ctx.message.attachments:
+                # Handle image analysis
+                attachment = ctx.message.attachments[0]
+                if not attachment.content_type.startswith('image/'):
+                    await ctx.send("❌ Please provide a valid image file!")
+                    return
 
-            analysis = await self._get_ai_response(text, system_prompt)
+                image_data = await attachment.read()
+                prompt = (
+                    "Analyze this image in detail. Describe what you see, "
+                    "identify key elements, and provide relevant insights. "
+                    "If there's text in the image, include that in your analysis."
+                )
 
-            embed = discord.Embed(
-                title="📊 Text Analysis",
-                description="Here's my analysis of your text:",
-                color=discord.Color.purple()
-            )
+                analysis = await self._get_image_analysis(image_data, prompt)
 
-            embed.add_field(
-                name="Input Text",
-                value=text[:1000] + "..." if len(text) > 1000 else text,
-                inline=False
-            )
+                embed = discord.Embed(
+                    title="🖼️ Image Analysis",
+                    description="Here's my analysis of your image:",
+                    color=discord.Color.purple()
+                )
+
+                embed.set_thumbnail(url=attachment.url)
+
+            else:
+                # Handle text analysis
+                system_prompt = (
+                    "You are an expert analyst. Analyze the following text and provide key insights, "
+                    "patterns, and notable elements. Break down your analysis into clear sections."
+                )
+
+                analysis = await self._get_ai_response(text, system_prompt)
+
+                embed = discord.Embed(
+                    title="📊 Text Analysis",
+                    description="Here's my analysis of your text:",
+                    color=discord.Color.purple()
+                )
+
+                embed.add_field(
+                    name="Input Text",
+                    value=text[:1000] + "..." if len(text) > 1000 else text,
+                    inline=False
+                )
 
             embed.add_field(
                 name="Analysis",
@@ -135,7 +180,7 @@ class AIChatEnhanced(commands.Cog):
             )
 
             await ctx.send(embed=embed)
-            self.logger.info(f"Successfully analyzed text for {ctx.author}")
+            self.logger.info(f"Successfully analyzed {'image' if ctx.message.attachments else 'text'} for {ctx.author}")
 
 async def setup(bot):
     cog = AIChatEnhanced(bot)

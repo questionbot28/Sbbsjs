@@ -5,9 +5,11 @@ from dotenv import load_dotenv
 import logging
 from utils.logger import setup_logger
 import asyncio
-from keep_alive import keep_alive  # Using keep_alive instead of server
+from keep_alive import keep_alive
+import requests
+from requests.exceptions import RequestException
 
-# Load environment variables with override to ensure Glitch env vars take precedence
+# Load environment variables
 load_dotenv(override=True)  
 
 # Setup logging
@@ -20,47 +22,6 @@ intents.message_content = True  # Required for detecting commands
 intents.guilds = True  # Required for guild-related functionality
 intents.voice_states = True  # Required for voice features
 intents.members = True  # Needed for on_member_join event
-
-async def initialize_server():
-    """Initialize the Flask server and verify it's running"""
-    try:
-        logger.info("Starting keep_alive server...")
-        keep_alive()
-
-        # Give the server more time to start
-        logger.info("Waiting for Flask server to initialize...")
-        await asyncio.sleep(5)  # Increased from 2 to 5 seconds
-
-        # Test server accessibility with retries
-        import requests
-        from requests.exceptions import RequestException
-
-        retries = 3
-        while retries > 0:
-            try:
-                logger.info("Attempting to connect to Flask server...")
-                response = requests.get('http://0.0.0.0:5000/health')
-                if response.status_code == 200:
-                    logger.info("Flask server is running and accessible")
-                    server_status = response.json()
-                    logger.info(f"Server status: {server_status}")
-                    break
-                else:
-                    logger.warning(f"Server health check failed with status code: {response.status_code}")
-            except RequestException as e:
-                logger.warning(f"Failed to connect to Flask server (attempt {4-retries}/3): {e}")
-                if retries > 1:
-                    logger.info("Waiting before retry...")
-                    await asyncio.sleep(2)
-            retries -= 1
-
-        if retries == 0:
-            logger.error("Failed to verify Flask server status after multiple attempts")
-            raise Exception("Could not verify Flask server status")
-
-    except Exception as e:
-        logger.error(f"Error initializing server: {e}")
-        raise
 
 class EducationalBot(commands.Bot):
     def __init__(self):
@@ -99,17 +60,24 @@ class EducationalBot(commands.Bot):
             except Exception as e:
                 logger.error(f"Failed to load extension {extension}: {str(e)}")
                 logger.exception(e)
-                # Log additional details about the error
-                import traceback
-                logger.error(f"Full traceback for {extension}:")
-                logger.error(traceback.format_exc())
 
     async def on_ready(self):
         """Called when the bot is ready and connected"""
         logger.info(f'Bot is ready! Logged in as {self.user.name}')
-        # Log all registered commands
-        commands_list = [cmd.name for cmd in self.commands]
-        logger.info(f"Registered commands: {', '.join(commands_list)}")
+
+        # Enhanced command logging
+        all_commands = {}
+        for command in self.commands:
+            cog_name = command.cog.qualified_name if command.cog else 'No Category'
+            if cog_name not in all_commands:
+                all_commands[cog_name] = []
+            all_commands[cog_name].append(command.name)
+
+        # Log commands by category
+        logger.info("=== Registered Commands ===")
+        for category, commands in all_commands.items():
+            logger.info(f"{category}: {', '.join(commands)}")
+        logger.info("=========================")
 
         await self.change_presence(
             activity=discord.Activity(
@@ -118,39 +86,34 @@ class EducationalBot(commands.Bot):
             )
         )
 
-    async def on_message(self, message):
-        """Enhanced message handling with debug logging"""
-        if message.author.bot:
-            return
+async def initialize_server():
+    """Initialize the Flask server and verify it's running"""
+    try:
+        logger.info("Starting keep_alive server...")
+        keep_alive()
 
-        logger.debug(f"Message received from {message.author}: {message.content}")
-        if message.content.startswith(COMMAND_PREFIX):
-            logger.info(f"Command detected: {message.content}")
+        # Give the server time to start
+        logger.info("Waiting for Flask server to initialize...")
+        await asyncio.sleep(3)
 
+        # Test server accessibility
         try:
-            await self.process_commands(message)
-        except Exception as e:
-            logger.error(f"Error processing command: {str(e)}")
-            logger.exception(e)
+            logger.info("Testing connection to Flask server...")
+            response = requests.get('http://0.0.0.0:5000/health', timeout=5)
+            if response.status_code == 200:
+                logger.info("Flask server is running and accessible")
+                logger.info(f"Server status: {response.json()}")
+                return
+            else:
+                logger.error(f"Flask server returned unexpected status: {response.status_code}")
+                raise Exception("Flask server health check failed")
+        except RequestException as e:
+            logger.error(f"Could not connect to Flask server: {e}")
+            raise
 
-    async def on_command_error(self, ctx, error):
-        """Enhanced error handling for commands"""
-        if isinstance(error, commands.CommandNotFound):
-            await ctx.send(f"❌ Command not found. Use {COMMAND_PREFIX}help to see available commands.")
-            logger.warning(f"Command not found: {ctx.message.content}")
-        elif isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ You don't have permission to use this command.")
-            logger.warning(f"Missing permissions for {ctx.author}: {error}")
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"❌ Missing required argument: {error.param.name}")
-            logger.warning(f"Missing argument in command: {ctx.message.content}")
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"⏳ Please wait {error.retry_after:.1f}s before using this command again.")
-            logger.info(f"Command on cooldown for {ctx.author}: {ctx.command.name}")
-        else:
-            logger.error(f"Unhandled command error: {error}")
-            await ctx.send("❌ An error occurred while processing your command.")
-            logger.exception(error)
+    except Exception as e:
+        logger.error(f"Error initializing server: {e}", exc_info=True)
+        raise
 
 async def main():
     try:
