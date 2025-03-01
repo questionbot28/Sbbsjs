@@ -45,6 +45,7 @@ class EducationalBot(commands.Bot):
             'cogs.achievements',
             'cogs.flashcards',
             'cogs.learning_assistant',
+            'cogs.voice_commands',  # Added voice commands cog
         ]
 
     async def setup_hook(self):

@@ -1,5 +1,7 @@
 {pkgs}: {
   deps = [
+    pkgs.espeak
+    pkgs.espeak-ng
     pkgs.libev
     pkgs.iana-etc
     pkgs.ffmpeg-full
