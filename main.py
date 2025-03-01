@@ -19,7 +19,33 @@ intents = discord.Intents.default()
 intents.message_content = True  # Required for detecting commands
 intents.guilds = True  # Required for guild-related functionality
 intents.voice_states = True  # Required for voice features
-intents.members = True #Needed for on_member_join event
+intents.members = True  # Needed for on_member_join event
+
+async def initialize_server():
+    """Initialize the Flask server and verify it's running"""
+    try:
+        logger.info("Starting keep_alive server...")
+        keep_alive()
+
+        # Give the server a moment to start
+        await asyncio.sleep(2)
+
+        # Test server accessibility
+        import requests
+        try:
+            response = requests.get('http://0.0.0.0:5000/health')
+            if response.status_code == 200:
+                logger.info("Flask server is running and accessible")
+                server_status = response.json()
+                logger.info(f"Server status: {server_status}")
+            else:
+                logger.error(f"Server health check failed with status code: {response.status_code}")
+        except requests.RequestException as e:
+            logger.error(f"Failed to connect to Flask server: {e}")
+
+    except Exception as e:
+        logger.error(f"Error initializing server: {e}")
+        raise
 
 class EducationalBot(commands.Bot):
     def __init__(self):
@@ -131,8 +157,8 @@ class EducationalBot(commands.Bot):
 
 async def main():
     try:
-        # Start the keep alive server
-        keep_alive()
+        # Initialize Flask server first
+        await initialize_server()
 
         # Initialize bot
         bot = EducationalBot()

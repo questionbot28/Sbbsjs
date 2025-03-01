@@ -24,7 +24,7 @@ async def test_gemini():
             logger.info(f"- {m.name}")
 
         # Initialize model with the correct model name
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-pro')
         logger.info("Initialized model")
 
         # Test with simple prompt

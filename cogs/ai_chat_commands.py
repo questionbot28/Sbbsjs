@@ -6,6 +6,10 @@ import random
 import os
 from openai import OpenAI
 import google.generativeai as genai
+import base64
+from io import BytesIO
+from typing import Optional
+import asyncio
 
 class AIChatCommands(commands.Cog):
     """AI-powered chat commands for educational assistance"""
@@ -19,8 +23,13 @@ class AIChatCommands(commands.Cog):
         self.openai = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
         # Initialize Google Gemini
-        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        self.gemini = genai.GenerativeModel('gemini-pro')
+        try:
+            genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+            self.gemini = genai.GenerativeModel('gemini-pro')
+            self.gemini_vision = genai.GenerativeModel('gemini-pro-vision')
+            self.logger.info("Successfully initialized Gemini models")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Gemini: {str(e)}")
 
     async def _check_channel(self, ctx):
         """Check if command is used in the AI chat channel"""
@@ -67,6 +76,13 @@ class AIChatCommands(commands.Cog):
         🔢 `!solve <problem>` - Solve problems step by step
         """
         embed.add_field(name="🎯 Problem Solving", value=problem_solving, inline=False)
+
+        # Image Analysis
+        image_analysis = """
+        🖼️ `!analyze` - Analyze an image (attach image to the command)
+        """
+        embed.add_field(name="🖼️ Image Analysis", value=image_analysis, inline=False)
+
 
         embed.set_footer(text="💡 All AI commands must be used in the AI chat channel")
         await ctx.send(embed=embed)
@@ -723,6 +739,64 @@ class AIChatCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in debate command: {str(e)}")
             await loading_msg.edit(content="❌ An error occurred while generating the debate topic.")
+
+    @commands.command(name="analyze")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def analyze_image(self, ctx):
+        """Analyze an image using Gemini Vision"""
+        if not await self._check_channel(ctx):
+            await ctx.send(f"❌ Please use this command in the AI chat channel! <#{self.ai_channel_id}>")
+            return
+
+        if not ctx.message.attachments:
+            await ctx.send("❌ Please attach an image to analyze!")
+            return
+
+        loading_msg = await ctx.send("🔍 Analyzing your image...")
+
+        try:
+            attachment = ctx.message.attachments[0]
+            if not attachment.content_type.startswith('image/'):
+                await loading_msg.edit(content="❌ Please provide a valid image file!")
+                return
+
+            # Download the image
+            image_data = await attachment.read()
+
+            try:
+                # Generate image analysis using Gemini Vision
+                response = await asyncio.to_thread(
+                    self.gemini_vision.generate_content,
+                    [
+                        "Analyze this image in detail. If it contains text, read and explain it. If it's a meme, explain its context and humor. If it's educational content, provide an explanation.",
+                        {"mime_type": attachment.content_type, "data": image_data}
+                    ]
+                )
+
+                if not response or not response.text:
+                    await loading_msg.edit(content="❌ Failed to analyze the image. Please try again.")
+                    return
+
+                # Create embed with analysis
+                embed = discord.Embed(
+                    title="🖼️ Image Analysis",
+                    description=response.text[:4096],  # Discord's limit
+                    color=discord.Color.blue()
+                )
+
+                # Add the image as thumbnail
+                embed.set_thumbnail(url=attachment.url)
+
+                await loading_msg.delete()
+                await ctx.send(embed=embed)
+
+            except Exception as e:
+                self.logger.error(f"Error in Gemini Vision analysis: {str(e)}")
+                await loading_msg.edit(content="❌ An error occurred while analyzing the image.")
+
+        except Exception as e:
+            self.logger.error(f"Error in analyze_image command: {str(e)}")
+            await loading_msg.edit(content="❌ An error occurred while processing your request.")
 
 
 async def setup(bot):
