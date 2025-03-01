@@ -2,10 +2,12 @@ import discord
 from discord.ext import commands
 import logging
 import os
-import pyttsx3
 import asyncio
 import json
 from pathlib import Path
+import subprocess
+import wave
+import io
 
 class VoiceCommands(commands.Cog):
     def __init__(self, bot):
@@ -38,7 +40,7 @@ class VoiceCommands(commands.Cog):
     async def set_language(self, ctx, lang_code: str):
         """Set preferred language for voice responses"""
         try:
-            # Map language codes to pyttsx3 voices
+            # Map language codes to espeak voices
             voice_mapping = {
                 'en': 'english',
                 'es': 'spanish',
@@ -61,6 +63,41 @@ class VoiceCommands(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error setting language: {e}")
             await ctx.send("❌ Failed to set language preference.")
+
+    async def generate_speech(self, text, lang_code, output_path):
+        """Generate speech using espeak"""
+        try:
+            self.logger.info(f"Generating speech with espeak: lang={lang_code}, output={output_path}")
+
+            # Use espeak to generate raw audio data
+            cmd = [
+                'espeak',
+                '--stdout',
+                '-v', lang_code,
+                '-s', '150',  # Speed
+                '-a', '200',  # Amplitude
+                '-w', str(output_path),  # Write to WAV file directly
+                text
+            ]
+
+            # Run espeak command
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                raise Exception(f"espeak failed: {stderr.decode()}")
+
+            self.logger.info(f"Successfully generated speech file at {output_path}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error generating speech: {e}")
+            return False
 
     @commands.command(name='explainvoice')
     @commands.cooldown(1, 30, commands.BucketType.user)  # 30 second cooldown
@@ -94,15 +131,12 @@ class VoiceCommands(commands.Cog):
                 response_path = self.get_response_path(ctx.author.id)
                 self.logger.info(f"Generating voice response to {response_path}")
 
-                engine = pyttsx3.init()
-                engine.setProperty('rate', 150)  # Speed of speech
-                engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+                # Generate speech using espeak
+                success = await self.generate_speech(text, lang, str(response_path))
+                if not success:
+                    await status_msg.edit(content="❌ Failed to generate voice response.")
+                    return
 
-                # Save to file
-                engine.save_to_file(text, str(response_path))
-                engine.runAndWait()
-
-                self.logger.info("Voice file generated successfully")
                 await status_msg.edit(content="🎵 Voice generated, connecting to voice channel...")
 
                 # Connect to voice channel
@@ -116,9 +150,13 @@ class VoiceCommands(commands.Cog):
                     self.logger.info("Connected to voice channel successfully")
                 except discord.ClientException:
                     await status_msg.edit(content="❌ I'm already in a voice channel! Please wait a moment.")
+                    if os.path.exists(str(response_path)):
+                        os.remove(str(response_path))
                     return
                 except discord.Forbidden:
                     await status_msg.edit(content="❌ I need permission to join and speak in this voice channel!")
+                    if os.path.exists(str(response_path)):
+                        os.remove(str(response_path))
                     return
 
                 # Wait a moment for file to be ready
@@ -132,7 +170,7 @@ class VoiceCommands(commands.Cog):
                     self.logger.info("Starting audio playback")
                     audio_source = discord.FFmpegPCMAudio(
                         str(response_path),
-                        options='-loglevel warning'
+                        options='-loglevel warning -acodec pcm_s16le -ar 44100 -ac 1'
                     )
                     voice_client.play(audio_source)
                     await status_msg.edit(content="🔊 Playing voice response...")
@@ -145,7 +183,7 @@ class VoiceCommands(commands.Cog):
 
                 except Exception as e:
                     self.logger.error(f"Error playing audio: {e}")
-                    await status_msg.edit(content="❌ Failed to play the voice response.")
+                    await status_msg.edit(content=f"❌ Failed to play voice response: {str(e)}")
                     if voice_client.is_connected():
                         await voice_client.disconnect()
                     if os.path.exists(str(response_path)):
