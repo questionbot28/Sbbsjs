@@ -44,26 +44,25 @@ class NaturalConversation(commands.Cog):
         # Log the incoming message for debugging
         self.logger.debug(f"Determining mode for message: {message_content[:50]}...")
 
-        # Check for explicit roast requests
+        # First check language
+        language_mode = self.personality.detect_language(content_lower)
+        if language_mode == "hinglish":
+            self.logger.info(f"Detected Hinglish language: {message_content[:50]}")
+            return "hinglish"
+
+        # Then check specific modes
         if any(word in content_lower for word in ['roast', 'insult', 'burn', 'make fun']):
             mode = "roast"
             self.logger.info(f"Detected roast request: {message_content[:50]}")
-        # Check for study-related content
         elif any(word in content_lower for word in ['study', 'learn', 'homework', 'explain', 'help me understand']):
             mode = "study"
             self.logger.info(f"Detected study request: {message_content[:50]}")
-        # Check for music-related content
         elif any(word in content_lower for word in ['play', 'song', 'music', 'playlist', 'queue']):
             mode = "music"
             self.logger.info(f"Detected music request: {message_content[:50]}")
-        # Check for help requests
         elif any(word in content_lower for word in ['help', 'how to', 'what can you do', 'commands']):
             mode = "help"
             self.logger.info(f"Detected help request: {message_content[:50]}")
-        # Check for Hindi language
-        elif self.personality.detect_language(content_lower) == "hindi":
-            mode = "hindi"
-            self.logger.info(f"Detected Hindi language: {message_content[:50]}")
         else:
             mode = "default"
             self.logger.info(f"Using default mode for: {message_content[:50]}")
@@ -89,7 +88,7 @@ class NaturalConversation(commands.Cog):
             payload = {
                 "model": "google/gemini-2.0-flash-thinking-exp:free",
                 "messages": messages,
-                "temperature": 0.8  # Slightly higher for more creative responses
+                "temperature": 0.8  # Higher temperature for more natural responses
             }
 
             self.logger.info(f"Generating response in {mode} mode...")
@@ -99,9 +98,11 @@ class NaturalConversation(commands.Cog):
                     self.logger.debug(f"API Response Status: {response.status}")
                     self.logger.debug(f"Raw API Response: {response_text[:200]}...")
 
+                    error_templates = self.personality.error_templates["hinglish" if mode == "hinglish" else "default"]
+
                     if response.status != 200:
                         self.logger.error(f"API error: {response_text}")
-                        return "Sorry, I'm having a moment! Give me a second to reboot my humor circuits. 🔄"
+                        return error_templates["api_error"]
 
                     try:
                         data = json.loads(response_text)
@@ -125,15 +126,19 @@ class NaturalConversation(commands.Cog):
                                 return content
 
                         self.logger.error("Invalid or empty response from API")
-                        return "Oops! My witty response generator needs a recharge. Try again! 🔋"
+                        return error_templates["parsing_error"]
 
                     except json.JSONDecodeError as e:
                         self.logger.error(f"JSON parse error: {str(e)}")
-                        return "Even I get tongue-tied sometimes! Let's try that again. 😅"
+                        return error_templates["parsing_error"]
 
+        except asyncio.TimeoutError:
+            error_templates = self.personality.error_templates["hinglish" if mode == "hinglish" else "default"]
+            return error_templates["timeout"]
         except Exception as e:
             self.logger.error(f"Error generating content: {str(e)}")
-            return "Technical difficulties! But don't worry, I'll be back to my chatty self soon! 🛠️"
+            error_templates = self.personality.error_templates["hinglish" if mode == "hinglish" else "default"]
+            return error_templates["api_error"]
 
     def _should_respond(self, message):
         """Determine if the bot should respond to a message"""
