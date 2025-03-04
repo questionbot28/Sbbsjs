@@ -19,7 +19,9 @@ class NaturalConversation(commands.Cog):
         self.personality = BotPersonality()
 
         # Initialize OpenRouter configuration
-        self.api_key = "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"
+        self.api_key = os.getenv('OPENROUTER_API_KEY')  # Get from environment variable
+        if not self.api_key:
+            self.logger.error("OPENROUTER_API_KEY not found in environment variables")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.headers = {
             "Content-Type": "application/json",
