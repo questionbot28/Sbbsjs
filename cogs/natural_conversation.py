@@ -34,14 +34,15 @@ class NaturalConversation(commands.Cog):
         self.last_response_time = {}  # Channel ID -> datetime
         self.message_queue = {}  # Channel ID -> deque of messages
         self.max_history = 10  # Maximum number of messages to keep per channel
-        self.response_cooldown = 15  # Seconds between responses
-        self.response_chance = 0.7  # 70% chance to respond when mentioned
-        self.ambient_response_chance = 0.15  # 15% chance to respond to general conversation
+        self.response_cooldown = 5  # Reduced cooldown to 5 seconds for more natural conversation
+        self.response_chance = 0.9  # 90% chance to respond when mentioned
+        self.ambient_response_chance = 0.4  # 40% chance to respond to general conversation
 
     def _should_respond(self, message):
         """Determine if the bot should respond to a message"""
         # Don't respond if model isn't initialized
         if not self.model:
+            self.logger.warning("Skipping response - Gemini model not initialized")
             return False
 
         # Don't respond to self or other bots
@@ -58,8 +59,8 @@ class NaturalConversation(commands.Cog):
         if last_response and (now - last_response).total_seconds() < self.response_cooldown:
             return False
 
-        # Always higher chance to respond when mentioned
-        if self.bot.user in message.mentions:
+        # Higher chance to respond when mentioned or when message is directed at bot
+        if self.bot.user in message.mentions or message.content.lower().startswith(('hey bot', 'hi bot', 'hello bot')):
             return random.random() < self.response_chance
 
         # Random chance to respond to ambient conversation
@@ -92,22 +93,29 @@ class NaturalConversation(commands.Cog):
             history = self.conversation_history.get(channel_id, [])
 
             # Build conversation context
-            context = "You are a helpful and friendly AI assistant in a Discord chat. "
-            context += "Keep responses casual and natural, like a friend in the conversation. "
-            context += "Be concise but engaging.\n\n"
+            context = (
+                "You are a friendly and engaging Discord chat participant. "
+                "Keep responses casual, natural, and engaging like a friend in the conversation. "
+                "Use informal language and occasional emojis to express emotions. "
+                "Keep responses brief (1-2 sentences) unless asked for more detail. "
+                "Avoid being overly formal or robotic.\n\n"
+            )
 
             # Add recent message history
             context += "Recent conversation:\n"
-            for msg in history[-3:]:  # Use last 3 messages for immediate context
+            for msg in history[-5:]:  # Use last 5 messages for better context
                 context += f"{msg['author']}: {msg['content']}\n"
 
-            # Add the current message
-            context += f"\nRespond naturally to: {message.content}"
+            # Add the current message and encourage natural response
+            context += f"\nRespond naturally to this message: {message.content}\n"
+            context += "Remember to keep the response casual and friendly, as if chatting with friends."
 
+            self.logger.debug(f"Generating response with context: {context}")
             response = self.model.generate_content(context)
             response.resolve()
 
             if not response.text:
+                self.logger.warning("Empty response from Gemini")
                 return None
 
             # Clean up the response
@@ -116,6 +124,7 @@ class NaturalConversation(commands.Cog):
             resp_text = resp_text.replace('```', '').replace('`', '')
             resp_text = resp_text.replace('> ', '').replace('\n', ' ')
 
+            self.logger.debug(f"Generated response: {resp_text}")
             return resp_text[:2000]  # Discord message length limit
 
         except Exception as e:

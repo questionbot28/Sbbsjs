@@ -5,12 +5,13 @@ from dotenv import load_dotenv
 import logging
 from utils.logger import setup_logger
 import asyncio
-# Skip Flask server for now
-# from keep_alive import keep_alive, is_port_available
-# import time
 
-# Load environment variables
-load_dotenv(override=True)  
+# Load environment variables before anything else
+load_dotenv(override=True, dotenv_path='.env')
+
+# Verify critical environment variables
+if not os.getenv('GOOGLE_API_KEY'):
+    raise ValueError("GOOGLE_API_KEY environment variable is missing!")
 
 # Setup logging
 logger = setup_logger()
@@ -90,10 +91,6 @@ class EducationalBot(commands.Bot):
 
 async def main():
     try:
-        # Skip Flask server initialization for now
-        # logger.info("Starting Flask server initialization...")
-        # await initialize_server()
-
         # Initialize bot
         bot = EducationalBot()
 
