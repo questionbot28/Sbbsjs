@@ -2,49 +2,82 @@ import discord
 from discord.ext import commands
 import logging
 import os
-import google.generativeai as genai
+import requests
 import asyncio
 import random
 from collections import deque
 from datetime import datetime, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
+import json
+import aiohttp
 
 class NaturalConversation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
-        # Initialize Gemini AI
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            self.logger.error("Google API key not found in environment variables")
-            self.model = None
-            return
-
-        try:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
-            self.logger.info("Successfully initialized Gemini model for natural conversation")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Gemini: {str(e)}")
-            self.model = None
+        # Initialize DeepSeek API
+        self.api_key = "sk-b515e2e81f6a45d5a4ef333c600c0652"
+        self.api_url = "https://api.deepseek.com/v1/chat/completions"
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        self.logger.info("Initialized DeepSeek API configuration")
 
         # Conversation management
         self.conversation_history = {}  # Channel ID -> list of recent messages
         self.last_response_time = {}  # Channel ID -> datetime
         self.message_queue = {}  # Channel ID -> deque of messages
         self.max_history = 10  # Maximum number of messages to keep per channel
-        self.response_cooldown = 5  # 5 seconds cooldown between responses
+        self.response_cooldown = 5  # 5 seconds between responses
         self.response_chance = 1.0  # 100% chance to respond when mentioned
         self.ambient_response_chance = 0.6  # 60% chance to join ongoing conversations
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    async def _generate_content(self, messages):
+        """Generate content with retry logic using DeepSeek API"""
+        try:
+            self.logger.info("Attempting to generate content with DeepSeek")
+
+            payload = {
+                "model": "sonar-small-chat",  # Updated model name for DeepSeek API
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 150,
+                "top_p": 0.9,
+                "frequency_penalty": 0,
+                "presence_penalty": 0
+            }
+
+            self.logger.debug(f"DeepSeek API payload: {json.dumps(payload, indent=2)}")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.api_url, headers=self.headers, json=payload) as response:
+                    response_text = await response.text()
+                    self.logger.debug(f"DeepSeek API raw response: {response_text}")
+
+                    try:
+                        data = json.loads(response_text)
+                        if "choices" in data and data["choices"]:
+                            content = data["choices"][0]["message"]["content"]
+                            self.logger.info(f"Successfully generated content: {content[:100]}...")
+                            return content
+                        else:
+                            self.logger.error(f"Invalid response format: {response_text}")
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Failed to parse JSON response: {str(e)}")
+                    except KeyError as e:
+                        self.logger.error(f"Missing key in response: {str(e)}")
+
+                    return None
+
+        except Exception as e:
+            self.logger.error(f"Error generating content: {str(e)}")
+            raise
+
     def _should_respond(self, message):
         """Determine if the bot should respond to a message"""
-        # Don't respond if model isn't initialized
-        if not self.model:
-            self.logger.warning("Skipping response - Gemini model not initialized")
-            return False
-
         # Don't respond to self or other bots
         if message.author.bot:
             return False
@@ -83,75 +116,53 @@ class NaturalConversation(commands.Cog):
         while len(history) > self.max_history:
             history.pop(0)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def _generate_content(self, context):
-        """Generate content with retry logic"""
-        try:
-            self.logger.info("Attempting to generate content with Gemini")
-            response = await asyncio.to_thread(
-                self.model.generate_content,
-                context,
-                generation_config={
-                    "temperature": 0.7,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "candidate_count": 1
-                }
-            )
-            return response
-        except Exception as e:
-            self.logger.error(f"Error generating content: {str(e)}")
-            raise
-
     async def _generate_response(self, message):
         """Generate a contextual response using conversation history"""
         try:
-            if not self.model:
-                self.logger.warning("Cannot generate response - Gemini model not initialized")
-                return None
-
             channel_id = message.channel.id
             history = self.conversation_history.get(channel_id, [])
 
-            # Build conversation context
-            context = (
-                "You are a friendly and engaging Discord chat participant. "
-                "Keep responses casual and natural, like a friend in the conversation. "
-                "Use informal language and occasional emojis to express emotions. "
-                "Keep responses brief (1-2 sentences) unless asked for more detail. "
-                "Avoid being overly formal or robotic.\n\n"
-            )
+            # Format conversation for DeepSeek
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a friendly and engaging Discord chat participant. "
+                        "Keep responses casual and natural, like a friend in the conversation. "
+                        "Use informal language and occasional emojis to express emotions. "
+                        "Keep responses brief (1-2 sentences) unless asked for more detail. "
+                        "Avoid being overly formal or robotic."
+                    )
+                }
+            ]
 
             # Add recent message history
-            context += "Recent conversation:\n"
-            for msg in history[-5:]:  # Use last 5 messages for better context
-                context += f"{msg['author']}: {msg['content']}\n"
+            for msg in history[-5:]:  # Use last 5 messages for context
+                messages.append({
+                    "role": "user" if msg["author"] != str(self.bot.user) else "assistant",
+                    "content": msg["content"]
+                })
 
-            # Add the current message and encourage natural response
-            context += f"\nRespond naturally to this message: {message.content}\n"
-            context += "Remember to keep the response casual and friendly, as if chatting with friends."
+            # Add the current message
+            messages.append({
+                "role": "user",
+                "content": message.content
+            })
 
             self.logger.info(f"Attempting to generate response for message: {message.content}")
+            response_text = await self._generate_content(messages)
 
-            try:
-                response = await self._generate_content(context)
-
-                if not response or not hasattr(response, 'text') or not response.text:
-                    self.logger.warning("Empty response from Gemini")
-                    return None
-
-                # Clean up the response
-                resp_text = response.text.strip()
-                # Remove any markdown code blocks or quotes
-                resp_text = resp_text.replace('```', '').replace('`', '')
-                resp_text = resp_text.replace('> ', '').replace('\n', ' ')
-
-                self.logger.info(f"Generated response: {resp_text[:100]}...")
-                return resp_text[:2000]  # Discord message length limit
-
-            except Exception as e:
-                self.logger.error(f"Error during response generation: {str(e)}")
+            if not response_text:
+                self.logger.warning("Empty response from DeepSeek")
                 return None
+
+            # Clean up the response
+            response_text = response_text.strip()
+            response_text = response_text.replace('```', '').replace('`', '')
+            response_text = response_text.replace('> ', '').replace('\n', ' ')
+
+            self.logger.info(f"Generated response: {response_text[:100]}...")
+            return response_text[:2000]  # Discord message length limit
 
         except Exception as e:
             self.logger.error(f"Error in _generate_response: {str(e)}")
