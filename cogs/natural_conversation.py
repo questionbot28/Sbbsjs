@@ -16,14 +16,15 @@ class NaturalConversation(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
-        # Initialize DeepSeek API
-        self.api_key = "sk-b515e2e81f6a45d5a4ef333c600c0652"
-        self.api_url = "https://api.deepseek.com/v1/chat/completions"
+        # Initialize RapidAPI configuration
+        self.api_key = "f12a24bbfamsh2ed8a5f6d386a88p121a3djsn480d5e99e5bf"
+        self.api_url = "https://openai80.p.rapidapi.com/chat/completions"
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-RapidAPI-Key": self.api_key,
+            "X-RapidAPI-Host": "openai80.p.rapidapi.com",
             "Content-Type": "application/json"
         }
-        self.logger.info("Initialized DeepSeek API configuration")
+        self.logger.info("Initialized RapidAPI GPT-4 configuration")
 
         # Conversation management
         self.conversation_history = {}  # Channel ID -> list of recent messages
@@ -36,12 +37,12 @@ class NaturalConversation(commands.Cog):
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _generate_content(self, messages):
-        """Generate content with retry logic using DeepSeek API"""
+        """Generate content with retry logic using GPT-4 API"""
         try:
-            self.logger.info("Attempting to generate content with DeepSeek")
+            self.logger.info("Attempting to generate content with GPT-4")
 
             payload = {
-                "model": "sonar-small-chat",  # Updated model name for DeepSeek API
+                "model": "gpt-4",
                 "messages": messages,
                 "temperature": 0.7,
                 "max_tokens": 150,
@@ -50,12 +51,12 @@ class NaturalConversation(commands.Cog):
                 "presence_penalty": 0
             }
 
-            self.logger.debug(f"DeepSeek API payload: {json.dumps(payload, indent=2)}")
+            self.logger.debug(f"GPT-4 API payload: {json.dumps(payload, indent=2)}")
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(self.api_url, headers=self.headers, json=payload) as response:
                     response_text = await response.text()
-                    self.logger.debug(f"DeepSeek API raw response: {response_text}")
+                    self.logger.debug(f"GPT-4 API raw response: {response_text}")
 
                     try:
                         data = json.loads(response_text)
@@ -122,7 +123,7 @@ class NaturalConversation(commands.Cog):
             channel_id = message.channel.id
             history = self.conversation_history.get(channel_id, [])
 
-            # Format conversation for DeepSeek
+            # Format conversation for GPT-4
             messages = [
                 {
                     "role": "system",
@@ -153,7 +154,7 @@ class NaturalConversation(commands.Cog):
             response_text = await self._generate_content(messages)
 
             if not response_text:
-                self.logger.warning("Empty response from DeepSeek")
+                self.logger.warning("Empty response from GPT-4")
                 return None
 
             # Clean up the response
