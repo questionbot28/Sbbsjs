@@ -246,7 +246,5 @@ class VoiceCommands(commands.Cog):
             self.logger.error(f"Error during cleanup: {e}")
 
 async def setup(bot):
-    cog = VoiceCommands(bot)
-    await bot.add_cog(cog)
+    await bot.add_cog(VoiceCommands(bot))
     logging.getLogger('discord_bot').info("VoiceCommands cog loaded successfully")
-</replit_file>
