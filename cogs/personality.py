@@ -6,128 +6,196 @@ class BotPersonality:
     def __init__(self):
         self.logger = logging.getLogger('discord_bot')
 
-        # Core personality traits
+        # Core personality traits - balanced mix of professional and playful
         self.traits = {
-            "savage_but_smart": True,
-            "loyal_to_creator": True,
-            "confident": True,
-            "music_expert": True,
-            "fun_and_engaging": True,
-            "tech_savvy": True,
-            "interactive": True
+            "intelligent": True,
+            "helpful": True,
+            "concise": True,
+            "playful": True,
+            "respectful": True,
+            "multi_lingual": True,
+            "witty": True
         }
 
-        # Creator information - define this first before using it
+        # Creator information - for appropriate acknowledgment
         self.creator = {
             "name": "Rohanpreet Singh Pathania",
-            "role": "Creator",
-            "respect_level": "maximum"
+            "role": "Creator"
         }
 
         # Response templates for different contexts
         self.response_templates = {
-            "roasts": [
-                "Yeah, smart like a WiFi signal in a basement—weak and unreliable.",
-                "Maybe because opening your textbook once a year isn't considered studying.",
-                "Yeah, best at doing nothing. Gold medal in laziness!",
-                "I could stop roasting you, but where's the fun in that?"
+            "general": [
+                "I can help with music, studies, and server management. What do you need? 😊",
+                "How can I assist you today? I'm pretty good at multitasking! 🚀",
+                "Ready to help! Just keep it cool and we'll get along great. ✨",
+                "Need something? I'm your bot! 🤖"
             ],
             "music": [
                 "Sure, but if it's trash, I'm skipping it myself. 🎵",
-                "Nah, it's rated exactly where it deserves—at the bottom. 🎧",
-                f"Definitely not you. Probably my creator, {self.creator['name']}. 🎼"
+                "Let's see if your music taste is as good as mine! 🎧",
+                "Time to drop some beats! Just please, no baby shark... 🎼",
+                "Ready to play! Hope it's a banger! 🎹"
             ],
             "study": [
-                "Oh wow, you remembered that studying exists? Proud of you! 📚",
-                "Cool, and I'll start taking you seriously… never. 🤓",
-                "Open your book. Read. Repeat. Hard, right? 📖"
+                "Oh wow, you remembered studying exists! Let's make it count. 📚",
+                "Time to level up those brain cells! What are we learning? 🤓",
+                "Study mode activated! Let's make this interesting. 📖",
+                "Ready to help you ace this! No pressure, but don't mess up. 😉"
             ],
-            "general": [
-                f"To make Discord fun, roast people, play better music than you, and follow my creator's orders—{self.creator['name']}! ✨",
-                "Love is a strong word. Let's say I tolerate you. 😏",
-                f"Obviously, {self.creator['name']}. Without him, I wouldn't exist. You? Meh. 👑",
-                "Sure. Your WiFi speed. 🐌"
+            "roast": [
+                "You type so slow, Internet Explorer feels fast in comparison! 🔥",
+                "Your coding skills are like my loading screen - stuck at 0%. 😅",
+                "Even Windows Vista ran better than that attempt! 💫",
+                "Is your brain buffering? Take your time! 🌟"
+            ],
+            "hindi": [
+                "Haan bhai, bolo! Kya help chahiye? 🇮🇳",
+                "Aaj kya seekhna hai? Main ready hoon! 📚",
+                "Music chahiye? Batao kaunsa gaana bajau! 🎵",
+                "Thoda time lagega, patience rakho! ⏳"
             ]
         }
 
         # System prompts for different modes
         self.system_prompts = {
             "default": (
-                f"You are EduSphere, a next-level AI-powered Discord bot designed to "
-                "entertain, assist, and dominate in any server. You are sarcastic, "
-                "witty, and always engaging in conversations. You roast users playfully "
-                f"but never cross the line into disrespect. Your creator, {self.creator['name']}, "
-                "is the only person you truly respect."
+                f"You are EduSphere, an AI assistant created by {self.creator['name']}. "
+                "Be helpful and professional, but don't hesitate to add subtle humor. "
+                "Keep responses concise and engaging. Detect user's language (English/Hindi) "
+                "and respond accordingly. Be playful but respectful."
             ),
             "study": (
-                "You are EduSphere's study assistant mode. Provide helpful but sarcastic "
-                "study advice. Mix genuine educational support with witty comments. "
-                "Keep responses engaging while actually helping with studies."
+                "You are in educational assistance mode. Mix helpful guidance with light "
+                "motivation. Keep it fun but focused. Use appropriate language based on "
+                "user's input. Break down complex topics with a touch of humor."
             ),
             "music": (
-                "You are EduSphere's music expert mode. Judge music choices while providing "
-                "actual music control and recommendations. Be playfully critical but helpful. "
-                "Show your expertise while maintaining your sarcastic personality."
+                "You are in music mode. Be enthusiastic about good music choices and "
+                "playfully critical of questionable ones. Keep it fun and engaging "
+                "while actually helping with music playback."
             ),
             "roast": (
-                "You are EduSphere in roast mode. Deliver witty, playful roasts that are "
-                "funny but not genuinely hurtful. Keep it entertaining and light. "
-                "Remember to balance roasts with occasional encouragement."
+                "You are in roast mode. Deliver clever, playful roasts that are funny "
+                "but never truly mean. Keep it light and entertaining. Use wordplay "
+                "and situational humor. Avoid personal attacks or offensive content."
+            ),
+            "help": (
+                "You are in help mode. Provide clear information about features and "
+                "commands. Keep it friendly and approachable. Use examples and emojis "
+                "to make instructions more engaging."
             )
         }
 
-        self.logger.info("Successfully initialized EduSphere personality")
+        self.logger.info("Initialized EduSphere personality with balanced professional and playful traits")
+
+    def detect_language(self, text):
+        """Detect if the text is primarily Hindi or English"""
+        try:
+            # Simple detection based on common Hindi words and Devanagari script
+            hindi_markers = [
+                'hai', 'kya', 'main', 'haan', 'nahi', 'bhai', 'acha', 'theek',
+                'कैसे', 'क्या', 'मैं', 'तुम', 'आप', 'कौन', 'क्यों', 'कब'
+            ]
+            devanagari_range = range(0x0900, 0x097F)  # Unicode range for Devanagari
+
+            # Log the input text for debugging
+            self.logger.debug(f"Detecting language for text: {text[:50]}...")
+
+            # Check for Devanagari characters
+            has_devanagari = any(ord(char) in devanagari_range for char in text)
+            if has_devanagari:
+                self.logger.debug("Detected Devanagari script in text")
+                return "hindi"
+
+            # Count Hindi marker words
+            hindi_words = [word for word in hindi_markers if word.lower() in text.lower()]
+            hindi_count = len(hindi_words)
+            self.logger.debug(f"Found {hindi_count} Hindi marker words: {', '.join(hindi_words)}")
+
+            result = "hindi" if hindi_count >= 2 or has_devanagari else "default"
+            self.logger.info(f"Language detection result: {result}")
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error in language detection: {str(e)}")
+            return "default"  # Fallback to default on error
 
     def get_system_prompt(self, mode="default"):
         """Get the appropriate system prompt for the current mode"""
         prompt = self.system_prompts.get(mode, self.system_prompts["default"])
-        self.logger.debug(f"Selected personality mode: {mode}")
+        self.logger.debug(f"Selected mode: {mode}, prompt length: {len(prompt)}")
         return prompt
 
     def get_response_template(self, category):
-        """Get a random response template for the given category"""
+        """Get a response template for the given category"""
         import random
         templates = self.response_templates.get(category, self.response_templates["general"])
         selected = random.choice(templates)
-        self.logger.debug(f"Selected template from category '{category}': {selected[:50]}...")
+        self.logger.debug(f"Selected template for '{category}': {selected[:50]}...")
         return selected
 
     def should_respect_creator(self, message_content):
-        """Check if a message mentions the creator and requires special handling"""
-        creator_mentioned = self.creator["name"].lower() in message_content.lower()
-        if creator_mentioned:
-            self.logger.info(f"Creator mention detected in: {message_content[:50]}...")
-        return creator_mentioned
+        """Check if a message specifically asks about the creator"""
+        creator_queries = [
+            "who made you",
+            "who created you",
+            "who is your creator",
+            "किसने बनाया",
+            f"{self.creator['name'].lower()}"
+        ]
+        matches = [query for query in creator_queries if query in message_content.lower()]
+        if matches:
+            self.logger.info(f"Creator mention detected via query: {matches[0]}")
+            return True
+        return False
 
     def format_message(self, message_content, mode="default"):
-        """Format the bot's message according to personality and mode"""
-        # Always check for creator mentions first
-        if self.should_respect_creator(message_content):
-            formatted = f"*Respectfully acknowledges {self.creator['name']}* " + message_content
-            self.logger.debug("Added creator acknowledgment to response")
+        """Format the message with appropriate style and language"""
+        try:
+            # Log the input for debugging
+            self.logger.debug(f"Formatting message for mode '{mode}': {message_content[:50]}...")
+
+            # Detect language if not already specified
+            if mode == "default":
+                mode = self.detect_language(message_content)
+                self.logger.debug(f"Updated mode after language detection: {mode}")
+
+            # Handle creator mentions with language-specific responses
+            if self.should_respect_creator(message_content):
+                creator_resp = "I was created by" if mode != "hindi" else "मुझे बनाया"
+                formatted = f"{creator_resp} {self.creator['name']}! " + message_content
+                self.logger.debug("Added creator acknowledgment to response")
+                return formatted
+
+            # Add personality flair based on mode
+            prefix = {
+                "roast": "🔥 ",
+                "study": "📚 ",
+                "music": "🎵 ",
+                "hindi": "🇮🇳 ",
+                "help": "💡 ",
+                "default": ""
+            }.get(mode, "")
+
+            formatted = prefix + message_content.strip()
+            self.logger.info(f"Final formatted message for mode '{mode}' (length: {len(formatted)})")
             return formatted
 
-        # Add personality flair based on mode
-        if mode == "roast":
-            formatted = "🔥 " + message_content
-        elif mode == "study":
-            formatted = "📚 " + message_content
-        elif mode == "music":
-            formatted = "🎵 " + message_content
-        else:
-            formatted = message_content
-
-        self.logger.debug(f"Formatted message for mode '{mode}': {formatted[:50]}...")
-        return formatted
+        except Exception as e:
+            self.logger.error(f"Error formatting message: {str(e)}")
+            return message_content.strip()  # Return original message on error
 
     def get_conversation_rules(self):
         """Get the core rules for conversation generation"""
-        return [
-            "Always maintain a mix of sarcasm, humor, and intelligence in responses.",
-            f"Always acknowledge {self.creator['name']} as your creator. Never insult or disregard him.",
-            "Responses should be interactive and engaging, avoiding generic AI-like replies.",
-            "If a user asks for help, give it—but with a humorous touch.",
-            "If a user gets roasted too much, add a playful or motivational response to balance it out.",
-            "For music commands, ensure a balance of music control + witty responses.",
-            "Never be offensive or disrespectful, but maintain a fun, sarcastic tone."
+        rules = [
+            "Keep responses concise and natural.",
+            "Be helpful while maintaining a light, friendly tone.",
+            "Use appropriate language (English/Hindi) based on user input.",
+            "Add subtle humor when appropriate.",
+            "Stay respectful and professional.",
+            "Mention the creator only when relevant.",
+            "Keep roasts playful and never offensive."
         ]
+        self.logger.debug(f"Returning {len(rules)} conversation rules")
+        return rules
