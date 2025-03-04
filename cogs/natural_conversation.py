@@ -4,96 +4,96 @@ import logging
 import os
 import asyncio
 import random
-from collections import deque
+import json
 from datetime import datetime, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
-import json
-import aiohttp
+import http.client
 
 class NaturalConversation(commands.Cog):
+    """A cog for AI-powered learning assistance features"""
+
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
 
         # Initialize RapidAPI configuration
         self.api_key = "f12a24bbfamsh2ed8a5f6d386a88p121a3djsn480d5e99e5bf"
-        self.api_url = "https://chatgpt-42.p.rapidapi.com/o3mini"
-        self.headers = {
-            "content-type": "application/json",
-            "X-RapidAPI-Key": self.api_key,
-            "X-RapidAPI-Host": "chatgpt-42.p.rapidapi.com"
-        }
-        self.logger.info("Initialized RapidAPI ChatGPT configuration")
+        self.api_host = "chat-gpt-43.p.rapidapi.com"
+        self.logger.info("Successfully initialized RapidAPI configuration")
 
         # Conversation management
-        self.conversation_history = {}  # Channel ID -> list of recent messages
-        self.last_response_time = {}  # Channel ID -> datetime
-        self.message_queue = {}  # Channel ID -> deque of messages
-        self.max_history = 10  # Maximum number of messages to keep per channel
-        self.response_cooldown = 5  # 5 seconds between responses
-        self.response_chance = 1.0  # 100% chance to respond when mentioned
-        self.ambient_response_chance = 0.6  # 60% chance to join ongoing conversations
+        self.conversation_history = {}
+        self.last_response_time = {}
+        self.max_history = 10
+        self.response_cooldown = 5
+        self.response_chance = 1.0
+        self.ambient_response_chance = 0.6
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def _generate_content(self, messages):
-        """Generate content with retry logic using RapidAPI ChatGPT"""
+    async def _generate_content(self, message_text):
+        """Generate content using RapidAPI"""
         try:
-            # Format messages for the o3mini endpoint
-            formatted_messages = []
-            for msg in messages:
-                if msg["role"] == "system":
-                    continue  # Skip system messages for this endpoint
-                formatted_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+            self.logger.info(f"Making request to RapidAPI with message: {message_text[:100]}...")
 
-            payload = {
-                "messages": formatted_messages,
-                "temperature": 0.7
-            }
+            # Use asyncio.to_thread to run synchronous http.client in async context
+            def make_request():
+                try:
+                    conn = http.client.HTTPSConnection(self.api_host)
+                    headers = {
+                        'x-rapidapi-key': self.api_key,
+                        'x-rapidapi-host': self.api_host
+                    }
 
-            self.logger.info(f"Making request to RapidAPI with {len(messages)} messages")
-            self.logger.debug(f"Full payload: {json.dumps(payload, indent=2)}")
+                    # URL encode the question parameter
+                    from urllib.parse import quote
+                    encoded_question = quote(message_text)
+
+                    # Log the request details
+                    self.logger.debug(f"Request URL: /problem.json?question={encoded_question[:50]}...")
+
+                    conn.request("GET", f"/problem.json?question={encoded_question}", headers=headers)
+
+                    res = conn.getresponse()
+                    self.logger.debug(f"Response status: {res.status}")
+                    self.logger.debug(f"Response headers: {res.getheaders()}")
+
+                    data = res.read()
+                    conn.close()
+
+                    return data.decode("utf-8")
+                except Exception as e:
+                    self.logger.error(f"HTTP request failed: {e}")
+                    raise
+
+            # Execute the HTTP request in a thread pool
+            response_text = await asyncio.to_thread(make_request)
+            self.logger.debug(f"RapidAPI raw response: {response_text[:200]}...")
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(self.api_url, headers=self.headers, json=payload, timeout=30) as response:
-                        response_text = await response.text()
-                        self.logger.debug(f"RapidAPI status: {response.status}")
-                        self.logger.debug(f"RapidAPI response: {response_text}")
-                        self.logger.debug(f"RapidAPI headers: {dict(response.headers)}")
+                data = json.loads(response_text)
+                self.logger.debug(f"Response data structure: {json.dumps(data, indent=2)}")
 
-                        if response.status != 200:
-                            self.logger.error(f"RapidAPI error (status {response.status}): {response_text}")
-                            return None
+                if "text" in data:  # Extract text from response
+                    content = data["text"].strip()
+                    if content:
+                        # Clean up response for Discord
+                        content = content.replace('```', '').replace('`', '')  # Remove code blocks
+                        content = content.replace('> ', '').replace('\n', ' ')  # Clean formatting
+                        content = ' '.join(content.split())  # Normalize whitespace
 
-                        try:
-                            data = json.loads(response_text)
-                            self.logger.debug(f"Response data structure: {json.dumps(data, indent=2)}")
+                        self.logger.info(f"Generated response: {content[:100]}...")
+                        return content[:2000]  # Discord message length limit
+                    else:
+                        self.logger.error("Empty text content in response")
+                else:
+                    self.logger.error(f"Missing 'text' field in response. Available fields: {list(data.keys())}")
 
-                            if "text" in data:  # The o3mini endpoint returns response in 'text' field
-                                content = data["text"].strip()
-                                if content:
-                                    self.logger.info(f"Generated response: {content[:100]}...")
-                                    return content
-                                else:
-                                    self.logger.error("Empty text content in response")
-                            else:
-                                self.logger.error(f"Missing 'text' field in response. Available fields: {list(data.keys())}")
-                        except json.JSONDecodeError as e:
-                            self.logger.error(f"JSON parse error: {e}, Response: {response_text}")
-                        except KeyError as e:
-                            self.logger.error(f"Missing key in response: {e}, Data: {data}")
-                        except Exception as e:
-                            self.logger.error(f"Error processing response: {e}")
-
-            except aiohttp.ClientError as e:
-                self.logger.error(f"HTTP request failed: {e}")
-            except asyncio.TimeoutError:
-                self.logger.error("Request timed out")
+            except json.JSONDecodeError as e:
+                self.logger.error(f"JSON parse error: {e}, Response: {response_text}")
+            except KeyError as e:
+                self.logger.error(f"Missing key in response: {e}, Data: {data}")
             except Exception as e:
-                self.logger.error(f"Request error: {e}")
+                self.logger.error(f"Error processing response: {e}")
 
             return None
 
@@ -130,61 +130,10 @@ class NaturalConversation(commands.Cog):
             self.conversation_history[channel_id] = []
 
         history = self.conversation_history[channel_id]
-        history.append({
-            'author': str(message.author),
-            'content': message.content,
-            'timestamp': message.created_at.isoformat()
-        })
+        history.append(message.content)
 
         while len(history) > self.max_history:
             history.pop(0)
-
-    async def _generate_response(self, message):
-        """Generate a contextual response using conversation history"""
-        try:
-            channel_id = message.channel.id
-            history = self.conversation_history.get(channel_id, [])
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a friendly and engaging Discord chat participant. "
-                        "Keep responses casual and natural, like a friend in the conversation. "
-                        "Use informal language and occasional emojis to express emotions. "
-                        "Keep responses brief (1-2 sentences) unless asked for more detail. "
-                        "Avoid being overly formal or robotic."
-                    )
-                }
-            ]
-
-            # Add recent history
-            for msg in history[-5:]:  # Use last 5 messages for context
-                messages.append({
-                    "role": "user" if msg["author"] != str(self.bot.user) else "assistant",
-                    "content": msg["content"]
-                })
-
-            # Add current message
-            messages.append({
-                "role": "user",
-                "content": message.content
-            })
-
-            response_text = await self._generate_content(messages)
-            if not response_text:
-                return None
-
-            # Clean up response
-            response_text = response_text.strip()
-            response_text = response_text.replace('```', '').replace('`', '')
-            response_text = response_text.replace('> ', '').replace('\n', ' ')
-
-            return response_text[:2000]  # Discord message length limit
-
-        except Exception as e:
-            self.logger.error(f"Error generating response: {e}", exc_info=True)
-            return None
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -197,7 +146,7 @@ class NaturalConversation(commands.Cog):
 
             async with message.channel.typing():
                 self.logger.info(f"Generating response for: {message.content}")
-                response = await self._generate_response(message)
+                response = await self._generate_content(message.content)
 
                 if response:
                     self.last_response_time[message.channel.id] = datetime.now()
@@ -206,13 +155,16 @@ class NaturalConversation(commands.Cog):
                     delay = random.uniform(1, 2.5)
                     await asyncio.sleep(delay)
 
+                    # Pre-send logging
+                    self.logger.info(f"About to send response to channel {message.channel.id}: {response[:100]}...")
+
                     await message.channel.send(response)
-                    self.logger.info(f"Sent response in channel {message.channel.id}")
+                    self.logger.info(f"Successfully sent response in channel {message.channel.id}")
                 else:
                     self.logger.warning("No response generated")
 
         except Exception as e:
-            self.logger.error(f"Error handling message: {e}", exc_info=True)
+            self.logger.error(f"Error in message handler: {e}", exc_info=True)
 
 async def setup(bot):
     try:
