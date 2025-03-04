@@ -7,12 +7,12 @@ import asyncio
 import random
 from collections import deque
 from datetime import datetime, timedelta
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 class NaturalConversation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger('discord_bot')
-        self.allowed_channels = {1340150404775940210}  # AI chat channel ID
 
         # Initialize Gemini AI
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -34,9 +34,9 @@ class NaturalConversation(commands.Cog):
         self.last_response_time = {}  # Channel ID -> datetime
         self.message_queue = {}  # Channel ID -> deque of messages
         self.max_history = 10  # Maximum number of messages to keep per channel
-        self.response_cooldown = 5  # Reduced cooldown to 5 seconds for more natural conversation
-        self.response_chance = 0.9  # 90% chance to respond when mentioned
-        self.ambient_response_chance = 0.4  # 40% chance to respond to general conversation
+        self.response_cooldown = 5  # 5 seconds cooldown between responses
+        self.response_chance = 1.0  # 100% chance to respond when mentioned
+        self.ambient_response_chance = 0.6  # 60% chance to join ongoing conversations
 
     def _should_respond(self, message):
         """Determine if the bot should respond to a message"""
@@ -49,22 +49,22 @@ class NaturalConversation(commands.Cog):
         if message.author.bot:
             return False
 
-        # Only respond in allowed channels
-        if message.channel.id not in self.allowed_channels:
-            return False
-
         # Check cooldown
         now = datetime.now()
         last_response = self.last_response_time.get(message.channel.id)
         if last_response and (now - last_response).total_seconds() < self.response_cooldown:
             return False
 
-        # Higher chance to respond when mentioned or when message is directed at bot
+        # Always respond when mentioned or directly addressed
         if self.bot.user in message.mentions or message.content.lower().startswith(('hey bot', 'hi bot', 'hello bot')):
-            return random.random() < self.response_chance
+            self.logger.info(f"Bot mentioned/addressed by {message.author} - responding with 100% chance")
+            return True
 
-        # Random chance to respond to ambient conversation
-        return random.random() < self.ambient_response_chance
+        # 60% chance to join ongoing conversations
+        should_join = random.random() < self.ambient_response_chance
+        if should_join:
+            self.logger.info(f"Joining conversation with {message.author} (60% chance triggered)")
+        return should_join
 
     def _update_conversation_history(self, message):
         """Update the conversation history for a channel"""
@@ -83,10 +83,31 @@ class NaturalConversation(commands.Cog):
         while len(history) > self.max_history:
             history.pop(0)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    async def _generate_content(self, context):
+        """Generate content with retry logic"""
+        try:
+            self.logger.info("Attempting to generate content with Gemini")
+            response = await asyncio.to_thread(
+                self.model.generate_content,
+                context,
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "candidate_count": 1
+                }
+            )
+            return response
+        except Exception as e:
+            self.logger.error(f"Error generating content: {str(e)}")
+            raise
+
     async def _generate_response(self, message):
         """Generate a contextual response using conversation history"""
         try:
             if not self.model:
+                self.logger.warning("Cannot generate response - Gemini model not initialized")
                 return None
 
             channel_id = message.channel.id
@@ -95,7 +116,7 @@ class NaturalConversation(commands.Cog):
             # Build conversation context
             context = (
                 "You are a friendly and engaging Discord chat participant. "
-                "Keep responses casual, natural, and engaging like a friend in the conversation. "
+                "Keep responses casual and natural, like a friend in the conversation. "
                 "Use informal language and occasional emojis to express emotions. "
                 "Keep responses brief (1-2 sentences) unless asked for more detail. "
                 "Avoid being overly formal or robotic.\n\n"
@@ -110,25 +131,30 @@ class NaturalConversation(commands.Cog):
             context += f"\nRespond naturally to this message: {message.content}\n"
             context += "Remember to keep the response casual and friendly, as if chatting with friends."
 
-            self.logger.debug(f"Generating response with context: {context}")
-            response = self.model.generate_content(context)
-            response.resolve()
+            self.logger.info(f"Attempting to generate response for message: {message.content}")
 
-            if not response.text:
-                self.logger.warning("Empty response from Gemini")
+            try:
+                response = await self._generate_content(context)
+
+                if not response or not hasattr(response, 'text') or not response.text:
+                    self.logger.warning("Empty response from Gemini")
+                    return None
+
+                # Clean up the response
+                resp_text = response.text.strip()
+                # Remove any markdown code blocks or quotes
+                resp_text = resp_text.replace('```', '').replace('`', '')
+                resp_text = resp_text.replace('> ', '').replace('\n', ' ')
+
+                self.logger.info(f"Generated response: {resp_text[:100]}...")
+                return resp_text[:2000]  # Discord message length limit
+
+            except Exception as e:
+                self.logger.error(f"Error during response generation: {str(e)}")
                 return None
 
-            # Clean up the response
-            resp_text = response.text.strip()
-            # Remove any markdown code blocks or quotes
-            resp_text = resp_text.replace('```', '').replace('`', '')
-            resp_text = resp_text.replace('> ', '').replace('\n', ' ')
-
-            self.logger.debug(f"Generated response: {resp_text}")
-            return resp_text[:2000]  # Discord message length limit
-
         except Exception as e:
-            self.logger.error(f"Error generating response: {str(e)}")
+            self.logger.error(f"Error in _generate_response: {str(e)}")
             return None
 
     @commands.Cog.listener()
@@ -144,6 +170,7 @@ class NaturalConversation(commands.Cog):
 
             # Generate and send response
             async with message.channel.typing():
+                self.logger.info(f"Generating response to message: {message.content}")
                 response = await self._generate_response(message)
 
                 if response:
@@ -156,6 +183,8 @@ class NaturalConversation(commands.Cog):
 
                     await message.channel.send(response)
                     self.logger.info(f"Sent natural response in channel {message.channel.id}")
+                else:
+                    self.logger.warning("No response generated")
 
         except Exception as e:
             self.logger.error(f"Error in natural conversation: {str(e)}")
